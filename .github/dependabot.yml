@@ -1,34 +1,35 @@
 version: 2
 updates:
-  # Python dependencies
-  - package-ecosystem: "pip"
+  # Go modules
+  - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
-    target-branch: "develop"
+    open-pull-requests-limit: 10
     reviewers:
       - "panteparak"
     assignees:
       - "panteparak"
     commit-message:
       prefix: "deps"
-      prefix-development: "deps-dev"
+      include: "scope"
     labels:
       - "dependencies"
-      - "python"
+      - "go"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
-    directory: "/.github/workflows"
+    directory: "/"
     schedule:
       interval: "weekly"
-    target-branch: "develop"
+    open-pull-requests-limit: 10
     reviewers:
       - "panteparak"
     assignees:
       - "panteparak"
     commit-message:
       prefix: "ci"
+      include: "scope"
     labels:
       - "dependencies"
       - "ci"
@@ -38,13 +39,14 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    target-branch: "develop"
+    open-pull-requests-limit: 5
     reviewers:
       - "panteparak"
     assignees:
       - "panteparak"
     commit-message:
       prefix: "docker"
+      include: "scope"
     labels:
       - "dependencies"
       - "docker"

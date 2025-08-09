@@ -29,7 +29,7 @@ jobs:
       run: |
         go install golang.org/x/tools/cmd/goimports@latest
         go install honnef.co/go/tools/cmd/staticcheck@latest
-        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@2.19.0
 
     - name: Download dependencies
       run: go mod download
@@ -60,7 +60,7 @@ jobs:
       run: staticcheck ./...
 
     - name: Security check
-      run: gosec ./...
+      run: gosec -fmt sarif -out gosec-results.sarif -stdout -verbose=text ./...
 
     - name: Run tests
       run: go test -v -race -coverprofile=coverage.out ./...
@@ -71,6 +71,12 @@ jobs:
         file: ./coverage.out
         flags: unittests
         name: codecov-umbrella
+
+    - name: Upload GoSec scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'gosec-results.sarif'
 
   build-and-push-image:
     runs-on: ubuntu-latest
@@ -161,9 +167,9 @@ jobs:
 
     - name: Generate CRDs
       run: |
+        mkdir -p config/crd/bases generated/
         controller-gen crd:allowDangerousTypes=true paths="./pkg/api/..." output:crd:artifacts:config=config/crd/bases
-        mkdir -p generated/
-        cp config/crd/bases/*.yaml generated/
+        cp config/crd/bases/*.yaml generated/ || echo "No CRDs generated"
 
     - name: Upload CRD artifact
       uses: actions/upload-artifact@v4
@@ -200,26 +206,26 @@ jobs:
         mkdir -p release/
         cp -r charts/* release/
         cp -r crds/* release/
-        
+
         # Create install script
         cat > release/install.sh << 'EOF'
         #!/bin/bash
         set -e
-        
+
         NAMESPACE=${NAMESPACE:-vault-test}
         CHART_VERSION=${CHART_VERSION:-latest}
-        
+
         echo "Installing Vault Auto-Unseal Operator to namespace: $NAMESPACE"
-        
+
         # Create namespace if it doesn't exist
         kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
-        
+
         # Install using Helm
         helm upgrade --install vault-autounseal-operator \
           ./vault-autounseal-operator-*.tgz \
           --namespace $NAMESPACE \
           --wait
-        
+
         echo "Installation complete!"
         EOF
         chmod +x release/install.sh
@@ -241,7 +247,7 @@ jobs:
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main-${{ github.sha }}
         format: 'sarif'
         output: 'trivy-results.sarif'
 
