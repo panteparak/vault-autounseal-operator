@@ -1,0 +1,224 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - '*.md'
+      - 'src/**/*.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+      - '*.md'
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        uv pip install --system -e .
+        pip install mkdocs mkdocs-material mkdocs-mermaid2-plugin
+
+    - name: Generate API documentation
+      run: |
+        mkdir -p docs/api
+        # Generate CRD documentation
+        vault-operator generate-crd -o docs/api/crd.yaml
+
+    - name: Build documentation
+      run: |
+        # Create mkdocs.yml if it doesn't exist
+        if [ ! -f mkdocs.yml ]; then
+          cat > mkdocs.yml << EOF
+        site_name: Vault Auto-Unseal Operator
+        site_description: Kubernetes operator for HashiCorp Vault auto-unsealing
+        site_url: https://panteparak.github.io/vault-autounseal-operator/
+        repo_url: https://github.com/panteparak/vault-autounseal-operator
+        repo_name: panteparak/vault-autounseal-operator
+        
+        theme:
+          name: material
+          palette:
+            - scheme: default
+              primary: blue
+              accent: blue
+              toggle:
+                icon: material/brightness-7
+                name: Switch to dark mode
+            - scheme: slate
+              primary: blue
+              accent: blue
+              toggle:
+                icon: material/brightness-4
+                name: Switch to light mode
+          features:
+            - navigation.tabs
+            - navigation.sections
+            - navigation.expand
+            - navigation.top
+            - search.highlight
+            - content.code.copy
+        
+        plugins:
+          - search
+          - mermaid2
+        
+        nav:
+          - Home: index.md
+          - Getting Started:
+            - Installation: installation.md
+            - Quick Start: quickstart.md
+            - Configuration: configuration.md
+          - Security: SECURITY.md
+          - API Reference: api/
+          - Examples: examples/
+        
+        markdown_extensions:
+          - codehilite
+          - admonition
+          - pymdownx.details
+          - pymdownx.superfences:
+              custom_fences:
+                - name: mermaid
+                  class: mermaid
+                  format: !!python/name:mermaid2.fence_mermaid
+        EOF
+        fi
+        
+        # Create docs structure
+        mkdir -p docs
+        
+        # Copy main README as index
+        cp README.md docs/index.md
+        
+        # Copy security documentation
+        cp SECURITY.md docs/
+        
+        # Create additional documentation files
+        cat > docs/installation.md << EOF
+        # Installation Guide
+        
+        This guide covers different ways to install the Vault Auto-Unseal Operator.
+        
+        ## Prerequisites
+        
+        - Kubernetes cluster (1.19+)
+        - kubectl configured
+        - HashiCorp Vault instance
+        
+        ## Quick Install
+        
+        \`\`\`bash
+        # Install using the convenience script
+        curl -sSL https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/install.sh | bash
+        \`\`\`
+        
+        ## Manual Installation
+        
+        \`\`\`bash
+        # Apply CRD
+        kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/crd.yaml
+        
+        # Apply RBAC
+        kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/rbac.yaml
+        
+        # Deploy operator
+        kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/deployment.yaml
+        \`\`\`
+        
+        ## Verification
+        
+        \`\`\`bash
+        kubectl get pods -n vault-operator
+        kubectl logs -n vault-operator deployment/vault-autounseal-operator
+        \`\`\`
+        EOF
+        
+        cat > docs/quickstart.md << EOF
+        # Quick Start Guide
+        
+        Get up and running with the Vault Auto-Unseal Operator in minutes.
+        
+        ## Step 1: Install the Operator
+        
+        See [Installation Guide](installation.md) for detailed instructions.
+        
+        ## Step 2: Prepare Unseal Keys
+        
+        \`\`\`bash
+        # Create a secret with your vault unseal keys
+        kubectl create secret generic vault-unseal-keys \\
+          --namespace=vault \\
+          --from-literal=keys='["key1-base64", "key2-base64", "key3-base64"]'
+        \`\`\`
+        
+        ## Step 3: Create VaultUnsealConfig
+        
+        \`\`\`yaml
+        apiVersion: vault.io/v1
+        kind: VaultUnsealConfig
+        metadata:
+          name: my-vault
+          namespace: vault
+        spec:
+          url: "https://vault.example.com:8200"
+          unsealKeys:
+            secretRef:
+              name: vault-unseal-keys
+              key: keys
+          threshold: 3
+          haEnabled: true
+        \`\`\`
+        
+        ## Step 4: Monitor
+        
+        \`\`\`bash
+        kubectl get vaultunsealconfigs -A
+        kubectl describe vaultunsealconfig my-vault
+        \`\`\`
+        EOF
+        
+        cat > docs/configuration.md << EOF
+        # Configuration Reference
+        
+        Complete reference for configuring the Vault Auto-Unseal Operator.
+        
+        ## VaultUnsealConfig Specification
+        
+        | Field | Type | Required | Description |
+        |-------|------|----------|-------------|
+        | url | string | Yes | Vault API endpoint URL |
+        | unsealKeys | object | Yes | Unseal keys configuration |
+        | threshold | integer | No | Number of keys required (default: 3) |
+        | haEnabled | boolean | No | Enable HA mode (default: false) |
+        | tlsSkipVerify | boolean | No | Skip TLS verification (default: false) |
+        | reconcileInterval | string | No | Check interval (default: "30s") |
+        
+        ## Examples
+        
+        See the [examples directory](https://github.com/panteparak/vault-autounseal-operator/tree/main/examples) for more configuration examples.
+        EOF
+        
+        # Build the docs
+        mkdocs build
+
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./site

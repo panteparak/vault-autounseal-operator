@@ -1,0 +1,36 @@
+apiVersion: vault.io/v1
+kind: VaultUnsealConfig
+metadata:
+  name: hcp-vault-config
+  namespace: default
+spec:
+  reconcileInterval: "30s"
+  vaultInstances:
+  - name: "primary-vault"
+    endpoint: "https://vault.example.com:8200"
+    namespace: "vault"
+    podSelector:
+      matchLabels:
+        app: "vault"
+        component: "server"
+    unsealKeys:
+    - "dGVzdC11bnNlYWwta2V5LTE="  # base64 encoded unseal key 1
+    - "dGVzdC11bnNlYWwta2V5LTI="  # base64 encoded unseal key 2  
+    - "dGVzdC11bnNlYWwta2V5LTM="  # base64 encoded unseal key 3
+    threshold: 3
+    haEnabled: true
+    tlsSkipVerify: false
+  - name: "secondary-vault"
+    endpoint: "https://vault-dr.example.com:8200"
+    namespace: "vault-dr"
+    podSelector:
+      matchLabels:
+        app: "vault"
+        component: "server"
+    unsealKeys:
+    - "ZHItdW5zZWFsLWtleS0x"  # base64 encoded DR unseal key 1
+    - "ZHItdW5zZWFsLWtleS0y"  # base64 encoded DR unseal key 2
+    - "ZHItdW5zZWFsLWtleS0z"  # base64 encoded DR unseal key 3
+    threshold: 3
+    haEnabled: true
+    tlsSkipVerify: false

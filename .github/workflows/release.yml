@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        uv pip install --system -e .
+
+    - name: Generate release artifacts
+      run: |
+        mkdir -p release/manifests
+        mkdir -p release/examples
+        
+        # Generate CRDs
+        vault-operator generate-crd -o release/manifests/crd.yaml
+        
+        # Copy manifests
+        cp manifests/*.yaml release/manifests/
+        
+        # Copy examples
+        cp examples/*.yaml release/examples/
+        
+        # Create installation script
+        cat > release/install.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "Installing Vault Auto-Unseal Operator..."
+        
+        # Apply CRD
+        kubectl apply -f manifests/crd.yaml
+        
+        # Apply RBAC
+        kubectl apply -f manifests/rbac.yaml
+        
+        # Apply deployment
+        kubectl apply -f manifests/deployment.yaml
+        
+        echo "Operator installed successfully!"
+        echo "Check status with: kubectl get pods -n vault-operator"
+        EOF
+        chmod +x release/install.sh
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          release/manifests/*
+          release/examples/*
+          release/install.sh
+        generate_release_notes: true
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=tag
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  publish-pypi:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # For trusted publishing
+      
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Build package
+      run: |
+        uv build
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1

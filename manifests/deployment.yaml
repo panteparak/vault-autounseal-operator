@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault-autounseal-operator
+  namespace: vault-operator
+  labels:
+    app: vault-autounseal-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault-autounseal-operator
+  template:
+    metadata:
+      labels:
+        app: vault-autounseal-operator
+    spec:
+      serviceAccountName: vault-autounseal-operator
+      containers:
+      - name: operator
+        image: vault-autounseal-operator:latest
+        imagePullPolicy: IfNotPresent
+        command: ["vault-operator", "run"]
+        env:
+        - name: PYTHONPATH
+          value: "/app/src"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL

@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault-operator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-autounseal-operator
+  namespace: vault-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vault-autounseal-operator
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: ["vault.io"]
+  resources: ["vaultunsealconfigs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["vault.io"]
+  resources: ["vaultunsealconfigs/status"]
+  verbs: ["get", "update", "patch"]
+- apiGroups: ["vault.io"]
+  resources: ["vaultunsealconfigs/finalizers"]
+  verbs: ["update"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-autounseal-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vault-autounseal-operator
+subjects:
+- kind: ServiceAccount
+  name: vault-autounseal-operator
+  namespace: vault-operator

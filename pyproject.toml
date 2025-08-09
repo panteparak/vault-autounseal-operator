@@ -1,0 +1,39 @@
+[project]
+name = "vault-autounseal-operator"
+version = "0.1.0"
+description = "Kubernetes operator for HCP Vault auto-unsealing"
+requires-python = ">=3.9"
+dependencies = [
+    "kubernetes>=29.0.0",
+    "kopf>=1.37.2",
+    "hvac>=2.3.0",
+    "pyyaml>=6.0.1",
+    "requests>=2.31.0",
+    "asyncio-throttle>=1.0.2",
+]
+
+[project.scripts]
+vault-operator = "vault_autounseal_operator.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "coverage>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.ruff]
+target-version = "py39"
+line-length = 88

@@ -1,0 +1,14 @@
+apiVersion: vault.io/v1
+kind: VaultUnsealConfig
+metadata:
+  name: simple-vault
+  namespace: default
+spec:
+  url: "https://vault.example.com:8200"
+  unsealKeys:
+    secret:
+    - "dGVzdC11bnNlYWwta2V5LTE="  # base64 encoded unseal key 1
+    - "dGVzdC11bnNlYWwta2V5LTI="  # base64 encoded unseal key 2  
+    - "dGVzdC11bnNlYWwta2V5LTM="  # base64 encoded unseal key 3
+  threshold: 3
+  tlsSkipVerify: false

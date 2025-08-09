@@ -1,0 +1,108 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: vaultunsealconfigs.vault.io
+spec:
+  group: vault.io
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              vaultInstances:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: "Name identifier for this vault instance"
+                    endpoint:
+                      type: string
+                      description: "Vault API endpoint URL"
+                    namespace:
+                      type: string
+                      description: "Kubernetes namespace to watch for vault pods"
+                      default: "default"
+                    podSelector:
+                      type: object
+                      description: "Label selector to identify vault pods"
+                      properties:
+                        matchLabels:
+                          type: object
+                          additionalProperties:
+                            type: string
+                    unsealKeys:
+                      type: array
+                      items:
+                        type: string
+                      description: "Base64 encoded unseal keys"
+                      minItems: 1
+                    threshold:
+                      type: integer
+                      description: "Number of keys required to unseal"
+                      default: 3
+                    haEnabled:
+                      type: boolean
+                      description: "Enable HA mode monitoring"
+                      default: false
+                    tlsSkipVerify:
+                      type: boolean
+                      description: "Skip TLS verification for vault endpoint"
+                      default: false
+                  required:
+                  - name
+                  - endpoint
+                  - unsealKeys
+              reconcileInterval:
+                type: string
+                description: "How often to check vault status (e.g., '30s', '1m')"
+                default: "30s"
+            required:
+            - vaultInstances
+          status:
+            type: object
+            properties:
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                    reason:
+                      type: string
+                    message:
+                      type: string
+              vaultStatuses:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    sealed:
+                      type: boolean
+                    lastUnsealed:
+                      type: string
+                      format: date-time
+                    error:
+                      type: string
+  scope: Namespaced
+  names:
+    plural: vaultunsealconfigs
+    singular: vaultunsealconfig
+    kind: VaultUnsealConfig
+    shortNames:
+    - vuc
