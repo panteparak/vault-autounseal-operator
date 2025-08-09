@@ -189,13 +189,13 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download Helm chart
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: helm-chart
         path: ./charts/
 
     - name: Download CRDs
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: crds
         path: ./crds/
