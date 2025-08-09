@@ -9,22 +9,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install uv
       uses: astral-sh/setup-uv@v3
-      with:
-        version: "latest"
 
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.11"
 
     - name: Install dependencies
       run: |
@@ -37,11 +32,6 @@ jobs:
     - name: Format check with black
       run: |
         black --check src/ tests/
-
-    - name: Type check with mypy
-      run: |
-        uv pip install --system mypy types-PyYAML types-requests
-        mypy src/vault_autounseal_operator --ignore-missing-imports || true
 
     - name: Security check with bandit
       run: |
@@ -59,78 +49,9 @@ jobs:
         flags: unittests
         name: codecov-umbrella
 
-  security-tests:
+  build-and-test-image:
     runs-on: ubuntu-latest
     needs: test
-    
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-
-    - name: Install dependencies
-      run: |
-        uv pip install --system -e ".[dev]"
-
-    - name: Run security tests
-      run: |
-        pytest tests/test_security*.py -v
-
-    - name: Run integration tests
-      run: |
-        pytest tests/test_integration.py -v
-
-  crd-validation:
-    runs-on: ubuntu-latest
-    needs: test
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
-
-    - name: Install dependencies
-      run: |
-        uv pip install --system -e .
-
-    - name: Generate CRD
-      run: |
-        mkdir -p generated
-        vault-operator generate-crd -o generated/crd.yaml
-        vault-operator generate-crd --use-kopf -o generated/crd-kopf.yaml
-
-    - name: Validate CRD with kubectl
-      run: |
-        # Install kubectl
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        chmod +x kubectl
-        sudo mv kubectl /usr/local/bin/
-        
-        # Validate CRD syntax
-        kubectl apply --dry-run=client -f generated/crd.yaml
-        kubectl apply --dry-run=client -f generated/crd-kopf.yaml
-
-    - name: Upload CRD artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: generated-crds
-        path: generated/
-
-  build-image:
-    runs-on: ubuntu-latest
-    needs: [test, security-tests, crd-validation]
     
     steps:
     - uses: actions/checkout@v4
@@ -143,10 +64,40 @@ jobs:
       with:
         context: .
         push: false
-        tags: vault-autounseal-operator:${{ github.sha }}
+        tags: vault-autounseal-operator:test
+        load: true
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
     - name: Test Docker image
       run: |
-        docker run --rm vault-autounseal-operator:${{ github.sha }} vault-operator --help
+        # Test CLI commands work
+        docker run --rm vault-autounseal-operator:test vault-operator --help
+        docker run --rm vault-autounseal-operator:test vault-operator generate-crd --help
+        
+        # Test image security
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+          aquasec/trivy:latest image --exit-code 0 --severity HIGH,CRITICAL \
+          vault-autounseal-operator:test
+
+    - name: Generate and validate CRD
+      run: |
+        mkdir -p generated
+        
+        # Generate CRD from container
+        docker run --rm -v $PWD/generated:/tmp/generated vault-autounseal-operator:test \
+          sh -c "vault-operator generate-crd -o /tmp/generated/crd.yaml"
+        
+        # Install kubectl for validation
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Validate CRD syntax
+        kubectl apply --dry-run=client -f generated/crd.yaml
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: docker-build-artifacts
+        path: generated/

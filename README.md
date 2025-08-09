@@ -26,20 +26,10 @@ A production-ready, security-hardened Kubernetes operator that automatically uns
 curl -sSL https://raw.githubusercontent.com/panteparak/vault-autounseal-operator/main/install.sh | bash
 ```
 
-### 📦 Option 2: PyPI Package
+### 🐳 Option 2: Container Images
 
 ```bash
-# Install from PyPI
-pip install vault-autounseal-operator
-
-# Or with uv (recommended)
-uv pip install vault-autounseal-operator
-```
-
-### 🐳 Option 3: Container Images
-
-```bash
-# GitHub Container Registry
+# GitHub Container Registry (Recommended)
 docker pull ghcr.io/panteparak/vault-autounseal-operator:latest
 
 # Docker Hub
@@ -49,11 +39,23 @@ docker pull panteparak/vault-autounseal-operator:latest
 docker pull quay.io/panteparak/vault-autounseal-operator:latest
 ```
 
-### ⎈ Option 4: Helm Chart
+### ⎈ Option 3: Manual Kubernetes Deployment
 
 ```bash
-helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/
-helm install vault-operator vault-operator/vault-autounseal-operator
+# Apply manifests directly
+kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/crd.yaml
+kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/rbac.yaml
+kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/deployment.yaml
+```
+
+### 📦 Option 4: Local Development
+
+```bash
+# For development/testing only
+git clone https://github.com/panteparak/vault-autounseal-operator.git
+cd vault-autounseal-operator
+uv pip install -e .
+vault-operator --help
 ```
 
 ## Quick Start
