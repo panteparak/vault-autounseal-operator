@@ -1,235 +1,357 @@
 # Vault Auto-Unseal Operator
 
-[![GitHub Release](https://img.shields.io/github/v/release/panteparak/vault-autounseal-operator?style=flat-square)](https://github.com/panteparak/vault-autounseal-operator/releases)
-[![PyPI](https://img.shields.io/pypi/v/vault-autounseal-operator?style=flat-square)](https://pypi.org/project/vault-autounseal-operator/)
-[![Docker Pulls](https://img.shields.io/docker/pulls/panteparak/vault-autounseal-operator?style=flat-square)](https://hub.docker.com/r/panteparak/vault-autounseal-operator)
-[![CI](https://img.shields.io/github/actions/workflow/status/panteparak/vault-autounseal-operator/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/panteparak/vault-autounseal-operator/actions/workflows/ci.yml)
-[![Security](https://img.shields.io/github/actions/workflow/status/panteparak/vault-autounseal-operator/security.yml?branch=main&style=flat-square&label=Security)](https://github.com/panteparak/vault-autounseal-operator/actions/workflows/security.yml)
-[![codecov](https://img.shields.io/codecov/c/github/panteparak/vault-autounseal-operator?style=flat-square)](https://codecov.io/gh/panteparak/vault-autounseal-operator)
+[![CI Pipeline](https://github.com/panteparak/vault-autounseal-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/panteparak/vault-autounseal-operator/actions/workflows/ci.yaml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/panteparak/vault-autounseal-operator)](https://goreportcard.com/report/github.com/panteparak/vault-autounseal-operator)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/go-1.21+-blue.svg)](https://golang.org/dl/)
+[![Docker Pulls](https://img.shields.io/docker/pulls/ghcr.io/panteparak/vault-autounseal-operator)](https://github.com/panteparak/vault-autounseal-operator/pkgs/container/vault-autounseal-operator)
 
-A production-ready, security-hardened Kubernetes operator that automatically unseals HashiCorp Vault instances, with support for HCP Vault and HA configurations.
+A **production-ready Kubernetes operator** for automatically unsealing HashiCorp Vault instances. Built with Go and controller-runtime for high performance, security, and reliability.
 
-## Features
+## 🚀 Features
 
-- **Custom Resource Definition (CRD)**: Define multiple vault instances and their unseal configuration
-- **Pod Watching**: Monitors Kubernetes pods for sealed Vault instances
-- **HA Support**: Handles High Availability Vault setups with multiple sealed instances
-- **Automatic Unsealing**: Uses provided unseal keys to automatically unseal sealed Vault instances
-- **Multi-Instance Support**: Configure multiple Vault clusters in a single resource
-- **Secure**: Follows Kubernetes security best practices
+- **🔐 Automatic Unsealing**: Continuously monitors and unseals Vault instances with configurable reconciliation
+- **🏗️ High Availability**: Full support for HA Vault clusters with intelligent pod monitoring  
+- **🛡️ Security First**: Secure key handling, comprehensive TLS support, input validation, and audit logging
+- **📊 Production Ready**: Built-in monitoring, Prometheus metrics, health checks, and observability
+- **⚡ High Performance**: Efficient Go implementation with minimal resource footprint
+- **🔄 Complete CI/CD**: Automated testing, building, packaging, and releasing
+- **📚 Comprehensive Docs**: Detailed documentation with real-world examples
 
-## Installation Methods
+## 📋 Quick Start
 
-### 🚀 Option 1: One-line Install (Recommended)
+### Prerequisites
 
-```bash
-curl -sSL https://raw.githubusercontent.com/panteparak/vault-autounseal-operator/main/install.sh | bash
+- **Kubernetes**: v1.25+ with admin access
+- **Helm**: v3.8+ installed  
+- **Vault**: Initialized HashiCorp Vault instance(s)
+
+### 🏃‍♂️ Installation (60 seconds)
+
+1. **Install the operator**:
+   ```bash
+   helm install vault-autounseal-operator \
+     oci://ghcr.io/panteparak/vault-autounseal-operator/helm \
+     --namespace vault-system --create-namespace
+   ```
+
+2. **Create configuration**:
+   ```bash
+   cat <<EOF | kubectl apply -f -
+   apiVersion: vault.io/v1
+   kind: VaultUnsealConfig
+   metadata:
+     name: my-vault
+     namespace: vault-system
+   spec:
+     vaultInstances:
+     - name: vault-primary
+       endpoint: https://vault.example.com:8200
+       unsealKeys:
+       - "base64-encoded-key-1"
+       - "base64-encoded-key-2" 
+       - "base64-encoded-key-3"
+       threshold: 3
+   EOF
+   ```
+
+3. **Verify it's working**:
+   ```bash
+   kubectl get vaultunsealconfigs -n vault-system
+   kubectl logs -n vault-system deployment/vault-autounseal-operator
+   ```
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Vault Auto-Unseal Operator                   │
+│                                                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │ Controller  │  │ Vault Client│  │ Pod Watcher │             │
+│  │             │  │             │  │             │             │
+│  │ • Reconcile │  │ • TLS/mTLS  │  │ • HA Support│             │
+│  │ • Status    │  │ • Security  │  │ • Pod Events│             │  
+│  │ • Events    │  │ • Unsealing │  │ • Monitoring│             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
+│                                                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │ Metrics     │  │ Health      │  │ Logging     │             │
+│  │ Prometheus  │  │ Liveness    │  │ Structured  │             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+         ┌─────────────────────────────────────────┐
+         │              Vault Instances            │
+         │                                         │
+         │  ┌─────────┐ ┌─────────┐ ┌─────────┐    │
+         │  │Vault #1 │ │Vault #2 │ │Vault #N │    │
+         │  └─────────┘ └─────────┘ └─────────┘    │
+         └─────────────────────────────────────────┘
 ```
 
-### 🐳 Option 2: Container Images
+## 📖 Configuration Examples
 
-```bash
-# GitHub Container Registry (Recommended)
-docker pull ghcr.io/panteparak/vault-autounseal-operator:latest
-
-# Docker Hub
-docker pull panteparak/vault-autounseal-operator:latest
-
-# Quay.io
-docker pull quay.io/panteparak/vault-autounseal-operator:latest
-```
-
-### ⎈ Option 3: Manual Kubernetes Deployment
-
-```bash
-# Apply manifests directly
-kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/crd.yaml
-kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/rbac.yaml
-kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/deployment.yaml
-```
-
-### 📦 Option 4: Local Development
-
-```bash
-# For development/testing only
-git clone https://github.com/panteparak/vault-autounseal-operator.git
-cd vault-autounseal-operator
-uv pip install -e .
-vault-operator --help
-```
-
-## Quick Start
-
-### 2. Generate and Deploy CRD
-
-The CRD is defined in Python code and can be auto-generated:
-
-```bash
-# Generate CRD YAML file
-vault-operator generate-crd -o manifests/crd.yaml
-
-# Or install directly to cluster
-vault-operator install-crd
-
-# Using uv run (if not installed globally)
-uv run vault-operator generate-crd -o manifests/crd.yaml
-uv run vault-operator install-crd
-```
-
-### 3. Deploy the Operator
-
-```bash
-# Deploy everything
-make deploy
-
-# Or manually
-kubectl apply -f manifests/crd.yaml
-kubectl apply -f manifests/rbac.yaml
-kubectl apply -f manifests/deployment.yaml
-```
-
-### 4. Build Container Image
-
-```bash
-# Build and push image
-make docker-build
-make docker-push
-
-# Or manually
-docker build -t vault-autounseal-operator:latest .
-docker push your-registry/vault-autounseal-operator:latest
-```
-
-### 5. Create a VaultUnsealConfig
-
-#### Simple Configuration (Direct Keys)
+<details>
+<summary><b>💡 Single Vault Instance</b></summary>
 
 ```yaml
 apiVersion: vault.io/v1
 kind: VaultUnsealConfig
 metadata:
   name: simple-vault
-  namespace: default
+  namespace: vault-system
 spec:
-  url: "https://vault.example.com:8200"
-  unsealKeys:
-    secret:
-    - "dGVzdC11bnNlYWwta2V5LTE="  # base64 encoded unseal key 1
-    - "dGVzdC11bnNlYWwta2V5LTI="  # base64 encoded unseal key 2
-    - "dGVzdC11bnNlYWwta2V5LTM="  # base64 encoded unseal key 3
-  threshold: 3
-  tlsSkipVerify: false
+  vaultInstances:
+  - name: vault
+    endpoint: https://vault.company.com:8200
+    unsealKeys:
+    - "dGVzdC1rZXktMQ=="  # base64 encoded
+    - "dGVzdC1rZXktMg=="
+    - "dGVzdC1rZXktMw=="
+    threshold: 3
 ```
+</details>
 
-#### Advanced Configuration (Secret Reference)
+<details>
+<summary><b>🏗️ High Availability Cluster</b></summary>
 
 ```yaml
 apiVersion: vault.io/v1
 kind: VaultUnsealConfig
 metadata:
-  name: vault-with-secret-ref
-  namespace: vault
+  name: vault-ha-cluster
+  namespace: vault-system
 spec:
-  url: "https://vault.example.com:8200"
-  unsealKeys:
-    secretRef:
-      name: vault-unseal-keys
-      namespace: vault
-      key: keys
-  namespace: vault
-  podSelector:
-    matchLabels:
-      app: vault
-      component: server
-  threshold: 3
-  haEnabled: true
-  tlsSkipVerify: false
+  vaultInstances:
+  - name: vault-cluster
+    endpoint: https://vault-active.vault.svc.cluster.local:8200
+    unsealKeys: ["key1", "key2", "key3", "key4", "key5"]
+    threshold: 3
+    haEnabled: true
+    podSelector:
+      app.kubernetes.io/name: vault
+    namespace: vault
 ```
+</details>
 
-## Configuration
+<details>
+<summary><b>🌐 Multiple Environments</b></summary>
 
-### VaultUnsealConfig Spec
+```yaml
+apiVersion: vault.io/v1
+kind: VaultUnsealConfig
+metadata:
+  name: multi-env-vault
+  namespace: vault-system
+spec:
+  vaultInstances:
+  - name: vault-prod
+    endpoint: https://vault-prod.company.com:8200
+    unsealKeys: ["prod-key-1", "prod-key-2", "prod-key-3"]
+    threshold: 3
+  - name: vault-staging  
+    endpoint: https://vault-staging.company.com:8200
+    unsealKeys: ["staging-key-1", "staging-key-2"]
+    threshold: 2
+    tlsSkipVerify: true
+```
+</details>
 
-- `url`: Vault API endpoint URL (required)
-- `unsealKeys`: Unseal keys configuration (required, choose one):
-  - `secret`: Array of base64 encoded unseal keys
-  - `secretRef`: Reference to Kubernetes secret containing keys
-    - `name`: Secret name (required)
-    - `namespace`: Secret namespace (defaults to resource namespace)
-    - `key`: Key within secret (default: "unseal-keys")
-- `namespace`: Kubernetes namespace to monitor for pods (default: "default")
-- `podSelector`: Label selector to identify vault pods (for HA mode)
-- `threshold`: Number of keys required to unseal (default: 3)
-- `haEnabled`: Enable HA mode pod watching (default: false)
-- `tlsSkipVerify`: Skip TLS verification (default: false)
-- `reconcileInterval`: How often to check vault status (default: "30s")
-
-## Development
-
-### Setup
+<details>
+<summary><b>🔐 Using Kubernetes Secrets (Recommended)</b></summary>
 
 ```bash
-# Install dependencies with uv
-uv pip install -e .
-
-# Install development dependencies
-uv pip install -e ".[dev]"
+# Create secret with unseal keys
+kubectl create secret generic vault-keys \
+  --from-literal=key1="$(echo -n 'unseal-key-1' | base64)" \
+  --from-literal=key2="$(echo -n 'unseal-key-2' | base64)" \
+  --from-literal=key3="$(echo -n 'unseal-key-3' | base64)" \
+  --namespace vault-system
 ```
 
-### Running Locally
-
-```bash
-# Set up kubeconfig for local cluster access
-export KUBECONFIG=~/.kube/config
-
-# Run the operator
-python -m vault_autounseal_operator.main
+```yaml
+apiVersion: vault.io/v1
+kind: VaultUnsealConfig
+metadata:
+  name: secure-vault
+  namespace: vault-system
+spec:
+  vaultInstances:
+  - name: vault-secure
+    endpoint: https://vault.company.com:8200
+    unsealKeysRef:
+      secretName: vault-keys
+      keys: ["key1", "key2", "key3"]
+    threshold: 3
 ```
+</details>
 
-### Code Quality
+## 📊 Monitoring & Observability
+
+### Prometheus Metrics
+The operator exposes comprehensive metrics on `:8080/metrics`:
+
+| Metric | Description |
+|--------|-------------|
+| `vault_unseal_attempts_total` | Total unseal attempts |
+| `vault_unseal_successes_total` | Successful unseals |
+| `vault_unseal_failures_total` | Failed unseal attempts |
+| `vault_instances_sealed` | Currently sealed instances |
+| `vault_reconcile_duration_seconds` | Reconciliation duration |
+
+### Health Checks
+- **Liveness**: `:8081/healthz` - Operator health
+- **Readiness**: `:8081/readyz` - Ready to serve requests
+
+### Grafana Dashboard
+Import our pre-built dashboard from `examples/grafana-dashboard.json`.
+
+## 🛡️ Security
+
+Security is our **top priority**:
+
+- ✅ **Secure Key Storage**: Kubernetes secrets integration
+- ✅ **Input Validation**: Comprehensive config validation  
+- ✅ **TLS Support**: Full certificate verification
+- ✅ **Non-root Execution**: Runs as UID 65532
+- ✅ **Read-only Filesystem**: Immutable container filesystem
+- ✅ **Audit Logging**: Complete operation audit trail
+- ✅ **Minimal RBAC**: Least-privilege permissions
+- ✅ **Security Scanning**: Automated vulnerability detection
+
+### 🔒 Security Best Practices
+
+1. **Never store unseal keys in plain YAML**
+2. **Always use Kubernetes secrets**
+3. **Enable TLS verification in production**  
+4. **Monitor all operator activities**
+5. **Use network policies to restrict access**
+6. **Regularly rotate unseal keys**
+
+## 🛠️ Development
+
+### Local Development Setup
 
 ```bash
-# Format code
-black src/
+# Clone and setup
+git clone https://github.com/panteparak/vault-autounseal-operator.git
+cd vault-autounseal-operator
 
-# Lint code
-ruff src/
+# Install dependencies
+go mod download
 
 # Run tests
-pytest
+make test
+
+# Build binary  
+make build
+
+# Run locally (requires kubeconfig)
+./bin/manager --metrics-bind-address=:8080 --health-probe-bind-address=:8081
 ```
 
-## Architecture
+### 🧪 Testing
 
-The operator consists of several components:
+```bash
+# Unit tests
+make test
 
-- **VaultClient**: Handles Vault API interactions for checking seal status and unsealing
-- **PodWatcher**: Monitors Kubernetes pods matching selectors for sealed Vault instances
-- **Operator**: Main controller using Kopf framework for CRD lifecycle management
+# Integration tests  
+make test-integration
 
-## Security Considerations
+# Security scan
+make security-scan
 
-- Store unseal keys securely (consider using Kubernetes Secrets)
-- Use TLS verification in production (`tlsSkipVerify: false`)
-- Follow principle of least privilege for RBAC permissions
-- Monitor operator logs for security events
+# Coverage report
+make test-coverage
+```
 
-## Troubleshooting
+## 🚀 CI/CD Pipeline
 
-### Common Issues
+Our automated pipeline handles:
 
-1. **Operator can't connect to Vault**: Check endpoint URLs and network connectivity
-2. **Unseal keys rejected**: Verify keys are base64 encoded and valid for the Vault instance
-3. **Pods not detected**: Check pod selectors match your Vault pod labels
-4. **Permission errors**: Verify RBAC configuration is applied correctly
+- **🧹 Code Quality**: `gofmt`, `goimports`, `go vet`, `staticcheck`
+- **🔒 Security**: `gosec`, `trivy`, vulnerability scanning
+- **🧪 Testing**: Unit tests, integration tests, race detection
+- **🏗️ Building**: Multi-arch Docker images (amd64/arm64)
+- **📦 Packaging**: Automated Helm chart packaging
+- **🚢 Release**: GitHub releases with artifacts
 
-### Logging
+## 📚 Documentation
 
-The operator provides structured logging. Key log messages include:
-- Vault unseal attempts and results
-- Pod discovery and monitoring events
-- Configuration changes and errors
+| Document | Description |
+|----------|-------------|
+| [Getting Started](docs/getting-started.md) | Complete setup and configuration guide |
+| [Configuration Examples](docs/examples.md) | Real-world configuration examples |
+| [Security Guide](docs/security.md) | Security best practices |
+| [Monitoring Guide](docs/monitoring.md) | Observability and alerting |
+| [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
+| [API Reference](docs/api-reference.md) | Complete API documentation |
 
-## License
+## ❓ FAQ
 
-MIT License
+<details>
+<summary><b>How does the operator handle HA Vault clusters?</b></summary>
+
+The operator monitors individual pods in HA clusters using label selectors and automatically unseals new pods as they start, ensuring seamless failover.
+</details>
+
+<details>
+<summary><b>What happens if unseal keys are incorrect?</b></summary>
+
+The operator logs detailed error messages and continues attempting according to the reconciliation schedule. Status is updated in the VaultUnsealConfig resource.
+</details>
+
+<details>
+<summary><b>Can I manage Vault instances across namespaces?</b></summary>
+
+Yes! The operator supports cross-namespace monitoring with proper RBAC configuration.
+</details>
+
+<details>
+<summary><b>Is this production-ready?</b></summary>
+
+Absolutely. The operator includes comprehensive security, monitoring, error handling, and has been designed following production best practices.
+</details>
+
+<details>
+<summary><b>How do I migrate from the Python version?</b></summary>
+
+The Go version is a complete rewrite with the same API. Simply update your Helm deployment and your existing VaultUnsealConfig resources will work unchanged.
+</details>
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md).
+
+### Development Workflow
+1. **Fork** the repository  
+2. **Create** a feature branch
+3. **Add** tests for new functionality
+4. **Run** `make test` and ensure everything passes
+5. **Submit** a pull request
+
+## 📄 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [HashiCorp](https://www.hashicorp.com/) for creating Vault
+- [Kubernetes SIG](https://github.com/kubernetes-sigs/controller-runtime) for controller-runtime
+- The amazing Go community for excellent tooling and libraries
+
+---
+
+<div align="center">
+
+**⭐ If this project helps you, please give it a star! ⭐**
+
+[Report Bug](https://github.com/panteparak/vault-autounseal-operator/issues) · 
+[Request Feature](https://github.com/panteparak/vault-autounseal-operator/issues) · 
+[Documentation](docs/) · 
+[Discussions](https://github.com/panteparak/vault-autounseal-operator/discussions)
+
+</div>
