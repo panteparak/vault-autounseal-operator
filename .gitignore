@@ -93,3 +93,5 @@ temp/
 # Documentation build
 docs/_build/
 site/
+bin/
+*.out

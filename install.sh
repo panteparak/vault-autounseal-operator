@@ -35,58 +35,58 @@ error() {
 # Check prerequisites
 check_prerequisites() {
     log "Checking prerequisites..."
-    
+
     if ! command -v kubectl &> /dev/null; then
         error "kubectl is required but not installed"
     fi
-    
+
     if ! kubectl cluster-info &> /dev/null; then
         error "Cannot connect to Kubernetes cluster"
     fi
-    
+
     log "✅ Prerequisites check passed"
 }
 
 # Install CRD
 install_crd() {
     log "Installing Custom Resource Definition..."
-    
+
     if kubectl get crd vaultunsealconfigs.vault.io &> /dev/null; then
         warn "CRD already exists, updating..."
     fi
-    
+
     kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/crd.yaml
-    
+
     log "✅ CRD installed successfully"
 }
 
 # Install RBAC
 install_rbac() {
     log "Installing RBAC resources..."
-    
+
     kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/rbac.yaml
-    
+
     log "✅ RBAC installed successfully"
 }
 
 # Install Operator
 install_operator() {
     log "Installing operator deployment..."
-    
+
     # Download and modify deployment
     curl -sSL https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/deployment.yaml | \
     sed "s|vault-autounseal-operator:latest|${REGISTRY}/${IMAGE_NAME}:${VERSION}|g" | \
     kubectl apply -f -
-    
+
     log "✅ Operator deployment installed successfully"
 }
 
 # Wait for operator to be ready
 wait_for_operator() {
     log "Waiting for operator to be ready..."
-    
+
     kubectl wait --for=condition=Available deployment/vault-autounseal-operator -n ${NAMESPACE} --timeout=300s
-    
+
     if kubectl get pods -n ${NAMESPACE} -l app=vault-autounseal-operator | grep -q Running; then
         log "✅ Operator is running successfully"
     else
@@ -115,7 +115,7 @@ main() {
     echo "🔐 Vault Auto-Unseal Operator Installer"
     echo "========================================="
     echo
-    
+
     check_prerequisites
     install_crd
     install_rbac

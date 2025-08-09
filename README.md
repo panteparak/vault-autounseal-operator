@@ -84,7 +84,7 @@ make deploy
 
 # Or manually
 kubectl apply -f manifests/crd.yaml
-kubectl apply -f manifests/rbac.yaml  
+kubectl apply -f manifests/rbac.yaml
 kubectl apply -f manifests/deployment.yaml
 ```
 
@@ -115,7 +115,7 @@ spec:
   unsealKeys:
     secret:
     - "dGVzdC11bnNlYWwta2V5LTE="  # base64 encoded unseal key 1
-    - "dGVzdC11bnNlYWwta2V5LTI="  # base64 encoded unseal key 2  
+    - "dGVzdC11bnNlYWwta2V5LTI="  # base64 encoded unseal key 2
     - "dGVzdC11bnNlYWwta2V5LTM="  # base64 encoded unseal key 3
   threshold: 3
   tlsSkipVerify: false
@@ -192,7 +192,7 @@ python -m vault_autounseal_operator.main
 # Format code
 black src/
 
-# Lint code  
+# Lint code
 ruff src/
 
 # Run tests
@@ -204,7 +204,7 @@ pytest
 The operator consists of several components:
 
 - **VaultClient**: Handles Vault API interactions for checking seal status and unsealing
-- **PodWatcher**: Monitors Kubernetes pods matching selectors for sealed Vault instances  
+- **PodWatcher**: Monitors Kubernetes pods matching selectors for sealed Vault instances
 - **Operator**: Main controller using Kopf framework for CRD lifecycle management
 
 ## Security Considerations
@@ -227,7 +227,7 @@ The operator consists of several components:
 
 The operator provides structured logging. Key log messages include:
 - Vault unseal attempts and results
-- Pod discovery and monitoring events  
+- Pod discovery and monitoring events
 - Configuration changes and errors
 
 ## License

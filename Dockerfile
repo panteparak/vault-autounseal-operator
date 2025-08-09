@@ -1,22 +1,35 @@
-FROM python:3.11-slim
+# Build stage
+FROM golang:1.21-alpine AS builder
 
-WORKDIR /app
+WORKDIR /workspace
 
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install git for go mod download
+RUN apk add --no-cache git
 
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir uv && \
-    uv pip install --system --no-cache .
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
 
-COPY src/ ./src/
+# Copy source code
+COPY main.go ./
+COPY pkg/ pkg/
 
-RUN useradd --create-home --shell /bin/bash --uid 65534 operator && \
-    chown -R operator:operator /app
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o manager main.go
 
-USER operator
+# Production stage
+FROM gcr.io/distroless/static:nonroot
 
-EXPOSE 8080
+WORKDIR /
 
-CMD ["python", "-m", "vault_autounseal_operator.main"]
+# Copy the binary from builder stage
+COPY --from=builder /workspace/manager .
+
+USER 65532:65532
+
+EXPOSE 8080 8081 9443
+
+ENTRYPOINT ["/manager"]

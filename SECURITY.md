@@ -23,7 +23,7 @@ The operator implements comprehensive input validation:
 
 ### 3. Network Security
 
-- **TLS verification**: Enabled by default, with warnings when disabled  
+- **TLS verification**: Enabled by default, with warnings when disabled
 - **Security headers**: HTTP security headers added to all requests
 - **Retry strategy**: Exponential backoff with jitter to prevent thundering herd
 - **Timeout configuration**: Request timeouts to prevent hanging connections
@@ -45,7 +45,7 @@ The operator implements comprehensive input validation:
    - Log injection via malicious input
    - YAML/JSON injection in CRDs
 
-2. **Resource Exhaustion** 
+2. **Resource Exhaustion**
    - DoS via oversized inputs
    - Memory exhaustion from large keys
    - CPU exhaustion from regex DoS
@@ -119,7 +119,7 @@ rules:
   resources: ["pods"]
   verbs: ["get", "list", "watch"]  # Read-only pod access
 - apiGroups: [""]
-  resources: ["secrets"]  
+  resources: ["secrets"]
   verbs: ["get"]                   # Read-only secret access
 - apiGroups: ["vault.io"]
   resources: ["vaultunsealconfigs"]

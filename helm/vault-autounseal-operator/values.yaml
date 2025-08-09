@@ -1,0 +1,97 @@
+## Default values for vault-autounseal-operator
+replicaCount: 1
+
+image:
+  repository: vault-autounseal-operator
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+
+service:
+  type: ClusterIP
+  port: 8080
+  metricsPort: 8080
+  healthPort: 8081
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: vault-operator.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+## Operator configuration
+operator:
+  # Enable leader election for controller manager
+  leaderElect: true
+  # Log level (debug, info, warn, error)
+  logLevel: info
+  # Metrics bind address
+  metricsAddr: ":8080"
+  # Health probe bind address
+  probeAddr: ":8081"
+
+## RBAC configuration
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: true
+
+## CRD configuration
+crd:
+  # Specifies whether CRDs should be installed
+  create: true
+
+## Monitoring
+monitoring:
+  # Enable ServiceMonitor for Prometheus
+  serviceMonitor:
+    enabled: false
+    labels: {}
+    interval: 30s
+    scrapeTimeout: 10s

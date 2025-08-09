@@ -1,86 +1,105 @@
-.PHONY: help install dev test lint format generate-crd install-crd build docker-build docker-push deploy clean
+# Image URL to use all building/pushing image targets
+IMG ?= vault-autounseal-operator:latest
 
-# Default target
-help:
-	@echo "Available commands:"
-	@echo "  install      - Install the package"
-	@echo "  dev          - Install in development mode"
-	@echo "  test         - Run tests"
-	@echo "  lint         - Run code linting"
-	@echo "  format       - Format code"
-	@echo "  generate-crd - Generate CRD YAML file"
-	@echo "  install-crd  - Install CRD to cluster"
-	@echo "  build        - Build the operator"
-	@echo "  docker-build - Build Docker image"
-	@echo "  docker-push  - Push Docker image"
-	@echo "  deploy       - Deploy to Kubernetes"
-	@echo "  clean        - Clean build artifacts"
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
 
-# Installation
-install:
-	uv pip install .
+# Setting SHELL to bash allows bash commands to be executed by recipes.
+SHELL = /usr/bin/env bash -o pipefail
+.SHELLFLAGS = -ec
 
-dev:
-	uv pip install -e ".[dev]"
+.PHONY: all
+all: build
 
-# Testing and quality
-test:
-	pytest tests/ -v
+##@ General
 
-test-security:
-	pytest tests/test_security*.py -v -m security
+.PHONY: help
+help: ## Display this help.
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-test-integration:
-	pytest tests/test_integration.py -v -m integration
+##@ Development
 
-test-coverage:
-	pytest tests/ --cov=src/vault_autounseal_operator --cov-report=html --cov-report=term-missing
+.PHONY: fmt
+fmt: ## Run go fmt against code.
+	go fmt ./...
 
-test-all:
-	pytest tests/ -v --cov=src/vault_autounseal_operator --cov-report=html --cov-report=term-missing
+.PHONY: vet
+vet: ## Run go vet against code.
+	go vet ./...
 
-lint:
-	ruff src/ tests/
+.PHONY: test
+test: fmt vet ## Run tests.
+	go test ./... -coverprofile cover.out
 
-format:
-	black src/ tests/
-	ruff --fix src/ tests/
+.PHONY: lint
+lint: golangci-lint ## Run golangci-lint linter
+	$(GOLANGCI_LINT) run
 
-security-scan:
-	@echo "Running security checks..."
-	@command -v bandit >/dev/null 2>&1 || (echo "Installing bandit..." && pip install bandit)
-	bandit -r src/ -f json -o security-report.json || true
-	@echo "Security scan complete. Check security-report.json for results."
+.PHONY: lint-fix
+lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
+	$(GOLANGCI_LINT) run --fix
 
-# CRD management
-generate-crd:
-	vault-operator generate-crd -o manifests/crd.yaml
+##@ Build
 
-generate-crd-kopf:
-	vault-operator generate-crd --use-kopf -o manifests/crd-kopf.yaml
+.PHONY: build
+build: fmt vet ## Build manager binary.
+	go build -o bin/manager main.go
 
-install-crd:
-	vault-operator install-crd
+.PHONY: run
+run: fmt vet ## Run a controller from your host.
+	go run ./main.go
 
-# Build and deployment
-build:
-	uv pip install -e .
+.PHONY: docker-build
+docker-build: ## Build docker image with the manager.
+	docker build -t ${IMG} .
 
-docker-build:
-	docker build -t vault-autounseal-operator:latest .
+.PHONY: docker-push
+docker-push: ## Push docker image with the manager.
+	docker push ${IMG}
 
-docker-push: docker-build
-	docker push vault-autounseal-operator:latest
+##@ Deployment
 
-deploy:
+.PHONY: install
+install: ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	kubectl apply -f manifests/crd.yaml
+
+.PHONY: uninstall
+uninstall: ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
+	kubectl delete -f manifests/crd.yaml
+
+.PHONY: deploy
+deploy: ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	kubectl apply -f manifests/rbac.yaml
 	kubectl apply -f manifests/deployment.yaml
 
-# Cleanup
-clean:
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info/
-	find . -type d -name __pycache__ -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
+.PHONY: undeploy
+undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
+	kubectl delete -f manifests/deployment.yaml
+	kubectl delete -f manifests/rbac.yaml
+
+##@ Build Dependencies
+
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+## Tool Binaries
+GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
+
+## Tool Versions
+GOLANGCI_LINT_VERSION ?= v1.54.2
+
+.PHONY: golangci-lint
+golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
+$(GOLANGCI_LINT): $(LOCALBIN)
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(LOCALBIN) $(GOLANGCI_LINT_VERSION)
+
+.PHONY: clean
+clean: ## Clean build artifacts
+	rm -rf bin/
+	rm -rf cover.out

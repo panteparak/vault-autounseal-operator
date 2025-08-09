@@ -1,0 +1,67 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: go fmt
+        entry: gofmt
+        language: system
+        types: [go]
+        args: [-w]
+
+      - id: go-imports
+        name: go imports
+        entry: goimports
+        language: system
+        types: [go]
+        args: [-w]
+
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: go
+        language: system
+        args: [mod, tidy]
+        files: go.mod
+        pass_filenames: false
+
+      - id: go-vet
+        name: go vet
+        entry: go
+        language: system
+        args: [vet, ./...]
+        types: [go]
+        pass_filenames: false
+
+      - id: go-build
+        name: go build
+        entry: go
+        language: system
+        args: [build, -v, ./...]
+        types: [go]
+        pass_filenames: false
+
+      - id: go-test
+        name: go test
+        entry: go
+        language: system
+        args: [test, -race, -short, ./...]
+        types: [go]
+        pass_filenames: false
+
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-mod-tidy
+      - id: go-fmt
+      - id: go-imports
+      - id: golangci-lint

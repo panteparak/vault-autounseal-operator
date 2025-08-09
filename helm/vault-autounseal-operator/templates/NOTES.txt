@@ -1,0 +1,37 @@
+1. The Vault Auto-Unseal Operator has been deployed to namespace {{ .Release.Namespace }}.
+
+2. Check the operator status:
+   kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "vault-autounseal-operator.name" . }}
+
+3. View operator logs:
+   kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "vault-autounseal-operator.fullname" . }}
+
+4. Create a VaultUnsealConfig to start managing Vault instances:
+   kubectl apply -f - <<EOF
+   apiVersion: vault.io/v1
+   kind: VaultUnsealConfig
+   metadata:
+     name: my-vault-config
+     namespace: {{ .Release.Namespace }}
+   spec:
+     vaultInstances:
+     - name: vault-1
+       endpoint: http://vault:8200
+       unsealKeys:
+       - <base64-encoded-key-1>
+       - <base64-encoded-key-2>
+       - <base64-encoded-key-3>
+       threshold: 3
+       tlsSkipVerify: false
+   EOF
+
+5. Monitor VaultUnsealConfig status:
+   kubectl get vaultunsealconfigs -n {{ .Release.Namespace }}
+   kubectl describe vaultunsealconfig my-vault-config -n {{ .Release.Namespace }}
+
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+6. Metrics are available at:
+   http://{{ include "vault-autounseal-operator.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.metricsPort }}/metrics
+{{- end }}
+
+For more information, visit: https://github.com/panteparak/vault-autounseal-operator

@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 
-import kopf
 import asyncio
-import sys
 from pathlib import Path
+
+import kopf
 
 # Import models to register the dataclasses with kopf
 from .models import VaultUnsealConfigSpec, VaultUnsealConfigStatus
+
 # Import operator to register handlers
-from . import operator_v2
 
 
 async def generate_crd():
     """Generate CRD using Kopf's dataclass introspection"""
-    
+
     # Register our dataclass models with kopf for schema generation
     spec_schema = kopf.build_object_reference(VaultUnsealConfigSpec)
     status_schema = kopf.build_object_reference(VaultUnsealConfigStatus)
-    
-    crd_yaml = f"""apiVersion: apiextensions.k8s.io/v1
+
+    crd_yaml = """apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: vaultunsealconfigs.vault.io
@@ -135,7 +135,7 @@ spec:
                 required:
                 - sealed
     subresources:
-      status: {{}}
+      status: {}
   scope: Namespaced
   names:
     plural: vaultunsealconfigs
@@ -149,18 +149,18 @@ spec:
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Generate CRD using Kopf")
     parser.add_argument("-o", "--output", help="Output file path")
     args = parser.parse_args()
-    
+
     crd_content = asyncio.run(generate_crd())
-    
+
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(output_path, 'w') as f:
+
+        with open(output_path, "w") as f:
             f.write(crd_content)
         print(f"CRD generated: {output_path}")
     else:
