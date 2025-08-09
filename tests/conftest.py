@@ -1,10 +1,11 @@
-import pytest
 import asyncio
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import patch
+
+import pytest
 
 # Configure pytest-asyncio
-pytest_plugins = ('pytest_asyncio',)
+pytest_plugins = ("pytest_asyncio",)
 
 
 @pytest.fixture(scope="session")
@@ -20,8 +21,10 @@ def event_loop():
 @pytest.fixture
 def mock_kubernetes_config():
     """Mock Kubernetes configuration loading"""
-    with patch('kubernetes.config.load_incluster_config') as mock_incluster, \
-         patch('kubernetes.config.load_kube_config') as mock_kube:
+    with (
+        patch("kubernetes.config.load_incluster_config") as mock_incluster,
+        patch("kubernetes.config.load_kube_config") as mock_kube,
+    ):
         mock_incluster.side_effect = Exception("Not in cluster")
         mock_kube.return_value = None
         yield
@@ -30,7 +33,9 @@ def mock_kubernetes_config():
 @pytest.fixture
 def mock_logging():
     """Mock logging to reduce test noise"""
-    with patch('vault_autounseal_operator.vault_client.logger'), \
-         patch('vault_autounseal_operator.operator_v2.logger'), \
-         patch('vault_autounseal_operator.security.logger'):
+    with (
+        patch("vault_autounseal_operator.vault_client.logger"),
+        patch("vault_autounseal_operator.operator_v2.logger"),
+        patch("vault_autounseal_operator.security.logger"),
+    ):
         yield

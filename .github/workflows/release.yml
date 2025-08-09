@@ -93,18 +93,18 @@ jobs:
       run: |
         mkdir -p release/manifests
         mkdir -p release/examples
-        
+
         # Generate CRD from built image
         docker run --rm -v $PWD/release/manifests:/tmp/manifests \
           vault-autounseal-operator:build \
           vault-operator generate-crd -o /tmp/manifests/crd.yaml
-        
+
         # Copy static manifests
         cp manifests/rbac.yaml manifests/deployment.yaml release/manifests/
-        
+
         # Copy examples
         cp examples/*.yaml release/examples/
-        
+
         # Copy install script
         cp install.sh release/
 
@@ -120,14 +120,14 @@ jobs:
         prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
         body: |
           ## 🐳 Container Images
-          
+
           - **GitHub Container Registry**: `ghcr.io/panteparak/vault-autounseal-operator:${{ github.ref_name }}`
           - **Docker Hub**: `panteparak/vault-autounseal-operator:${{ github.ref_name }}`
           - **Quay.io**: `quay.io/panteparak/vault-autounseal-operator:${{ github.ref_name }}`
-          
+
           ## 🚀 Quick Install
           ```bash
           curl -sSL https://github.com/panteparak/vault-autounseal-operator/releases/download/${{ github.ref_name }}/install.sh | bash
           ```
-          
+
           ## 📋 What's Changed

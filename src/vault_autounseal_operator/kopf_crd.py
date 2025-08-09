@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
-import kopf
 import asyncio
 import logging
 import sys
-from typing import Dict, List, Optional
+
+import kopf
 from kubernetes import config
 
 # Import the operator to register handlers
-from .operator import operator_instance
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +15,10 @@ logger = logging.getLogger(__name__)
 def setup_logging(level: str = "INFO"):
     logging.basicConfig(
         level=getattr(logging, level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    
-    kopf_logger = logging.getLogger('kopf')
+
+    kopf_logger = logging.getLogger("kopf")
     kopf_logger.setLevel(logging.WARNING)
 
 
@@ -40,34 +39,34 @@ async def generate_crd_with_kopf():
     """Generate CRD using Kopf's built-in functionality"""
     setup_logging()
     setup_kubernetes()
-    
+
     logger.info("Generating CRD using Kopf...")
-    
+
     # This will auto-generate CRDs based on registered handlers
     crd_yaml = await kopf.build_crd(
-        group='vault.io',
-        versions=['v1'],
-        plural='vaultunsealconfigs',
-        singular='vaultunsealconfig',
-        kind='VaultUnsealConfig',
-        shortnames=['vuc'],
-        scope='Namespaced'
+        group="vault.io",
+        versions=["v1"],
+        plural="vaultunsealconfigs",
+        singular="vaultunsealconfig",
+        kind="VaultUnsealConfig",
+        shortnames=["vuc"],
+        scope="Namespaced",
     )
-    
+
     return crd_yaml
 
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Generate CRD using Kopf")
     parser.add_argument("-o", "--output", help="Output file path")
     args = parser.parse_args()
-    
+
     crd_content = asyncio.run(generate_crd_with_kopf())
-    
+
     if args.output:
-        with open(args.output, 'w') as f:
+        with open(args.output, "w") as f:
             f.write(crd_content)
         print(f"CRD generated: {args.output}")
     else:

@@ -11,23 +11,23 @@ on:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-    
+
     - name: Install dependencies
       run: |
         uv pip install --system -e ".[dev]"
         uv pip install --system pytest-benchmark memory-profiler
-    
+
     - name: Run performance benchmarks
       run: |
         # Create benchmark tests
@@ -39,7 +39,7 @@ jobs:
         from vault_autounseal_operator.security import SecurityValidator
         from vault_autounseal_operator.vault_client import VaultClient
         import base64
-        
+
         class TestPerformance:
             def test_security_validation_speed(self, benchmark):
                 spec = {
@@ -49,48 +49,48 @@ jobs:
                     },
                     'threshold': 3
                 }
-                
+
                 result = benchmark(SecurityValidator.validate_spec, spec)
                 assert result is not None
-            
+
             def test_url_validation_speed(self, benchmark):
                 urls = [
                     'https://vault1.example.com:8200',
                     'https://vault2.example.com:8200',
                     'https://vault3.example.com:8200',
                 ]
-                
+
                 def validate_multiple_urls():
                     return [SecurityValidator.validate_url(url) for url in urls]
-                
+
                 result = benchmark(validate_multiple_urls)
                 assert len(result) == 3
-            
+
             def test_unseal_key_validation_speed(self, benchmark):
                 keys = [base64.b64encode(f'unseal-key-{i}'.encode()).decode() for i in range(10)]
-                
+
                 result = benchmark(SecurityValidator.validate_unseal_keys, keys)
                 assert len(result) == 10
-            
+
             def test_memory_usage(self):
                 import tracemalloc
-                
+
                 tracemalloc.start()
-                
+
                 # Simulate heavy operation
                 keys = [base64.b64encode(f'key-{i}'.encode()).decode() for i in range(100)]
                 for _ in range(100):
                     SecurityValidator.validate_unseal_keys(keys[:5])
-                
+
                 current, peak = tracemalloc.get_traced_memory()
                 tracemalloc.stop()
-                
+
                 # Memory usage should be reasonable (less than 10MB peak)
                 assert peak < 10 * 1024 * 1024, f"Peak memory usage too high: {peak} bytes"
         EOF
-        
+
         pytest benchmarks/ -v --benchmark-only --benchmark-sort=mean
-    
+
     - name: Memory profiling
       run: |
         # Create memory profiling script
@@ -98,7 +98,7 @@ jobs:
         from memory_profiler import profile
         from vault_autounseal_operator.security import SecurityValidator
         import base64
-        
+
         @profile
         def test_memory_usage():
             for i in range(1000):
@@ -110,15 +110,15 @@ jobs:
                     'threshold': 3
                 }
                 SecurityValidator.validate_spec(spec)
-        
+
         if __name__ == '__main__':
             test_memory_usage()
         EOF
-        
+
         python memory_profile.py > memory_report.txt
         echo "Memory profiling completed"
         cat memory_report.txt
-    
+
     - name: Upload benchmark results
       uses: actions/upload-artifact@v4
       if: always()
