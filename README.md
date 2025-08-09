@@ -1,6 +1,13 @@
 # Vault Auto-Unseal Operator
 
-A Python-based Kubernetes operator that automatically unseals HashiCorp Vault instances, with support for HCP Vault and HA configurations.
+[![GitHub Release](https://img.shields.io/github/v/release/panteparak/vault-autounseal-operator?style=flat-square)](https://github.com/panteparak/vault-autounseal-operator/releases)
+[![PyPI](https://img.shields.io/pypi/v/vault-autounseal-operator?style=flat-square)](https://pypi.org/project/vault-autounseal-operator/)
+[![Docker Pulls](https://img.shields.io/docker/pulls/panteparak/vault-autounseal-operator?style=flat-square)](https://hub.docker.com/r/panteparak/vault-autounseal-operator)
+[![CI](https://img.shields.io/github/actions/workflow/status/panteparak/vault-autounseal-operator/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/panteparak/vault-autounseal-operator/actions/workflows/ci.yml)
+[![Security](https://img.shields.io/github/actions/workflow/status/panteparak/vault-autounseal-operator/security.yml?branch=main&style=flat-square&label=Security)](https://github.com/panteparak/vault-autounseal-operator/actions/workflows/security.yml)
+[![codecov](https://img.shields.io/codecov/c/github/panteparak/vault-autounseal-operator?style=flat-square)](https://codecov.io/gh/panteparak/vault-autounseal-operator)
+
+A production-ready, security-hardened Kubernetes operator that automatically unseals HashiCorp Vault instances, with support for HCP Vault and HA configurations.
 
 ## Features
 
@@ -11,17 +18,45 @@ A Python-based Kubernetes operator that automatically unseals HashiCorp Vault in
 - **Multi-Instance Support**: Configure multiple Vault clusters in a single resource
 - **Secure**: Follows Kubernetes security best practices
 
-## Quick Start
+## Installation Methods
 
-### 1. Install the Package
+### 🚀 Option 1: One-line Install (Recommended)
 
 ```bash
-# Install with uv
-uv pip install -e .
+curl -sSL https://raw.githubusercontent.com/panteparak/vault-autounseal-operator/main/install.sh | bash
+```
 
-# Or install from PyPI (when published)
+### 📦 Option 2: PyPI Package
+
+```bash
+# Install from PyPI
+pip install vault-autounseal-operator
+
+# Or with uv (recommended)
 uv pip install vault-autounseal-operator
 ```
+
+### 🐳 Option 3: Container Images
+
+```bash
+# GitHub Container Registry
+docker pull ghcr.io/panteparak/vault-autounseal-operator:latest
+
+# Docker Hub
+docker pull panteparak/vault-autounseal-operator:latest
+
+# Quay.io
+docker pull quay.io/panteparak/vault-autounseal-operator:latest
+```
+
+### ⎈ Option 4: Helm Chart
+
+```bash
+helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/
+helm install vault-operator vault-operator/vault-autounseal-operator
+```
+
+## Quick Start
 
 ### 2. Generate and Deploy CRD
 

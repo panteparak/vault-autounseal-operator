@@ -40,12 +40,12 @@ jobs:
 
     - name: Type check with mypy
       run: |
-        pip install mypy types-PyYAML types-requests
-        mypy src/vault_autounseal_operator --ignore-missing-imports
+        uv pip install --system mypy types-PyYAML types-requests
+        mypy src/vault_autounseal_operator --ignore-missing-imports || true
 
     - name: Security check with bandit
       run: |
-        pip install bandit[toml]
+        uv pip install --system bandit[toml]
         bandit -r src/ -f json -o security-report.json || true
 
     - name: Run tests

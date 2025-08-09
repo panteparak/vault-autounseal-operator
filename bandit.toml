@@ -1,0 +1,10 @@
+[tool.bandit]
+exclude_dirs = ["tests", "build", "dist"]
+skips = [
+    "B101",  # assert_used - we use asserts in tests
+    "B601",  # paramiko_calls - not applicable
+    "B602",  # subprocess_popen_with_shell_equals_true - not applicable
+]
+
+[tool.bandit.assert_used]
+skips = ["*test*.py", "test_*.py"]
