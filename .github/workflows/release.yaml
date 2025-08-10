@@ -33,7 +33,7 @@ jobs:
         node-version: '20'
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: '1.21'
         cache: true
@@ -48,7 +48,7 @@ jobs:
         npm install -g conventional-changelog-conventionalcommits
 
     - name: Install Helm
-      uses: azure/setup-helm@v3
+      uses: azure/setup-helm@v4
       with:
         version: '3.12.0'
 
@@ -72,7 +72,7 @@ jobs:
         fetch-depth: 0
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: '1.21'
         cache: true
@@ -88,12 +88,12 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Install Helm
-      uses: azure/setup-helm@v3
+      uses: azure/setup-helm@v4
       with:
         version: '3.12.0'
 
     - name: Build and push Docker image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         push: true
@@ -115,7 +115,7 @@ jobs:
         make release VERSION=${{ needs.semantic-release.outputs.new-release-version }}
 
     - name: Upload release artifacts
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ needs.semantic-release.outputs.new-release-version }}
         files: |
