@@ -6,14 +6,13 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
+	"github.com/panteparak/vault-autounseal-operator/pkg/vault"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
-	"github.com/panteparak/vault-autounseal-operator/pkg/vault"
 )
 
 // VaultUnsealConfigReconciler reconciles a VaultUnsealConfig object
@@ -48,6 +47,26 @@ func (r *VaultUnsealConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	logger.Info("Reconciling VaultUnsealConfig", "name", vaultConfig.Name, "namespace", vaultConfig.Namespace)
 
 	// Process each vault instance
+	vaultStatuses, allReady := r.processVaultInstances(ctx, logger, &vaultConfig)
+
+	// Update status
+	r.updateVaultConfigStatus(ctx, &vaultConfig, vaultStatuses, allReady)
+
+	// Update the status
+	if err := r.Status().Update(ctx, &vaultConfig); err != nil {
+		logger.Error(err, "unable to update VaultUnsealConfig status")
+		return ctrl.Result{}, err
+	}
+
+	// Requeue for periodic reconciliation
+	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+
+func (r *VaultUnsealConfigReconciler) processVaultInstances(
+	ctx context.Context,
+	logger logr.Logger,
+	vaultConfig *vaultv1.VaultUnsealConfig,
+) ([]vaultv1.VaultInstanceStatus, bool) {
 	var vaultStatuses []vaultv1.VaultInstanceStatus
 	allReady := true
 
@@ -69,7 +88,15 @@ func (r *VaultUnsealConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		vaultStatuses = append(vaultStatuses, status)
 	}
 
-	// Update status
+	return vaultStatuses, allReady
+}
+
+func (r *VaultUnsealConfigReconciler) updateVaultConfigStatus(
+	ctx context.Context,
+	vaultConfig *vaultv1.VaultUnsealConfig,
+	vaultStatuses []vaultv1.VaultInstanceStatus,
+	allReady bool,
+) {
 	vaultConfig.Status.VaultStatuses = vaultStatuses
 
 	// Update conditions
@@ -86,33 +113,36 @@ func (r *VaultUnsealConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	} else {
 		condition.Status = metav1.ConditionFalse
 		condition.Reason = "SomeInstancesSealed"
-		condition.Message = fmt.Sprintf("%d of %d vault instances need attention", len(vaultStatuses), len(vaultConfig.Spec.VaultInstances))
+		condition.Message = fmt.Sprintf("%d of %d vault instances need attention",
+			len(vaultStatuses), len(vaultConfig.Spec.VaultInstances))
 	}
 
 	// Update or append condition
+	r.updateCondition(vaultConfig, &condition)
+}
+
+func (r *VaultUnsealConfigReconciler) updateCondition(
+	vaultConfig *vaultv1.VaultUnsealConfig,
+	condition *metav1.Condition,
+) {
 	updated := false
 	for i, existingCondition := range vaultConfig.Status.Conditions {
 		if existingCondition.Type == condition.Type {
-			vaultConfig.Status.Conditions[i] = condition
+			vaultConfig.Status.Conditions[i] = *condition
 			updated = true
 			break
 		}
 	}
 	if !updated {
-		vaultConfig.Status.Conditions = append(vaultConfig.Status.Conditions, condition)
+		vaultConfig.Status.Conditions = append(vaultConfig.Status.Conditions, *condition)
 	}
-
-	// Update the status
-	if err := r.Status().Update(ctx, &vaultConfig); err != nil {
-		logger.Error(err, "unable to update VaultUnsealConfig status")
-		return ctrl.Result{}, err
-	}
-
-	// Requeue for periodic reconciliation
-	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
-func (r *VaultUnsealConfigReconciler) processVaultInstance(ctx context.Context, instance *vaultv1.VaultInstance, namespace string) (vaultv1.VaultInstanceStatus, error) {
+func (r *VaultUnsealConfigReconciler) processVaultInstance(
+	ctx context.Context,
+	instance *vaultv1.VaultInstance,
+	namespace string,
+) (vaultv1.VaultInstanceStatus, error) {
 	clientKey := fmt.Sprintf("%s/%s", namespace, instance.Name)
 
 	// Get or create vault client

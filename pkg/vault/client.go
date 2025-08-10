@@ -82,14 +82,8 @@ func (c *Client) GetSealStatus(ctx context.Context) (*api.SealStatusResponse, er
 
 // Unseal attempts to unseal the vault using the provided keys
 func (c *Client) Unseal(ctx context.Context, keys []string, threshold int) (*api.SealStatusResponse, error) {
-	if len(keys) == 0 {
-		return nil, fmt.Errorf("no unseal keys provided")
-	}
-	if threshold < 1 {
-		return nil, fmt.Errorf("threshold must be at least 1")
-	}
-	if threshold > len(keys) {
-		return nil, fmt.Errorf("threshold exceeds number of available keys")
+	if err := c.validateUnsealParams(keys, threshold); err != nil {
+		return nil, err
 	}
 
 	// Check if already unsealed
@@ -101,27 +95,31 @@ func (c *Client) Unseal(ctx context.Context, keys []string, threshold int) (*api
 		return status, nil
 	}
 
+	return c.submitUnsealKeys(ctx, keys[:threshold])
+}
+
+func (c *Client) validateUnsealParams(keys []string, threshold int) error {
+	if len(keys) == 0 {
+		return fmt.Errorf("no unseal keys provided")
+	}
+	if threshold < 1 {
+		return fmt.Errorf("threshold must be at least 1")
+	}
+	if threshold > len(keys) {
+		return fmt.Errorf("threshold exceeds number of available keys")
+	}
+	return nil
+}
+
+func (c *Client) submitUnsealKeys(ctx context.Context, keys []string) (*api.SealStatusResponse, error) {
 	var lastStatus *api.SealStatusResponse
-	keysSubmitted := 0
 
-	for i, encodedKey := range keys[:threshold] {
-		// Decode the base64 key
-		key, err := base64.StdEncoding.DecodeString(encodedKey)
+	for i, encodedKey := range keys {
+		status, err := c.submitSingleKey(ctx, encodedKey, i+1)
 		if err != nil {
-			return nil, fmt.Errorf("invalid base64 encoding in key %d: %w", i+1, err)
+			return nil, err
 		}
-
-		// Submit the key
-		lastStatus, err = c.client.Sys().UnsealWithContext(ctx, string(key))
-		if err != nil {
-			return nil, fmt.Errorf("failed to submit unseal key %d: %w", i+1, err)
-		}
-		keysSubmitted++
-
-		// Clear the key from memory
-		for j := range key {
-			key[j] = 0
-		}
+		lastStatus = status
 
 		// Check if unsealed
 		if !lastStatus.Sealed {
@@ -134,6 +132,31 @@ func (c *Client) Unseal(ctx context.Context, keys []string, threshold int) (*api
 	}
 
 	return lastStatus, nil
+}
+
+func (c *Client) submitSingleKey(
+	ctx context.Context,
+	encodedKey string,
+	keyIndex int,
+) (*api.SealStatusResponse, error) {
+	// Decode the base64 key
+	key, err := base64.StdEncoding.DecodeString(encodedKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base64 encoding in key %d: %w", keyIndex, err)
+	}
+
+	// Submit the key
+	status, err := c.client.Sys().UnsealWithContext(ctx, string(key))
+	if err != nil {
+		return nil, fmt.Errorf("failed to submit unseal key %d: %w", keyIndex, err)
+	}
+
+	// Clear the key from memory
+	for j := range key {
+		key[j] = 0
+	}
+
+	return status, nil
 }
 
 // IsInitialized checks if the vault is initialized

@@ -29,41 +29,11 @@ repos:
         files: go.mod
         pass_filenames: false
 
-      - id: go-fmt
-        name: go fmt
-        entry: gofmt
-        language: system
-        types: [go]
-        args: [-w, -s]
-
-      - id: go-imports
-        name: go imports
+      - id: golangci-lint
+        name: golangci-lint
         entry: go
         language: system
-        types: [go]
-        args: [run, golang.org/x/tools/cmd/goimports@latest, -w]
-
-      - id: go-vet
-        name: go vet
-        entry: go
-        language: system
-        args: [vet, ./...]
-        types: [go]
-        pass_filenames: false
-
-      - id: staticcheck
-        name: staticcheck
-        entry: go
-        language: system
-        args: [run, honnef.co/go/tools/cmd/staticcheck@latest, ./...]
-        types: [go]
-        pass_filenames: false
-
-      - id: gosec
-        name: gosec security scan
-        entry: go
-        language: system
-        args: [run, github.com/securego/gosec/v2/cmd/gosec@latest, -quiet, ./...]
+        args: [run, github.com/golangci/golangci-lint/cmd/golangci-lint@latest, run, --fix, --timeout=5m]
         types: [go]
         pass_filenames: false
 
