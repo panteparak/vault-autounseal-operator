@@ -1,0 +1,81 @@
+{
+  "branches": [
+    "main"
+  ],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          {"type": "feat", "release": "minor"},
+          {"type": "fix", "release": "patch"},
+          {"type": "docs", "release": "patch"},
+          {"type": "style", "release": "patch"},
+          {"type": "refactor", "release": "patch"},
+          {"type": "perf", "release": "patch"},
+          {"type": "test", "release": "patch"},
+          {"type": "build", "release": "patch"},
+          {"type": "ci", "release": "patch"},
+          {"type": "chore", "release": "patch"},
+          {"type": "revert", "release": "patch"},
+          {"breaking": true, "release": "major"}
+        ]
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            {"type": "feat", "section": "🚀 Features"},
+            {"type": "fix", "section": "🐛 Bug Fixes"},
+            {"type": "docs", "section": "📚 Documentation"},
+            {"type": "style", "section": "💄 Styling"},
+            {"type": "refactor", "section": "♻️ Code Refactoring"},
+            {"type": "perf", "section": "⚡ Performance Improvements"},
+            {"type": "test", "section": "✅ Tests"},
+            {"type": "build", "section": "🏗️ Build System"},
+            {"type": "ci", "section": "👷 CI"},
+            {"type": "chore", "section": "🔧 Maintenance"},
+            {"type": "revert", "section": "⏪ Reverts"}
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "echo ${nextRelease.version} > VERSION && make update-version VERSION=${nextRelease.version}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {"path": "charts/*.tgz", "label": "Helm Chart"},
+          {"path": "generated/*.yaml", "label": "CRDs"},
+          {"path": "release/install.sh", "label": "Installation Script"}
+        ]
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "VERSION",
+          "helm/vault-autounseal-operator/Chart.yaml"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ]
+  ]
+}

@@ -1,0 +1,17 @@
+# <type>(<scope>): <subject>
+#
+# <body>
+#
+# <footer>
+
+# Type: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+# Scope: Optional, can be anything specifying the place of the commit change
+# Subject: Short description, imperative, start with lower case, don't end with a period
+# Body: Optional, include the motivation for the change and contrasts with previous behavior
+# Footer: Optional, reference GitHub issues and breaking changes
+
+# Examples:
+# feat(auth): add OAuth2 authentication
+# fix(api): resolve null pointer exception in user handler
+# docs: update installation guide
+# feat!: drop support for Node 12 (BREAKING CHANGE)

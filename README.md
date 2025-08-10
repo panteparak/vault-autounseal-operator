@@ -276,8 +276,43 @@ Our automated pipeline handles:
 - **🔒 Security**: `gosec`, `trivy`, vulnerability scanning
 - **🧪 Testing**: Unit tests, integration tests, race detection
 - **🏗️ Building**: Multi-arch Docker images (amd64/arm64)
-- **📦 Packaging**: Automated Helm chart packaging
-- **🚢 Release**: GitHub releases with artifacts
+- **📦 Packaging**: Automated Helm chart packaging with CRDs
+- **🚢 Releases**: Semantic versioning with conventional commits
+- **🏷️ Tagging**: Auto-generated tags and changelogs
+
+## 🔄 Release Process
+
+Releases are **fully automated** using semantic versioning:
+
+### Commit Types → Release Types
+- `feat:` → **Minor** release (0.1.0 → 0.2.0)
+- `fix:` → **Patch** release (0.1.0 → 0.1.1)
+- `feat!:` or `BREAKING CHANGE:` → **Major** release (0.1.0 → 1.0.0)
+
+### Automated Release Features
+- 🏷️ **Auto-versioning** based on conventional commits
+- 📝 **Generated changelogs** with categorized changes
+- 🐳 **Tagged Docker images** (`latest` + version tags)
+- 📦 **Helm chart packaging** with embedded CRDs
+- 🔒 **Security scanning** of release artifacts
+- 🚀 **GitHub releases** with installation scripts
+
+### Making a Release
+Simply push commits with conventional commit messages to `main`:
+
+```bash
+# Feature release (0.1.0 → 0.2.0)
+git commit -m "feat: add new unsealing strategy for HA clusters"
+
+# Bug fix release (0.1.0 → 0.1.1)
+git commit -m "fix: resolve memory leak in vault client"
+
+# Breaking change release (0.1.0 → 1.0.0)
+git commit -m "feat!: redesign API for better performance"
+
+# Push to trigger release
+git push origin main
+```
 
 ## 📚 Documentation
 
