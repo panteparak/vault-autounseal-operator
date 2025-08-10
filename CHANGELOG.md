@@ -1,3 +1,9 @@
+## [0.2.0](https://github.com/panteparak/vault-autounseal-operator/compare/v0.1.1...v0.2.0) (2025-08-10)
+
+### 🚀 Features
+
+* Add GitHub Pages Helm repository with automated publishing ([fdf898d](https://github.com/panteparak/vault-autounseal-operator/commit/fdf898d6d411b4ada34da12a0a7ab2c7a30d1cfc))
+
 ## [0.1.1](https://github.com/panteparak/vault-autounseal-operator/compare/v0.1.0...v0.1.1) (2025-08-10)
 
 ### 🐛 Bug Fixes
