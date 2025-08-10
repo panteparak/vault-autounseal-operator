@@ -6,7 +6,8 @@ on:
     paths:
       - 'docs/**'
       - '*.md'
-      - 'src/**/*.py'
+      - 'pkg/**/*.go'
+      - 'helm/**'
   pull_request:
     branches: [ main ]
     paths:
@@ -16,39 +17,49 @@ on:
 jobs:
   build-docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # for GitHub Pages deployment
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up Go
+      uses: actions/setup-go@v4
       with:
-        python-version: "3.11"
+        go-version: '1.21'
+        cache: true
 
-    - name: Install dependencies
+    - name: Install documentation tools
       run: |
-        uv pip install --system -e .
+        # Install MkDocs and plugins
         pip install mkdocs mkdocs-material mkdocs-mermaid2-plugin
 
     - name: Generate API documentation
       run: |
         mkdir -p docs/api
-        # Generate CRD documentation
-        vault-operator generate-crd -o docs/api/crd.yaml
 
-    - name: Build documentation
+        # Generate CRD documentation using make
+        make generate-crds
+
+        # Copy generated CRDs to docs
+        if [ -d "generated" ]; then
+          cp generated/*.yaml docs/api/ || echo "No CRDs to copy"
+        fi
+
+        # Generate Go API documentation
+        go doc -all ./pkg/api/v1 > docs/api/go-api.md || echo "No Go API docs generated"
+
+    - name: Build documentation site
       run: |
-        # Create mkdocs.yml if it doesn't exist
-        if [ ! -f mkdocs.yml ]; then
-          cat > mkdocs.yml << EOF
+        # Create mkdocs.yml
+        cat > mkdocs.yml << EOF
         site_name: Vault Auto-Unseal Operator
         site_description: Kubernetes operator for HashiCorp Vault auto-unsealing
         site_url: https://panteparak.github.io/vault-autounseal-operator/
         repo_url: https://github.com/panteparak/vault-autounseal-operator
         repo_name: panteparak/vault-autounseal-operator
+        edit_uri: edit/main/docs/
 
         theme:
           name: material
@@ -72,6 +83,7 @@ jobs:
             - navigation.top
             - search.highlight
             - content.code.copy
+            - content.code.annotate
 
         plugins:
           - search
@@ -80,15 +92,21 @@ jobs:
         nav:
           - Home: index.md
           - Getting Started:
-            - Installation: installation.md
-            - Quick Start: quickstart.md
-            - Configuration: configuration.md
-          - Security: SECURITY.md
-          - API Reference: api/
-          - Examples: examples/
+            - Installation: getting-started.md
+            - Configuration Examples: examples.md
+          - User Guide:
+            - Architecture: architecture.md
+            - Security: security.md
+            - Monitoring: monitoring.md
+            - Troubleshooting: troubleshooting.md
+          - API Reference:
+            - CRDs: api/
+            - Go API: api/go-api.md
+          - Development:
+            - Contributing: contributing.md
+            - Release Process: release-process.md
 
         markdown_extensions:
-          - codehilite
           - admonition
           - pymdownx.details
           - pymdownx.superfences:
@@ -96,128 +114,145 @@ jobs:
                 - name: mermaid
                   class: mermaid
                   format: !!python/name:mermaid2.fence_mermaid
+          - pymdownx.highlight:
+              anchor_linenums: true
+          - pymdownx.inlinehilite
+          - pymdownx.snippets
+          - pymdownx.tabbed:
+              alternate_style: true
+          - tables
+          - footnotes
         EOF
-        fi
 
         # Create docs structure
-        mkdir -p docs
+        mkdir -p docs/api
 
-        # Copy main README as index
+        # Copy existing documentation
         cp README.md docs/index.md
 
-        # Copy security documentation
-        cp SECURITY.md docs/
+        # Copy docs if they exist
+        if [ -d "docs" ] && [ -f "docs/getting-started.md" ]; then
+          echo "Using existing docs"
+        else
+          echo "Creating basic documentation structure"
+        fi
 
-        # Create additional documentation files
-        cat > docs/installation.md << EOF
-        # Installation Guide
+        # Create missing documentation files
+        cat > docs/architecture.md << EOF
+        # Architecture
 
-        This guide covers different ways to install the Vault Auto-Unseal Operator.
+        The Vault Auto-Unseal Operator is built using the Kubernetes controller-runtime framework.
 
-        ## Prerequisites
+        ## Components
 
-        - Kubernetes cluster (1.19+)
-        - kubectl configured
-        - HashiCorp Vault instance
+        - **Controller**: Manages VaultUnsealConfig resources
+        - **Vault Client**: Secure communication with Vault instances
+        - **CRD**: Custom Resource Definition for configuration
+        - **RBAC**: Minimal required permissions
 
-        ## Quick Install
+        ## Workflow
 
-        \`\`\`bash
-        # Install using the convenience script
-        curl -sSL https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/install.sh | bash
-        \`\`\`
-
-        ## Manual Installation
-
-        \`\`\`bash
-        # Apply CRD
-        kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/crd.yaml
-
-        # Apply RBAC
-        kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/rbac.yaml
-
-        # Deploy operator
-        kubectl apply -f https://github.com/panteparak/vault-autounseal-operator/releases/latest/download/deployment.yaml
-        \`\`\`
-
-        ## Verification
-
-        \`\`\`bash
-        kubectl get pods -n vault-operator
-        kubectl logs -n vault-operator deployment/vault-autounseal-operator
-        \`\`\`
+        1. Watch VaultUnsealConfig resources
+        2. Validate configuration and security settings
+        3. Connect to Vault instances securely
+        4. Monitor seal status and unseal when needed
+        5. Update resource status with results
         EOF
 
-        cat > docs/quickstart.md << EOF
-        # Quick Start Guide
+        cat > docs/security.md << EOF
+        # Security
 
-        Get up and running with the Vault Auto-Unseal Operator in minutes.
+        Security is our top priority. This document outlines security considerations.
 
-        ## Step 1: Install the Operator
+        ## Best Practices
 
-        See [Installation Guide](installation.md) for detailed instructions.
+        - Store unseal keys in Kubernetes secrets
+        - Enable TLS verification in production
+        - Use least-privilege RBAC
+        - Monitor all operator activities
+        - Rotate unseal keys regularly
 
-        ## Step 2: Prepare Unseal Keys
+        ## Threat Model
 
-        \`\`\`bash
-        # Create a secret with your vault unseal keys
-        kubectl create secret generic vault-unseal-keys \\
-          --namespace=vault \\
-          --from-literal=keys='["key1-base64", "key2-base64", "key3-base64"]'
-        \`\`\`
-
-        ## Step 3: Create VaultUnsealConfig
-
-        \`\`\`yaml
-        apiVersion: vault.io/v1
-        kind: VaultUnsealConfig
-        metadata:
-          name: my-vault
-          namespace: vault
-        spec:
-          url: "https://vault.example.com:8200"
-          unsealKeys:
-            secretRef:
-              name: vault-unseal-keys
-              key: keys
-          threshold: 3
-          haEnabled: true
-        \`\`\`
-
-        ## Step 4: Monitor
-
-        \`\`\`bash
-        kubectl get vaultunsealconfigs -A
-        kubectl describe vaultunsealconfig my-vault
-        \`\`\`
+        See [SECURITY.md](../SECURITY.md) for detailed security information.
         EOF
 
-        cat > docs/configuration.md << EOF
-        # Configuration Reference
+        cat > docs/monitoring.md << EOF
+        # Monitoring
 
-        Complete reference for configuring the Vault Auto-Unseal Operator.
+        The operator exposes Prometheus metrics and provides health endpoints.
 
-        ## VaultUnsealConfig Specification
+        ## Metrics
 
-        | Field | Type | Required | Description |
-        |-------|------|----------|-------------|
-        | url | string | Yes | Vault API endpoint URL |
-        | unsealKeys | object | Yes | Unseal keys configuration |
-        | threshold | integer | No | Number of keys required (default: 3) |
-        | haEnabled | boolean | No | Enable HA mode (default: false) |
-        | tlsSkipVerify | boolean | No | Skip TLS verification (default: false) |
-        | reconcileInterval | string | No | Check interval (default: "30s") |
+        - \`vault_unseal_attempts_total\`
+        - \`vault_unseal_successes_total\`
+        - \`vault_unseal_failures_total\`
+        - \`vault_instances_sealed\`
 
-        ## Examples
+        ## Health Endpoints
 
-        See the [examples directory](https://github.com/panteparak/vault-autounseal-operator/tree/main/examples) for more configuration examples.
+        - \`:8081/healthz\` - Liveness
+        - \`:8081/readyz\` - Readiness
         EOF
 
-        # Build the docs
+        cat > docs/troubleshooting.md << EOF
+        # Troubleshooting
+
+        Common issues and solutions.
+
+        ## Operator Not Starting
+
+        Check RBAC permissions and resource limits.
+
+        ## Connection Issues
+
+        Verify network connectivity and TLS configuration.
+
+        ## Debug Mode
+
+        Enable debug logging for detailed information.
+        EOF
+
+        cat > docs/contributing.md << EOF
+        # Contributing
+
+        Contributions are welcome! Please see our development workflow.
+
+        ## Development Setup
+
+        \`\`\`bash
+        git clone https://github.com/panteparak/vault-autounseal-operator.git
+        cd vault-autounseal-operator
+        go mod download
+        make test
+        \`\`\`
+
+        ## Conventional Commits
+
+        We use conventional commits for semantic versioning.
+        EOF
+
+        cat > docs/release-process.md << EOF
+        # Release Process
+
+        Releases are fully automated using semantic versioning.
+
+        ## How It Works
+
+        1. Push conventional commits to main
+        2. Semantic-release analyzes commits
+        3. Generates version and changelog
+        4. Builds and publishes artifacts
+        5. Creates GitHub release
+
+        See README for commit format examples.
+        EOF
+
+        # Build the documentation
         mkdocs build
 
     - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}

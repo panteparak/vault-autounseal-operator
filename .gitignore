@@ -1,63 +1,34 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
+# Go binaries and build artifacts
+*.exe
+*.exe~
+*.dll
 *.so
-.Python
+*.dylib
+bin/
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+*.out
 
-# PyInstaller
-*.manifest
-*.spec
+# Test binary, built with `go test -c`
+*.test
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
+# Output of the go coverage tool
+*.out
+coverage.out
+cover.out
 
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# Go workspace file
+go.work
+go.work.sum
 
-# IDEs
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -66,13 +37,17 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Security
+# Security sensitive files
 security-report.json
 *.pem
 *.key
 *.crt
+*.p8
+*.p12
+.env
+.env.*
 
-# Kubernetes
+# Kubernetes config files
 kubeconfig
 *.kubeconfig
 
@@ -85,13 +60,12 @@ tmp/
 temp/
 .tmp/
 
-# Build artifacts
-.uv/
-.mypy_cache/
-.ruff_cache/
+# Release artifacts
+charts/
+generated/
+release/
+config/
 
-# Documentation build
-docs/_build/
-site/
-bin/
-*.out
+# Local testing
+vendor/
+.testcache/
