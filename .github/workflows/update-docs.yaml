@@ -1,0 +1,164 @@
+name: Update Documentation
+
+on:
+  workflow_call:
+    inputs:
+      docs-artifact-name:
+        description: 'Name of the documentation artifact to download'
+        required: false
+        default: 'documentation'
+        type: string
+      docs-run-id:
+        description: 'Run ID of the workflow that generated the docs artifact'
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      docs-artifact-name:
+        description: 'Name of the documentation artifact to download'
+        required: false
+        default: 'documentation'
+        type: string
+      docs-run-id:
+        description: 'Run ID of the workflow that generated the docs artifact'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  update-documentation:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Download documentation artifact from external workflow
+      if: inputs.docs-run-id != ''
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.docs-artifact-name }}
+        path: site/docs/
+        run-id: ${{ inputs.docs-run-id }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Use placeholder docs if no external artifact
+      if: inputs.docs-run-id == ''
+      run: |
+        mkdir -p site/docs
+        cat > site/docs/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Documentation - Vault Auto-Unseal Operator</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    line-height: 1.6;
+                    text-align: center;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>📚 Documentation</h1>
+            <p>Documentation is being generated automatically.</p>
+            <p>Please check back soon or visit the <a href="https://github.com/panteparak/vault-autounseal-operator">GitHub repository</a> for the latest README and documentation.</p>
+        </body>
+        </html>
+        EOF
+
+    - name: Get current Helm repository
+      uses: actions/checkout@v4
+      with:
+        ref: gh-pages
+        path: gh-pages
+      continue-on-error: true
+
+    - name: Copy existing Helm repository
+      run: |
+        if [ -d "gh-pages" ]; then
+          cp -r gh-pages/* site/helm/ 2>/dev/null || mkdir -p site/helm
+        else
+          mkdir -p site/helm
+          echo "No existing gh-pages branch found"
+        fi
+
+    - name: Create site index
+      run: |
+        cat > site/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Vault Auto-Unseal Operator</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    line-height: 1.6;
+                }
+                .header { text-align: center; margin-bottom: 40px; }
+                .section { margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+                .code { background: #f5f5f5; padding: 10px; border-radius: 4px; font-family: monospace; }
+                a { color: #0066cc; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🔐 Vault Auto-Unseal Operator</h1>
+                <p>Kubernetes operator for automatically unsealing HashiCorp Vault instances</p>
+            </div>
+
+            <div class="section">
+                <h2>📚 Documentation</h2>
+                <p>Complete documentation for installation, configuration, and usage:</p>
+                <p><a href="./docs/">View Documentation</a></p>
+            </div>
+
+            <div class="section">
+                <h2>⚓ Helm Repository</h2>
+                <p>Install the operator using Helm:</p>
+                <div class="code">
+                    <p>helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/helm/</p>
+                    <p>helm repo update</p>
+                    <p>helm install vault-autounseal-operator vault-operator/vault-autounseal-operator</p>
+                </div>
+                <p><a href="./helm/">Browse Helm Repository</a></p>
+            </div>
+
+            <div class="section">
+                <h2>🚀 Quick Links</h2>
+                <ul>
+                    <li><a href="https://github.com/panteparak/vault-autounseal-operator">GitHub Repository</a></li>
+                    <li><a href="https://github.com/panteparak/vault-autounseal-operator/releases">Releases</a></li>
+                    <li><a href="https://github.com/panteparak/vault-autounseal-operator/issues">Issues</a></li>
+                </ul>
+            </div>
+        </body>
+        </html>
+        EOF
+
+    - name: Upload unified Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: site/
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

@@ -1,7 +1,8 @@
-name: Helm Repository
+name: Pages and Helm Repository
 
 on:
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 
@@ -15,6 +16,79 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Check if docs exist
+      id: check-docs
+      run: |
+        if [ -d "docs" ] && [ -f "docs/package.json" ]; then
+          echo "docs-exist=true" >> $GITHUB_OUTPUT
+          echo "Documentation directory found"
+        else
+          echo "docs-exist=false" >> $GITHUB_OUTPUT
+          echo "No documentation directory found, creating placeholder"
+        fi
+
+    - name: Setup Node.js
+      if: steps.check-docs.outputs.docs-exist == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: npm
+        cache-dependency-path: docs/package-lock.json
+
+    - name: Install dependencies
+      if: steps.check-docs.outputs.docs-exist == 'true'
+      run: |
+        cd docs
+        npm ci
+
+    - name: Build documentation
+      if: steps.check-docs.outputs.docs-exist == 'true'
+      run: |
+        cd docs
+        npm run build
+
+    - name: Create placeholder docs
+      if: steps.check-docs.outputs.docs-exist == 'false'
+      run: |
+        mkdir -p docs-placeholder
+        cat > docs-placeholder/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Documentation - Vault Auto-Unseal Operator</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    line-height: 1.6;
+                    text-align: center;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>📚 Documentation</h1>
+            <p>Documentation is being generated automatically.</p>
+            <p>Please check back soon or visit the <a href="https://github.com/panteparak/vault-autounseal-operator">GitHub repository</a> for the latest README and documentation.</p>
+        </body>
+        </html>
+        EOF
+
+    - name: Upload docs artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: documentation
+        path: ${{ steps.check-docs.outputs.docs-exist == 'true' && 'docs/dist/' || 'docs-placeholder/' }}
+
   build-helm-repo:
     runs-on: ubuntu-latest
     outputs:
@@ -25,21 +99,17 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Configure Git
-      run: |
-        git config user.name "$GITHUB_ACTOR"
-        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-
-    - name: Get version from tag
+    - name: Get version from tag or commit
       id: version
       run: |
         if [[ $GITHUB_REF == refs/tags/v* ]]; then
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+          echo "Version: $VERSION (from tag)"
         else
-          echo "version=0.1.0" >> $GITHUB_OUTPUT
-          echo "Version: 0.1.0 (fallback)"
+          VERSION="0.1.0-dev"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION (development)"
         fi
 
     - name: Install Helm
@@ -73,60 +143,110 @@ jobs:
 
     - name: Package Helm chart
       run: |
-        mkdir -p .helm-repo
-        helm package helm/vault-autounseal-operator/ --destination .helm-repo/
-        ls -la .helm-repo/
+        mkdir -p helm-repo
+        helm package helm/vault-autounseal-operator/ --destination helm-repo/
 
-    - name: Clone gh-pages branch
+    - name: Create Helm repository index
       run: |
-        # Clone or create gh-pages branch
-        if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
-          echo "gh-pages branch exists, cloning..."
-          git worktree add .gh-pages gh-pages
-        else
-          echo "Creating new gh-pages branch..."
-          git worktree add --detach .gh-pages
-          cd .gh-pages
-          git checkout --orphan gh-pages
-          git rm -rf . || true
-          echo "# Helm Repository" > README.md
-          git add README.md
-          git commit -m "Initialize gh-pages branch"
-          git push origin gh-pages
-          cd ..
-        fi
+        cd helm-repo
+        helm repo index . --url https://panteparak.github.io/vault-autounseal-operator/helm/
 
-    - name: Update Helm repository index
-      run: |
-        cd .gh-pages
-
-        # Copy new chart
-        cp ../.helm-repo/*.tgz . 2>/dev/null || echo "No charts to copy"
-
-        # Generate/update index
-        helm repo index . --url https://panteparak.github.io/vault-autounseal-operator
-
-        # Commit changes
-        git add .
-        if git diff --staged --quiet; then
-          echo "No changes to commit"
-        else
-          git commit -m "Update Helm repository: ${{ steps.version.outputs.version }}"
-          git push origin gh-pages
-        fi
-
-    - name: Upload GitHub Pages artifact
-      uses: actions/upload-pages-artifact@v3
+    - name: Upload Helm repository artifact
+      uses: actions/upload-artifact@v4
       with:
-        path: .gh-pages
+        name: helm-repository
+        path: helm-repo/
 
-  deploy-pages:
-    needs: build-helm-repo
+  combine-and-deploy:
+    needs: [build-docs, build-helm-repo]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+    - name: Download documentation artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: documentation
+        path: site/docs/
+
+    - name: Download Helm repository artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: helm-repository
+        path: site/helm/
+
+    - name: Create site index
+      run: |
+        cat > site/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Vault Auto-Unseal Operator</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    line-height: 1.6;
+                }
+                .header { text-align: center; margin-bottom: 40px; }
+                .section { margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+                .code { background: #f5f5f5; padding: 10px; border-radius: 4px; font-family: monospace; }
+                a { color: #0066cc; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🔐 Vault Auto-Unseal Operator</h1>
+                <p>Kubernetes operator for automatically unsealing HashiCorp Vault instances</p>
+            </div>
+
+            <div class="section">
+                <h2>📚 Documentation</h2>
+                <p>Complete documentation for installation, configuration, and usage:</p>
+                <p><a href="./docs/">View Documentation</a></p>
+            </div>
+
+            <div class="section">
+                <h2>⚓ Helm Repository</h2>
+                <p>Install the operator using Helm:</p>
+                <div class="code">
+                    <p>helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/helm/</p>
+                    <p>helm repo update</p>
+                    <p>helm install vault-autounseal-operator vault-operator/vault-autounseal-operator</p>
+                </div>
+                <p><a href="./helm/">Browse Helm Repository</a></p>
+            </div>
+
+            <div class="section">
+                <h2>🚀 Quick Links</h2>
+                <ul>
+                    <li><a href="https://github.com/panteparak/vault-autounseal-operator">GitHub Repository</a></li>
+                    <li><a href="https://github.com/panteparak/vault-autounseal-operator/releases">Releases</a></li>
+                    <li><a href="https://github.com/panteparak/vault-autounseal-operator/issues">Issues</a></li>
+                </ul>
+            </div>
+        </body>
+        </html>
+        EOF
+
+    - name: List final site structure
+      run: |
+        echo "Final site structure:"
+        find site -type f | head -20
+        echo "..."
+        echo "Total files: $(find site -type f | wc -l)"
+
+    - name: Upload unified Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: site/
+
     - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
