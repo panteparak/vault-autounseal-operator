@@ -1,3 +1,9 @@
+## [0.3.0](https://github.com/panteparak/vault-autounseal-operator/compare/v0.2.0...v0.3.0) (2025-08-10)
+
+### 🚀 Features
+
+* Create unified GitHub Pages for documentation and Helm repository ([488577c](https://github.com/panteparak/vault-autounseal-operator/commit/488577c85cc6683145e299949be97480440c6627))
+
 ## [0.2.0](https://github.com/panteparak/vault-autounseal-operator/compare/v0.1.1...v0.2.0) (2025-08-10)
 
 ### 🚀 Features
