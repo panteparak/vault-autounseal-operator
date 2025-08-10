@@ -1,3 +1,22 @@
+## [1.0.0](https://github.com/panteparak/vault-autounseal-operator/compare/v0.4.4...v1.0.0) (2025-08-10)
+
+### ⚠ BREAKING CHANGES
+
+* - Helm repository URL changed from /helm/ to root level
+- Users need to update their helm repo add command
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+### ♻️ Code Refactoring
+
+* Move Helm repository to root URL without /helm/ path ([ab386ba](https://github.com/panteparak/vault-autounseal-operator/commit/ab386ba893630e310748f58ca4cc4b9f4622eab3))
+
+### 🔧 Maintenance
+
+* **release:** 0.4.3 [skip ci] ([5061809](https://github.com/panteparak/vault-autounseal-operator/commit/50618093c78d0a120b6e1057356518ff4460ca89))
+
 ## [0.4.3](https://github.com/panteparak/vault-autounseal-operator/compare/v0.4.2...v0.4.3) (2025-08-10)
 
 ### 🐛 Bug Fixes
