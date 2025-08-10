@@ -85,24 +85,19 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-and-release:
+  build-docker-image:
     runs-on: ubuntu-latest
     needs: [determine-version, semantic-release]
     if: always() && (needs.semantic-release.outputs.new-release-published == 'true' || needs.determine-version.outputs.is-tag == 'true')
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-version: ${{ needs.determine-version.outputs.version || needs.semantic-release.outputs.new-release-version }}
     permissions:
-      contents: write
+      contents: read
       packages: write
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.21'
-        cache: true
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -114,12 +109,8 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Install Helm
-      uses: azure/setup-helm@v4
-      with:
-        version: '3.12.0'
-
     - name: Build and push Docker image
+      id: build
       uses: docker/build-push-action@v6
       with:
         context: .
@@ -137,28 +128,59 @@ jobs:
         cache-to: type=gha,mode=max
         platforms: linux/amd64,linux/arm64
 
+  package-and-release:
+    runs-on: ubuntu-latest
+    needs: [determine-version, semantic-release, build-docker-image]
+    if: always() && needs.build-docker-image.result == 'success'
+    permissions:
+      contents: write
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: true
+
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: '3.12.0'
+
     - name: Generate CRDs and package Helm chart
       run: |
-        make release VERSION=${{ needs.determine-version.outputs.version || needs.semantic-release.outputs.new-release-version }}
+        make release VERSION=${{ needs.build-docker-image.outputs.image-version }}
 
     - name: Upload release artifacts
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ needs.determine-version.outputs.version || needs.semantic-release.outputs.new-release-version }}
+        tag_name: v${{ needs.build-docker-image.outputs.image-version }}
         files: |
           release/*.tgz
           release/*.yaml
           release/install.sh
         generate_release_notes: false
 
-    - name: Run Trivy vulnerability scanner on released image
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build-docker-image
+    if: always() && needs.build-docker-image.result == 'success'
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+    - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-version.outputs.version || needs.semantic-release.outputs.new-release-version }}
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-docker-image.outputs.image-digest }}
         format: 'sarif'
         output: 'trivy-results.sarif'
 
-    - name: Upload Trivy scan results
+    - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
