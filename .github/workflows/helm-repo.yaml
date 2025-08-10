@@ -146,10 +146,34 @@ jobs:
         mkdir -p helm-repo
         helm package helm/vault-autounseal-operator/ --destination helm-repo/
 
-    - name: Create Helm repository index
+    - name: Download existing Helm packages from gh-pages
       run: |
         cd helm-repo
-        helm repo index . --url https://panteparak.github.io/vault-autounseal-operator/
+        # Try to download existing packages from gh-pages branch
+        git fetch origin gh-pages:gh-pages 2>/dev/null || echo "No gh-pages branch found"
+        if git show-ref --verify --quiet refs/heads/gh-pages; then
+          echo "Found existing gh-pages branch, extracting Helm packages..."
+          git show gh-pages:index.yaml > existing-index.yaml 2>/dev/null || echo "No existing index.yaml"
+          # Extract existing .tgz files
+          git ls-tree -r --name-only gh-pages | grep '\.tgz$' | while read file; do
+            echo "Extracting existing package: $file"
+            git show "gh-pages:$file" > "$file" 2>/dev/null || echo "Could not extract $file"
+          done
+        else
+          echo "No existing gh-pages branch found, creating new repository"
+        fi
+
+    - name: Create Helm repository index with all versions
+      run: |
+        cd helm-repo
+        # Merge with existing index if available
+        if [ -f "existing-index.yaml" ]; then
+          echo "Merging with existing Helm repository..."
+          helm repo index . --url https://panteparak.github.io/vault-autounseal-operator/ --merge existing-index.yaml
+        else
+          echo "Creating new Helm repository index..."
+          helm repo index . --url https://panteparak.github.io/vault-autounseal-operator/
+        fi
 
     - name: Upload Helm repository artifact
       uses: actions/upload-artifact@v4
@@ -160,6 +184,9 @@ jobs:
   combine-and-deploy:
     needs: [build-docs, build-helm-repo]
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
     - name: Download documentation artifact
       uses: actions/download-artifact@v4
