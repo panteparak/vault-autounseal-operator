@@ -48,7 +48,7 @@ jobs:
         npm install -g conventional-changelog-conventionalcommits
 
     - name: Install Helm
-      uses: azure/setup-helm@v3
+      uses: azure/setup-helm@v4
       with:
         version: '3.12.0'
 
@@ -88,7 +88,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Install Helm
-      uses: azure/setup-helm@v3
+      uses: azure/setup-helm@v4
       with:
         version: '3.12.0'
 
