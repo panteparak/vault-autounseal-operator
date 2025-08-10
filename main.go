@@ -43,7 +43,15 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	setupLog.Info("starting vault auto-unseal operator", "version", "0.4.2")
+
+	config, err := ctrl.GetConfig()
+	if err != nil {
+		setupLog.Error(err, "unable to get kubernetes config - ensure operator is running in cluster or has valid kubeconfig")
+		os.Exit(1)
+	}
+
+	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:           scheme,
 		LeaderElection:   enableLeaderElection,
 		LeaderElectionID: "vault-autounseal-operator-leader",
