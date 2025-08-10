@@ -1,3 +1,13 @@
+## [0.4.1](https://github.com/panteparak/vault-autounseal-operator/compare/v0.4.0...v0.4.1) (2025-08-10)
+
+### 🐛 Bug Fixes
+
+* Remove GitHub Pages environment protection to allow tag deployments ([6ed0a9e](https://github.com/panteparak/vault-autounseal-operator/commit/6ed0a9e60dc5554423904ec76559b44c3e290ccd))
+
+### 🔧 Maintenance
+
+* **release:** 0.3.0 [skip ci] ([e300268](https://github.com/panteparak/vault-autounseal-operator/commit/e30026866c33a8824b696e93314e210e71b90cf9))
+
 ## [0.3.0](https://github.com/panteparak/vault-autounseal-operator/compare/v0.2.0...v0.3.0) (2025-08-10)
 
 ### 🚀 Features
