@@ -12,10 +12,9 @@ import (
 
 // Client wraps the HashiCorp Vault client with additional functionality
 type Client struct {
-	client      *api.Client
-	url         string
-	timeout     time.Duration
-	initialized bool
+	client  *api.Client
+	url     string
+	timeout time.Duration
 }
 
 // NewClient creates a new Vault client
@@ -25,9 +24,12 @@ func NewClient(url string, tlsSkipVerify bool, timeout time.Duration) (*Client, 
 	config.Timeout = timeout
 
 	if tlsSkipVerify {
-		config.ConfigureTLS(&api.TLSConfig{
+		err := config.ConfigureTLS(&api.TLSConfig{
 			Insecure: true,
 		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to configure TLS: %w", err)
+		}
 	}
 
 	// Configure HTTP client with security headers and retry logic

@@ -11,7 +11,7 @@ A **production-ready Kubernetes operator** for automatically unsealing HashiCorp
 ## 🚀 Features
 
 - **🔐 Automatic Unsealing**: Continuously monitors and unseals Vault instances with configurable reconciliation
-- **🏗️ High Availability**: Full support for HA Vault clusters with intelligent pod monitoring  
+- **🏗️ High Availability**: Full support for HA Vault clusters with intelligent pod monitoring
 - **🛡️ Security First**: Secure key handling, comprehensive TLS support, input validation, and audit logging
 - **📊 Production Ready**: Built-in monitoring, Prometheus metrics, health checks, and observability
 - **⚡ High Performance**: Efficient Go implementation with minimal resource footprint
@@ -23,7 +23,7 @@ A **production-ready Kubernetes operator** for automatically unsealing HashiCorp
 ### Prerequisites
 
 - **Kubernetes**: v1.25+ with admin access
-- **Helm**: v3.8+ installed  
+- **Helm**: v3.8+ installed
 - **Vault**: Initialized HashiCorp Vault instance(s)
 
 ### 🏃‍♂️ Installation (60 seconds)
@@ -49,7 +49,7 @@ A **production-ready Kubernetes operator** for automatically unsealing HashiCorp
        endpoint: https://vault.example.com:8200
        unsealKeys:
        - "base64-encoded-key-1"
-       - "base64-encoded-key-2" 
+       - "base64-encoded-key-2"
        - "base64-encoded-key-3"
        threshold: 3
    EOF
@@ -71,7 +71,7 @@ A **production-ready Kubernetes operator** for automatically unsealing HashiCorp
 │  │ Controller  │  │ Vault Client│  │ Pod Watcher │             │
 │  │             │  │             │  │             │             │
 │  │ • Reconcile │  │ • TLS/mTLS  │  │ • HA Support│             │
-│  │ • Status    │  │ • Security  │  │ • Pod Events│             │  
+│  │ • Status    │  │ • Security  │  │ • Pod Events│             │
 │  │ • Events    │  │ • Unsealing │  │ • Monitoring│             │
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
 │                                                                 │
@@ -151,7 +151,7 @@ spec:
     endpoint: https://vault-prod.company.com:8200
     unsealKeys: ["prod-key-1", "prod-key-2", "prod-key-3"]
     threshold: 3
-  - name: vault-staging  
+  - name: vault-staging
     endpoint: https://vault-staging.company.com:8200
     unsealKeys: ["staging-key-1", "staging-key-2"]
     threshold: 2
@@ -213,7 +213,7 @@ Import our pre-built dashboard from `examples/grafana-dashboard.json`.
 Security is our **top priority**:
 
 - ✅ **Secure Key Storage**: Kubernetes secrets integration
-- ✅ **Input Validation**: Comprehensive config validation  
+- ✅ **Input Validation**: Comprehensive config validation
 - ✅ **TLS Support**: Full certificate verification
 - ✅ **Non-root Execution**: Runs as UID 65532
 - ✅ **Read-only Filesystem**: Immutable container filesystem
@@ -225,7 +225,7 @@ Security is our **top priority**:
 
 1. **Never store unseal keys in plain YAML**
 2. **Always use Kubernetes secrets**
-3. **Enable TLS verification in production**  
+3. **Enable TLS verification in production**
 4. **Monitor all operator activities**
 5. **Use network policies to restrict access**
 6. **Regularly rotate unseal keys**
@@ -245,7 +245,7 @@ go mod download
 # Run tests
 make test
 
-# Build binary  
+# Build binary
 make build
 
 # Run locally (requires kubeconfig)
@@ -258,7 +258,7 @@ make build
 # Unit tests
 make test
 
-# Integration tests  
+# Integration tests
 make test-integration
 
 # Security scan
@@ -327,7 +327,7 @@ The Go version is a complete rewrite with the same API. Simply update your Helm 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md).
 
 ### Development Workflow
-1. **Fork** the repository  
+1. **Fork** the repository
 2. **Create** a feature branch
 3. **Add** tests for new functionality
 4. **Run** `make test` and ensure everything passes
@@ -349,9 +349,9 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 **⭐ If this project helps you, please give it a star! ⭐**
 
-[Report Bug](https://github.com/panteparak/vault-autounseal-operator/issues) · 
-[Request Feature](https://github.com/panteparak/vault-autounseal-operator/issues) · 
-[Documentation](docs/) · 
+[Report Bug](https://github.com/panteparak/vault-autounseal-operator/issues) ·
+[Request Feature](https://github.com/panteparak/vault-autounseal-operator/issues) ·
+[Documentation](docs/) ·
 [Discussions](https://github.com/panteparak/vault-autounseal-operator/discussions)
 
 </div>

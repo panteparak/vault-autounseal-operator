@@ -107,7 +107,7 @@ spec:
     endpoint: https://vault.example.com:8200
     unsealKeys:
     - "base64-encoded-key-1"
-    - "base64-encoded-key-2" 
+    - "base64-encoded-key-2"
     - "base64-encoded-key-3"
     threshold: 3
     tlsSkipVerify: false

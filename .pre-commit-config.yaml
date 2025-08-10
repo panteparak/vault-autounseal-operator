@@ -5,6 +5,7 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        exclude: ^(helm/.*\.yaml|manifests/.*\.yaml|examples/.*secret.*\.yaml)$
       - id: check-added-large-files
       - id: check-case-conflict
       - id: check-merge-conflict
@@ -12,20 +13,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: go-fmt
-        name: go fmt
-        entry: gofmt
-        language: system
-        types: [go]
-        args: [-w]
-
-      - id: go-imports
-        name: go imports
-        entry: goimports
-        language: system
-        types: [go]
-        args: [-w]
-
       - id: go-mod-tidy
         name: go mod tidy
         entry: go
@@ -33,6 +20,28 @@ repos:
         args: [mod, tidy]
         files: go.mod
         pass_filenames: false
+
+      - id: go-mod-verify
+        name: go mod verify
+        entry: go
+        language: system
+        args: [mod, verify]
+        files: go.mod
+        pass_filenames: false
+
+      - id: go-fmt
+        name: go fmt
+        entry: gofmt
+        language: system
+        types: [go]
+        args: [-w, -s]
+
+      - id: go-imports
+        name: go imports
+        entry: go
+        language: system
+        types: [go]
+        args: [run, golang.org/x/tools/cmd/goimports@latest, -w]
 
       - id: go-vet
         name: go vet
@@ -42,11 +51,19 @@ repos:
         types: [go]
         pass_filenames: false
 
-      - id: go-build
-        name: go build
+      - id: staticcheck
+        name: staticcheck
         entry: go
         language: system
-        args: [build, -v, ./...]
+        args: [run, honnef.co/go/tools/cmd/staticcheck@latest, ./...]
+        types: [go]
+        pass_filenames: false
+
+      - id: gosec
+        name: gosec security scan
+        entry: go
+        language: system
+        args: [run, github.com/securego/gosec/v2/cmd/gosec@latest, -quiet, ./...]
         types: [go]
         pass_filenames: false
 
@@ -57,11 +74,3 @@ repos:
         args: [test, -race, -short, ./...]
         types: [go]
         pass_filenames: false
-
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
-    hooks:
-      - id: go-mod-tidy
-      - id: go-fmt
-      - id: go-imports
-      - id: golangci-lint

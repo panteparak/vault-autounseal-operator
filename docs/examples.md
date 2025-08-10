@@ -117,7 +117,7 @@ spec:
     - "cHJvZC1rZXktMg=="
     - "cHJvZC1rZXktMw=="
     threshold: 3
-    
+
   # Staging Vault
   - name: vault-staging
     endpoint: https://vault-staging.company.com:8200
@@ -126,7 +126,7 @@ spec:
     - "c3RhZ2luZy1rZXktMg=="
     - "c3RhZ2luZy1rZXktMw=="
     threshold: 2
-    
+
   # Development Vault (less secure)
   - name: vault-development
     endpoint: http://vault-dev.company.com:8200
@@ -319,13 +319,13 @@ spec:
     endpoint: https://vault-us-east.company.com:8200
     unsealKeys: ["dXMtZWFzdC1rZXktMQ==", "dXMtZWFzdC1rZXktMg==", "dXMtZWFzdC1rZXktMw=="]
     threshold: 2
-    
+
   # US West
   - name: vault-us-west
     endpoint: https://vault-us-west.company.com:8200
     unsealKeys: ["dXMtd2VzdC1rZXktMQ==", "dXMtd2VzdC1rZXktMg==", "dXMtd2VzdC1rZXktMw=="]
     threshold: 2
-    
+
   # Europe
   - name: vault-eu
     endpoint: https://vault-eu.company.com:8200
@@ -336,7 +336,7 @@ spec:
 ## Notes
 
 - Always use properly base64-encoded unseal keys
-- Store sensitive keys in Kubernetes secrets, not in the YAML directly  
+- Store sensitive keys in Kubernetes secrets, not in the YAML directly
 - Use `tlsSkipVerify: false` (default) in production
 - Set appropriate `threshold` values based on your security requirements
 - Test configurations in development before applying to production

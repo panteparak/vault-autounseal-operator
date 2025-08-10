@@ -51,7 +51,8 @@ func (r *VaultUnsealConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	var vaultStatuses []vaultv1.VaultInstanceStatus
 	allReady := true
 
-	for _, instance := range vaultConfig.Spec.VaultInstances {
+	for i := range vaultConfig.Spec.VaultInstances {
+		instance := vaultConfig.Spec.VaultInstances[i]
 		status, err := r.processVaultInstance(ctx, &instance, vaultConfig.Namespace)
 		if err != nil {
 			logger.Error(err, "failed to process vault instance", "instance", instance.Name)
