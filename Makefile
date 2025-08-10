@@ -140,26 +140,24 @@ release: package-helm ## Create release artifacts
 	cp -r charts/* release/
 	cp -r generated/* release/ 2>/dev/null || echo "No CRDs to copy"
 	# Create install script
-	cat > release/install.sh << 'EOF'
-#!/bin/bash
-set -e
-
-NAMESPACE=$${NAMESPACE:-vault-system}
-CHART_VERSION=$${CHART_VERSION:-$(VERSION)}
-
-echo "Installing Vault Auto-Unseal Operator v$(VERSION) to namespace: $$NAMESPACE"
-
-# Create namespace if it doesn't exist
-kubectl create namespace $$NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
-
-# Install using Helm
-helm upgrade --install vault-autounseal-operator \
-  ./vault-autounseal-operator-$(VERSION).tgz \
-  --namespace $$NAMESPACE \
-  --wait
-
-echo "Installation complete!"
-EOF
+	@echo '#!/bin/bash' > release/install.sh
+	@echo 'set -e' >> release/install.sh
+	@echo '' >> release/install.sh
+	@echo 'NAMESPACE=$${NAMESPACE:-vault-system}' >> release/install.sh
+	@echo 'CHART_VERSION=$${CHART_VERSION:-$(VERSION)}' >> release/install.sh
+	@echo '' >> release/install.sh
+	@echo 'echo "Installing Vault Auto-Unseal Operator v$(VERSION) to namespace: $$NAMESPACE"' >> release/install.sh
+	@echo '' >> release/install.sh
+	@echo '# Create namespace if it does not exist' >> release/install.sh
+	@echo 'kubectl create namespace $$NAMESPACE --dry-run=client -o yaml | kubectl apply -f -' >> release/install.sh
+	@echo '' >> release/install.sh
+	@echo '# Install using Helm' >> release/install.sh
+	@echo 'helm upgrade --install vault-autounseal-operator \' >> release/install.sh
+	@echo '  ./vault-autounseal-operator-$(VERSION).tgz \' >> release/install.sh
+	@echo '  --namespace $$NAMESPACE \' >> release/install.sh
+	@echo '  --wait' >> release/install.sh
+	@echo '' >> release/install.sh
+	@echo 'echo "Installation complete!"' >> release/install.sh
 	chmod +x release/install.sh
 
 .PHONY: clean
