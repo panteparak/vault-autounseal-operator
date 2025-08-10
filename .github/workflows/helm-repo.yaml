@@ -1,0 +1,132 @@
+name: Helm Repository
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-helm-repo:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Configure Git
+      run: |
+        git config user.name "$GITHUB_ACTOR"
+        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+    - name: Get version from tag
+      id: version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/v* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+        else
+          echo "version=0.1.0" >> $GITHUB_OUTPUT
+          echo "Version: 0.1.0 (fallback)"
+        fi
+
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: '3.12.0'
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: true
+
+    - name: Generate CRDs and update chart
+      run: |
+        # Install controller-gen
+        go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+
+        # Generate CRDs
+        mkdir -p config/crd/bases
+        $(go env GOPATH)/bin/controller-gen crd:allowDangerousTypes=true paths="./pkg/api/..." output:crd:artifacts:config=config/crd/bases
+
+        # Update chart version
+        sed -i.bak 's/^version: .*/version: ${{ steps.version.outputs.version }}/' helm/vault-autounseal-operator/Chart.yaml
+        sed -i.bak 's/^appVersion: .*/appVersion: "${{ steps.version.outputs.version }}"/' helm/vault-autounseal-operator/Chart.yaml
+        rm -f helm/vault-autounseal-operator/Chart.yaml.bak
+
+        # Copy CRDs to chart templates
+        mkdir -p helm/vault-autounseal-operator/templates/crds/
+        cp config/crd/bases/*.yaml helm/vault-autounseal-operator/templates/crds/ 2>/dev/null || echo "No CRDs to copy"
+
+    - name: Package Helm chart
+      run: |
+        mkdir -p .helm-repo
+        helm package helm/vault-autounseal-operator/ --destination .helm-repo/
+        ls -la .helm-repo/
+
+    - name: Clone gh-pages branch
+      run: |
+        # Clone or create gh-pages branch
+        if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+          echo "gh-pages branch exists, cloning..."
+          git worktree add .gh-pages gh-pages
+        else
+          echo "Creating new gh-pages branch..."
+          git worktree add --detach .gh-pages
+          cd .gh-pages
+          git checkout --orphan gh-pages
+          git rm -rf . || true
+          echo "# Helm Repository" > README.md
+          git add README.md
+          git commit -m "Initialize gh-pages branch"
+          git push origin gh-pages
+          cd ..
+        fi
+
+    - name: Update Helm repository index
+      run: |
+        cd .gh-pages
+
+        # Copy new chart
+        cp ../.helm-repo/*.tgz . 2>/dev/null || echo "No charts to copy"
+
+        # Generate/update index
+        helm repo index . --url https://panteparak.github.io/vault-autounseal-operator
+
+        # Commit changes
+        git add .
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update Helm repository: ${{ steps.version.outputs.version }}"
+          git push origin gh-pages
+        fi
+
+    - name: Upload GitHub Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: .gh-pages
+
+  deploy-pages:
+    needs: build-helm-repo
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

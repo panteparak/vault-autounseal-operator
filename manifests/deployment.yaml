@@ -18,7 +18,7 @@ spec:
       serviceAccountName: vault-autounseal-operator
       containers:
       - name: operator
-        image: vault-autounseal-operator:latest
+        image: ghcr.io/panteparak/vault-autounseal-operator:latest
         imagePullPolicy: IfNotPresent
         command: ["vault-operator", "run"]
         env:

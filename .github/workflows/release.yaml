@@ -185,3 +185,18 @@ jobs:
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
+
+  trigger-helm-repo:
+    runs-on: ubuntu-latest
+    needs: [build-docker-image, package-and-release]
+    if: always() && needs.package-and-release.result == 'success'
+    steps:
+    - name: Trigger Helm repository update
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'helm-repo.yaml'
+          })
