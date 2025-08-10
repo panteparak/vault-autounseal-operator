@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/panteparak/vault-autounseal-operator/compare/v1.0.2...v1.1.0) (2025-08-10)
+
+### 🚀 Features
+
+* Restrict Pages/Helm workflow to tags only and add auto-generated docs ([c9da578](https://github.com/panteparak/vault-autounseal-operator/commit/c9da57818bd4f32b1f2588e20d07022c44b874ef))
+
 ## [1.0.2](https://github.com/panteparak/vault-autounseal-operator/compare/v1.0.1...v1.0.2) (2025-08-10)
 
 ### 🐛 Bug Fixes
