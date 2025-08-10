@@ -1,3 +1,9 @@
+## [1.1.3](https://github.com/panteparak/vault-autounseal-operator/compare/v1.1.2...v1.1.3) (2025-08-10)
+
+### 🐛 Bug Fixes
+
+* Add missing RBAC permissions for leader election ([9a001a7](https://github.com/panteparak/vault-autounseal-operator/commit/9a001a729a4fb4566b347613e1fb34686805c434))
+
 ## [1.1.0](https://github.com/panteparak/vault-autounseal-operator/compare/v1.0.2...v1.1.0) (2025-08-10)
 
 ### 🚀 Features
