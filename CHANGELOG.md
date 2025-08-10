@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/panteparak/vault-autounseal-operator/compare/v1.0.0...v1.0.1) (2025-08-10)
+
+### 🐛 Bug Fixes
+
+* Add environment to Pages deployment and preserve all Helm versions ([23babc9](https://github.com/panteparak/vault-autounseal-operator/commit/23babc9ee33c0004d429045cdc860d034212cfc2))
+
 ## [1.0.0](https://github.com/panteparak/vault-autounseal-operator/compare/v0.4.4...v1.0.0) (2025-08-10)
 
 ### ⚠ BREAKING CHANGES
