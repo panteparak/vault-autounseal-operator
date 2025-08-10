@@ -160,9 +160,6 @@ jobs:
   combine-and-deploy:
     needs: [build-docs, build-helm-repo]
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
     - name: Download documentation artifact
       uses: actions/download-artifact@v4
