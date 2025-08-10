@@ -115,7 +115,7 @@ jobs:
         make release VERSION=${{ needs.semantic-release.outputs.new-release-version }}
 
     - name: Upload release artifacts
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ needs.semantic-release.outputs.new-release-version }}
         files: |
