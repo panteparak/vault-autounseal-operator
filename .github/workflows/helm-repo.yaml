@@ -140,6 +140,11 @@ jobs:
       with:
         version: '3.12.0'
 
+    - name: Install yq
+      run: |
+        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+        sudo chmod +x /usr/local/bin/yq
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -169,21 +174,30 @@ jobs:
         mkdir -p helm-repo
         helm package helm/vault-autounseal-operator/ --destination helm-repo/
 
-    - name: Download existing Helm packages from gh-pages
+    - name: Download existing Helm packages from GitHub Pages
       run: |
         cd helm-repo
-        # Try to download existing packages from gh-pages branch
-        git fetch origin gh-pages:gh-pages 2>/dev/null || echo "No gh-pages branch found"
-        if git show-ref --verify --quiet refs/heads/gh-pages; then
-          echo "Found existing gh-pages branch, extracting Helm packages..."
-          git show gh-pages:index.yaml > existing-index.yaml 2>/dev/null || echo "No existing index.yaml"
-          # Extract existing .tgz files
-          git ls-tree -r --name-only gh-pages | grep '\.tgz$' | while read file; do
-            echo "Extracting existing package: $file"
-            git show "gh-pages:$file" > "$file" 2>/dev/null || echo "Could not extract $file"
-          done
+        # Download existing index.yaml from the live site
+        echo "Attempting to download existing Helm repository index..."
+        if curl -fsSL https://panteparak.github.io/vault-autounseal-operator/index.yaml -o existing-index.yaml; then
+          echo "Downloaded existing index.yaml successfully"
+          echo "Current repository contains:"
+          yq '.entries.vault-autounseal-operator[].version' existing-index.yaml 2>/dev/null || echo "No versions found"
         else
-          echo "No existing gh-pages branch found, creating new repository"
+          echo "No existing index.yaml found or site not accessible"
+          touch existing-index.yaml  # Create empty file to avoid errors
+        fi
+
+        # Download existing .tgz files listed in the index
+        if [ -s existing-index.yaml ]; then
+          echo "Downloading existing chart packages..."
+          yq '.entries.vault-autounseal-operator[].urls[]' existing-index.yaml 2>/dev/null | while read url; do
+            if [[ "$url" == "https://panteparak.github.io/vault-autounseal-operator/"* ]]; then
+              filename=$(basename "$url")
+              echo "Downloading existing package: $filename"
+              curl -fsSL "$url" -o "$filename" || echo "Could not download $filename"
+            fi
+          done
         fi
 
     - name: Create Helm repository index with all versions

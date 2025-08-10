@@ -31,7 +31,7 @@ A **production-ready Kubernetes operator** for automatically unsealing HashiCorp
 1. **Install the operator**:
    ```bash
    helm install vault-autounseal-operator \
-     oci://ghcr.io/panteparak/vault-autounseal-operator/helm \
+     oci://ghcr.io/panteparak/vault-autounseal-operator \
      --namespace vault-system --create-namespace
    ```
 

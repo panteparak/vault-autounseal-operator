@@ -18,12 +18,17 @@ spec:
       serviceAccountName: vault-autounseal-operator
       containers:
       - name: operator
-        image: ghcr.io/panteparak/vault-autounseal-operator:latest
+        image: ghcr.io/panteparak/vault-autounseal-operator:1.0.5
         imagePullPolicy: IfNotPresent
-        command: ["vault-operator", "run"]
-        env:
-        - name: PYTHONPATH
-          value: "/app/src"
+        args:
+        - --leader-elect
+        ports:
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        - containerPort: 8081
+          name: health
+          protocol: TCP
         resources:
           requests:
             memory: "128Mi"
@@ -34,13 +39,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /healthz
-            port: 8080
+            port: 8081
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /readyz
-            port: 8080
+            port: 8081
           initialDelaySeconds: 5
           periodSeconds: 5
         securityContext:
