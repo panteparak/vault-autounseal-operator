@@ -166,12 +166,12 @@ jobs:
     - name: Create Helm repository index with all versions
       run: |
         cd helm-repo
-        # Merge with existing index if available
-        if [ -f "existing-index.yaml" ]; then
+        # Merge with existing index if available and not empty
+        if [ -f "existing-index.yaml" ] && [ -s "existing-index.yaml" ]; then
           echo "Merging with existing Helm repository..."
           helm repo index . --url https://panteparak.github.io/vault-autounseal-operator/ --merge existing-index.yaml
         else
-          echo "Creating new Helm repository index..."
+          echo "Creating new Helm repository index (no valid existing index found)..."
           helm repo index . --url https://panteparak.github.io/vault-autounseal-operator/
         fi
 
