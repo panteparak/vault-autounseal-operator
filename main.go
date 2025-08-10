@@ -12,6 +12,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var (
@@ -43,7 +44,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	setupLog.Info("starting vault auto-unseal operator", "version", "0.4.2")
+	setupLog.Info("starting vault auto-unseal operator", "version", "1.1.0")
 
 	config, err := ctrl.GetConfig()
 	if err != nil {
@@ -52,9 +53,11 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
-		Scheme:           scheme,
-		LeaderElection:   enableLeaderElection,
-		LeaderElectionID: "vault-autounseal-operator-leader",
+		Scheme:                 scheme,
+		Metrics:                server.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress: probeAddr,
+		LeaderElection:         enableLeaderElection,
+		LeaderElectionID:       "vault-autounseal-operator-leader",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
