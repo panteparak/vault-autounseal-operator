@@ -14,94 +14,169 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       security-events: write
+      contents: read
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: true
 
     - name: Build Docker image
       run: |
-        docker build -t vault-autounseal-operator:latest .
+        docker build -t vault-autounseal-operator:security-scan .
 
-    - name: Run Trivy vulnerability scanner
+    - name: Run Trivy vulnerability scanner on image
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: vault-autounseal-operator:latest
+        image-ref: vault-autounseal-operator:security-scan
         format: 'sarif'
-        output: 'trivy-results.sarif'
+        output: 'trivy-image-results.sarif'
 
-    - name: Upload Trivy scan results to GitHub Security tab
+    - name: Run Trivy filesystem scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-fs-results.sarif'
+
+    - name: Upload Trivy image scan results
       uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
-        sarif_file: 'trivy-results.sarif'
+        sarif_file: 'trivy-image-results.sarif'
+        category: 'trivy-image'
+
+    - name: Upload Trivy filesystem scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-fs-results.sarif'
+        category: 'trivy-fs'
 
   codeql:
     runs-on: ubuntu-latest
     permissions:
       security-events: write
-      packages: read
+      contents: read
 
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
-        languages: python
+        languages: go
+        queries: security-extended,security-and-quality
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: true
 
     - name: Autobuild
       uses: github/codeql-action/autobuild@v3
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
+      with:
+        category: '/language:go'
 
   dependency-review:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
 
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Dependency Review
       uses: actions/dependency-review-action@v4
+      with:
+        fail-on-severity: moderate
 
-  bandit-security:
+  gosec:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up Go
+      uses: actions/setup-go@v5
       with:
-        python-version: "3.11"
+        go-version: '1.21'
+        cache: true
 
-    - name: Install bandit
+    - name: Run GoSec Security Scanner
       run: |
-        pip install bandit[toml]
+        go install github.com/securego/gosec/v2/cmd/gosec@latest
+        gosec -fmt sarif -out gosec-results.sarif -stdout -verbose=text ./...
 
-    - name: Run bandit security check
-      run: |
-        bandit -r src/ -f json -o bandit-report.json
-
-    - name: Upload bandit results
-      uses: actions/upload-artifact@v4
+    - name: Upload GoSec scan results
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
-        name: bandit-results
-        path: bandit-report.json
+        sarif_file: 'gosec-results.sarif'
+        category: 'gosec'
+
+  nancy:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: true
+
+    - name: Run Nancy vulnerability scanner
+      run: |
+        # Install nancy
+        go install github.com/sonatypeoss/nancy@latest
+
+        # Generate dependency list and scan
+        go list -json -deps ./... | nancy sleuth
 
   semgrep:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Run Semgrep
       uses: semgrep/semgrep-action@v1
       with:
         publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
+        generateSarif: "1"
       env:
         SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+    - name: Upload Semgrep results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always() && env.SEMGREP_APP_TOKEN
+      with:
+        sarif_file: semgrep.sarif
+        category: 'semgrep'
