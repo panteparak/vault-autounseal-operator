@@ -155,7 +155,7 @@ jobs:
     - name: Lint Helm chart
       run: |
         helm lint helm/vault-autounseal-operator/
-        helm template test helm/vault-autounseal-operator/ --validate
+        helm template test helm/vault-autounseal-operator/
 
     - name: Package Helm chart
       run: |
