@@ -1,28 +1,50 @@
 version: 2
 updates:
-  # Go modules
+  # Go modules - Core dependencies
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
     open-pull-requests-limit: 10
     reviewers:
       - "panteparak"
     assignees:
       - "panteparak"
     commit-message:
-      prefix: "deps"
+      prefix: "fix"
+      prefix-development: "chore"
       include: "scope"
     labels:
       - "dependencies"
       - "go"
+      - "automerge"
+    # Group minor and patch updates together
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+          - "github.com/hashicorp/vault/*"
+      kubernetes-dependencies:
+        patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+      vault-dependencies:
+        patterns:
+          - "github.com/hashicorp/vault/*"
 
-  # GitHub Actions
+  # GitHub Actions - CI/CD dependencies
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+      day: "tuesday"
+      time: "09:00"
+    open-pull-requests-limit: 5
     reviewers:
       - "panteparak"
     assignees:
@@ -33,20 +55,48 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+      - "github-actions"
+    # Group GitHub Actions updates
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
-  # Docker
+  # Docker - Base image dependencies
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+      day: "wednesday"
+      time: "09:00"
+    open-pull-requests-limit: 3
     reviewers:
       - "panteparak"
     assignees:
       - "panteparak"
     commit-message:
-      prefix: "docker"
+      prefix: "build"
       include: "scope"
     labels:
       - "dependencies"
       - "docker"
+      - "security"
+
+  # Helm chart dependencies (if any)
+  - package-ecosystem: "github-actions"
+    directory: "/.github/workflows"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "panteparak"
+    assignees:
+      - "panteparak"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "workflows"
