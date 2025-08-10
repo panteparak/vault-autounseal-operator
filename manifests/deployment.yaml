@@ -18,8 +18,8 @@ spec:
       serviceAccountName: vault-autounseal-operator
       containers:
       - name: operator
-        image: ghcr.io/panteparak/vault-autounseal-operator:1.0.5
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/panteparak/vault-autounseal-operator:latest
+        imagePullPolicy: Always
         args:
         - --leader-elect
         ports:
