@@ -86,9 +86,10 @@ jobs:
     - name: Copy existing Helm repository
       run: |
         if [ -d "gh-pages" ]; then
-          cp -r gh-pages/* site/helm/ 2>/dev/null || mkdir -p site/helm
+          # Copy existing Helm files (index.yaml and .tgz files) to root
+          cp gh-pages/*.yaml site/ 2>/dev/null || true
+          cp gh-pages/*.tgz site/ 2>/dev/null || true
         else
-          mkdir -p site/helm
           echo "No existing gh-pages branch found"
         fi
 
@@ -132,11 +133,11 @@ jobs:
                 <h2>⚓ Helm Repository</h2>
                 <p>Install the operator using Helm:</p>
                 <div class="code">
-                    <p>helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/helm/</p>
+                    <p>helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/</p>
                     <p>helm repo update</p>
                     <p>helm install vault-autounseal-operator vault-operator/vault-autounseal-operator</p>
                 </div>
-                <p><a href="./helm/">Browse Helm Repository</a></p>
+                <p><a href="./index.yaml">Browse Helm Repository</a></p>
             </div>
 
             <div class="section">

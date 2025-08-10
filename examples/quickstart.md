@@ -8,7 +8,7 @@ The operator is designed to run inside a Kubernetes cluster. If you try to run i
 
 ```bash
 # Add the Helm repository
-helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/helm/
+helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/
 helm repo update
 
 # Install the operator

@@ -149,7 +149,7 @@ jobs:
     - name: Create Helm repository index
       run: |
         cd helm-repo
-        helm repo index . --url https://panteparak.github.io/vault-autounseal-operator/helm/
+        helm repo index . --url https://panteparak.github.io/vault-autounseal-operator/
 
     - name: Upload Helm repository artifact
       uses: actions/upload-artifact@v4
@@ -171,7 +171,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: helm-repository
-        path: site/helm/
+        path: site/
 
     - name: Create site index
       run: |
@@ -213,11 +213,11 @@ jobs:
                 <h2>⚓ Helm Repository</h2>
                 <p>Install the operator using Helm:</p>
                 <div class="code">
-                    <p>helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/helm/</p>
+                    <p>helm repo add vault-operator https://panteparak.github.io/vault-autounseal-operator/</p>
                     <p>helm repo update</p>
                     <p>helm install vault-autounseal-operator vault-operator/vault-autounseal-operator</p>
                 </div>
-                <p><a href="./helm/">Browse Helm Repository</a></p>
+                <p><a href="./index.yaml">Browse Helm Repository</a></p>
             </div>
 
             <div class="section">
