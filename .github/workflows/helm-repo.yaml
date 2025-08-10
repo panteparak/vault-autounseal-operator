@@ -2,7 +2,6 @@ name: Pages and Helm Repository
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 
@@ -53,41 +52,65 @@ jobs:
         cd docs
         npm run build
 
-    - name: Create placeholder docs
+    - name: Generate documentation from README and examples
       if: steps.check-docs.outputs.docs-exist == 'false'
       run: |
-        mkdir -p docs-placeholder
-        cat > docs-placeholder/index.html << 'EOF'
+        mkdir -p docs-generated
+
+        # Install pandoc for markdown to HTML conversion
+        sudo apt-get update && sudo apt-get install -y pandoc
+
+        # Create main documentation page from README
+        if [ -f "README.md" ]; then
+          pandoc README.md -o docs-generated/index.html \
+            --standalone \
+            --css="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css" \
+            --metadata title="Vault Auto-Unseal Operator Documentation"
+        fi
+
+        # Convert examples to documentation pages
+        if [ -d "examples" ]; then
+          mkdir -p docs-generated/examples
+          for file in examples/*.md; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file" .md)
+              pandoc "$file" -o "docs-generated/examples/${filename}.html" \
+                --standalone \
+                --css="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css" \
+                --metadata title="$filename - Examples"
+            fi
+          done
+        fi
+
+        # Create navigation index if no README exists
+        if [ ! -f "README.md" ]; then
+          cat > docs-generated/index.html << 'EOF'
         <!DOCTYPE html>
         <html>
         <head>
             <title>Documentation - Vault Auto-Unseal Operator</title>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    max-width: 800px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    line-height: 1.6;
-                    text-align: center;
-                }
-            </style>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
         </head>
         <body>
-            <h1>📚 Documentation</h1>
-            <p>Documentation is being generated automatically.</p>
-            <p>Please check back soon or visit the <a href="https://github.com/panteparak/vault-autounseal-operator">GitHub repository</a> for the latest README and documentation.</p>
+            <h1>📚 Vault Auto-Unseal Operator Documentation</h1>
+            <p>Auto-generated documentation for the Kubernetes operator.</p>
+            <h2>Available Documentation</h2>
+            <ul>
+                <li><a href="examples/">Examples</a></li>
+                <li><a href="https://github.com/panteparak/vault-autounseal-operator">GitHub Repository</a></li>
+            </ul>
         </body>
         </html>
         EOF
+        fi
 
     - name: Upload docs artifact
       uses: actions/upload-artifact@v4
       with:
         name: documentation
-        path: ${{ steps.check-docs.outputs.docs-exist == 'true' && 'docs/dist/' || 'docs-placeholder/' }}
+        path: ${{ steps.check-docs.outputs.docs-exist == 'true' && 'docs/dist/' || 'docs-generated/' }}
 
   build-helm-repo:
     runs-on: ubuntu-latest
