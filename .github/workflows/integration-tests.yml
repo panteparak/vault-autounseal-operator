@@ -107,7 +107,10 @@ jobs:
               sleep 2
               timeout=$((timeout - 2))
             done
-            [ $timeout -le 0 ] && { echo "❌ Timeout waiting for basic Vault"; exit 1; }
+            if [ $timeout -le 0 ]; then
+              echo "❌ Timeout waiting for basic Vault"
+              exit 1
+            fi
             ;;
 
           "failover")
@@ -138,7 +141,10 @@ jobs:
                 sleep 2
                 timeout=$((timeout - 2))
               done
-              [ $timeout -le 0 ] && { echo "❌ Timeout waiting for $name Vault"; exit 1; }
+              if [ $timeout -le 0 ]; then
+                echo "❌ Timeout waiting for $name Vault"
+                exit 1
+              fi
             done
             ;;
 
@@ -176,7 +182,10 @@ jobs:
                 sleep 2
                 timeout=$((timeout - 2))
               done
-              [ $timeout -le 0 ] && { echo "❌ Timeout waiting for $cluster Vault"; exit 1; }
+              if [ $timeout -le 0 ]; then
+                echo "❌ Timeout waiting for $cluster Vault"
+                exit 1
+              fi
             done
             ;;
 
