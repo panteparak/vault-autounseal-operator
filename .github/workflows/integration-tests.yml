@@ -138,8 +138,8 @@ jobs:
       run: |
         echo "🔧 Deploying vault-autounseal-operator using Helm for scenario: $TEST_SCENARIO"
 
-        # Create namespace
-        kubectl create namespace vault-operator-system
+        # Create namespace (ignore if exists)
+        kubectl create namespace vault-operator-system || true
 
         # Create test configuration values
         cat > /tmp/test-values.yaml <<EOF
@@ -160,7 +160,9 @@ jobs:
             memory: 256Mi
         EOF
 
-        # Create vault configuration secret
+        # Create vault configuration secret (delete and recreate if exists)
+        kubectl delete secret vault-config --namespace=vault-operator-system --ignore-not-found=true
+        
         if [ "$TEST_SCENARIO" = "multi-vault" ]; then
           kubectl create secret generic vault-config \
             --namespace=vault-operator-system \
@@ -171,8 +173,8 @@ jobs:
             --from-literal=vault-endpoints="http://host.docker.internal:8200"
         fi
 
-        # Deploy using Helm
-        helm install vault-autounseal-operator ./helm/vault-autounseal-operator \
+        # Deploy using Helm with upgrade --install to handle existing installations
+        helm upgrade --install vault-autounseal-operator ./helm/vault-autounseal-operator \
           --namespace vault-operator-system \
           --values /tmp/test-values.yaml \
           --wait --timeout=300s
