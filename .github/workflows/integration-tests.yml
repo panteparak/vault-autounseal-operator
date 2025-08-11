@@ -167,7 +167,7 @@ jobs:
 
         # Create vault configuration secret (delete and recreate if exists)
         kubectl delete secret vault-config --namespace=vault-operator-system --ignore-not-found=true
-        
+
         if [ "$TEST_SCENARIO" = "multi-vault" ]; then
           kubectl create secret generic vault-config \
             --namespace=vault-operator-system \
@@ -182,7 +182,7 @@ jobs:
         helm upgrade --install vault-autounseal-operator ./helm/vault-autounseal-operator \
           --namespace vault-operator-system \
           --values /tmp/test-values.yaml \
-          --wait --timeout=300s
+          --wait --timeout=300s --debug
 
         echo "✅ Operator deployed successfully via Helm"
 
