@@ -187,7 +187,7 @@ jobs:
         helm upgrade --install vault-autounseal-operator ./helm/vault-autounseal-operator \
           --namespace vault-operator-system \
           --values /tmp/test-values.yaml \
-          --wait --timeout=600s \
+          --wait --timeout=120s \
           --debug || {
             echo "❌ Helm deployment failed, gathering debug info..."
             kubectl get pods -n vault-operator-system -o wide
