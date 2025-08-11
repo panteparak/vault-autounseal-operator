@@ -2,6 +2,7 @@ package vault
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -528,7 +529,7 @@ func (tr *TestRunner) runChaosTest(config *TestConfig) error {
 }
 
 func (tr *TestRunner) runSecurityTest(config *TestConfig) error {
-	securityConfig := config.GetSecurityTestConfig()
+	_ = config.GetSecurityTestConfig() // Security config for future use
 	helper := NewSecurityTestHelper()
 	validator := NewDefaultKeyValidator()
 

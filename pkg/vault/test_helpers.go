@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	math_rand "math/rand"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -273,7 +275,7 @@ func (ltr *LoadTestRunner) worker(ctx context.Context, wg *sync.WaitGroup, worke
 
 // selectOperation chooses an operation based on the probability distribution
 func (ltr *LoadTestRunner) selectOperation() string {
-	r := float32(rand.Intn(1000)) / 1000.0
+	r := float32(math_rand.Intn(1000)) / 1000.0
 	cumulative := float32(0.0)
 
 	for operation, probability := range ltr.operationMix {
@@ -457,13 +459,13 @@ func (ctr *ChaosTestRunner) chaosInjector(ctx context.Context) {
 			// Apply chaos to random clients
 			for _, client := range ctr.clients {
 				for _, scenario := range ctr.chaosScenarios {
-					if float32(rand.Intn(1000))/1000.0 < scenario.Probability {
+					if float32(math_rand.Intn(1000))/1000.0 < scenario.Probability {
 						scenario.ApplyFunc(client)
 
 						// Schedule recovery
 						if scenario.RecoverFunc != nil {
 							go func(c *MockVaultClient, recover func(*MockVaultClient)) {
-								time.Sleep(time.Duration(rand.Intn(200)) * time.Millisecond)
+								time.Sleep(time.Duration(math_rand.Intn(200)) * time.Millisecond)
 								recover(c)
 							}(client, scenario.RecoverFunc)
 						}
@@ -487,7 +489,7 @@ func (ctr *ChaosTestRunner) operationWorker(ctx context.Context, wg *sync.WaitGr
 		default:
 			// Perform random operations
 			operations := []string{"IsSealed", "HealthCheck", "GetSealStatus"}
-			operation := operations[rand.Intn(len(operations))]
+			operation := operations[math_rand.Intn(len(operations))]
 
 			ctr.metrics.StartConcurrentOperation()
 			start := time.Now()
@@ -507,7 +509,7 @@ func (ctr *ChaosTestRunner) operationWorker(ctx context.Context, wg *sync.WaitGr
 			ctr.metrics.EndConcurrentOperation()
 
 			// Small delay between operations
-			time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+			time.Sleep(time.Duration(math_rand.Intn(10)) * time.Millisecond)
 		}
 	}
 }
@@ -525,7 +527,7 @@ func (ctr *ChaosTestRunner) memoryMonitor(ctx context.Context) {
 			ctr.metrics.TakeMemorySnapshot()
 
 			// Force GC occasionally to test memory cleanup
-			if rand.Intn(10) == 0 {
+			if math_rand.Intn(10) == 0 {
 				runtime.GC()
 			}
 		}
@@ -534,14 +536,14 @@ func (ctr *ChaosTestRunner) memoryMonitor(ctx context.Context) {
 
 // PropertyTestGenerator generates test data for property-based testing
 type PropertyTestGenerator struct {
-	rand *rand.Rand
+	rand *math_rand.Rand
 }
 
 // NewPropertyTestGenerator creates a new property test generator
 func NewPropertyTestGenerator(seed int64) *PropertyTestGenerator {
-	source := rand.NewSource(seed)
+	source := math_rand.NewSource(seed)
 	return &PropertyTestGenerator{
-		rand: rand.New(source),
+		rand: math_rand.New(source),
 	}
 }
 
@@ -552,7 +554,7 @@ func (ptg *PropertyTestGenerator) GenerateRandomKeys(count int, minSize, maxSize
 	for i := 0; i < count; i++ {
 		size := minSize + ptg.rand.Intn(maxSize-minSize+1)
 		data := make([]byte, size)
-		ptg.rand.Read(data)
+		rand.Read(data)
 
 		// Ensure non-zero data to avoid validation failures
 		for j := range data {
