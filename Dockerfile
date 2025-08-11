@@ -64,9 +64,9 @@ USER 65532:65532
 # Health check port, metrics port, webhook port
 EXPOSE 8080 8081 9443
 
-# Add health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD ["/manager", "--health-check"]
+# Add health check using wget/curl (but distroless doesn't have these, so remove for now)
+# HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+#     CMD ["/manager", "--health-check"]
 
 ENTRYPOINT ["/manager"]
 

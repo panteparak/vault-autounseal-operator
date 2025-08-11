@@ -60,12 +60,12 @@ jobs:
           --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --build-arg GIT_COMMIT="${GITHUB_SHA}" \
           -t vault-autounseal-operator:test .
-        
+
         echo "🔍 Verifying built image..."
         docker run --rm --entrypoint="" vault-autounseal-operator:test ls -la / || echo "File listing failed"
         docker run --rm --entrypoint="" vault-autounseal-operator:test ls -la /manager || echo "Manager binary check failed"
-        docker run --rm vault-autounseal-operator:test --version || echo "Version check failed"
-        docker run --rm vault-autounseal-operator:test --help || echo "Help check failed"
+        docker run --rm --entrypoint="" vault-autounseal-operator:test /manager --version || echo "Version check failed"
+        docker run --rm --entrypoint="" vault-autounseal-operator:test /manager --help || echo "Help check failed"
 
     - name: Start K3d cluster
       run: |
@@ -88,59 +88,103 @@ jobs:
       run: |
         echo "🏛️ Starting Vault $VAULT_VERSION for scenario: $TEST_SCENARIO"
 
-        if [ "$TEST_SCENARIO" = "multi-vault" ]; then
-          echo "Starting multiple Vault instances..."
+        case "$TEST_SCENARIO" in
+          "basic")
+            echo "🏛️ Setting up Basic scenario: Single Vault instance in dev mode"
+            docker run -d --name vault-primary --cap-add=IPC_LOCK -p 8200:8200 \
+              -e VAULT_DEV_ROOT_TOKEN_ID=root \
+              -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+              hashicorp/vault:$VAULT_VERSION
 
-          # Start primary Vault
-          docker run -d --name vault-primary --cap-add=IPC_LOCK -p 8200:8200 \
-            -e VAULT_DEV_ROOT_TOKEN_ID=root -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
-            hashicorp/vault:$VAULT_VERSION
-
-          # Start secondary Vault
-          docker run -d --name vault-secondary --cap-add=IPC_LOCK -p 8201:8200 \
-            -e VAULT_DEV_ROOT_TOKEN_ID=root -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
-            hashicorp/vault:$VAULT_VERSION
-
-          # Wait for both instances
-          for port in 8200 8201; do
-            echo "Waiting for Vault on port $port..."
+            # Wait for Vault
+            echo "⏳ Waiting for Vault to be ready..."
             timeout=60
             while [ $timeout -gt 0 ]; do
-              if curl -s http://localhost:$port/v1/sys/health > /dev/null 2>&1; then
-                echo "✅ Vault on port $port is ready"
+              if curl -s http://localhost:8200/v1/sys/health > /dev/null 2>&1; then
+                echo "✅ Basic Vault instance ready at http://localhost:8200"
                 break
               fi
               sleep 2
               timeout=$((timeout - 2))
             done
-            if [ $timeout -le 0 ]; then
-              echo "❌ Timeout waiting for Vault on port $port"
-              exit 1
-            fi
-          done
-        else
-          echo "Starting single Vault instance..."
+            [ $timeout -le 0 ] && { echo "❌ Timeout waiting for basic Vault"; exit 1; }
+            ;;
 
-          docker run -d --name vault-primary --cap-add=IPC_LOCK -p 8200:8200 \
-            -e VAULT_DEV_ROOT_TOKEN_ID=root -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
-            hashicorp/vault:$VAULT_VERSION
+          "failover")
+            echo "🔄 Setting up Failover scenario: Primary + Standby Vault instances"
+            # Start primary Vault in dev mode
+            docker run -d --name vault-primary --cap-add=IPC_LOCK -p 8200:8200 \
+              -e VAULT_DEV_ROOT_TOKEN_ID=root \
+              -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+              hashicorp/vault:$VAULT_VERSION
 
-          # Wait for Vault
-          echo "Waiting for Vault..."
-          timeout=60
-          while [ $timeout -gt 0 ]; do
-            if curl -s http://localhost:8200/v1/sys/health > /dev/null 2>&1; then
-              echo "✅ Vault is ready at http://localhost:8200"
-              break
-            fi
-            sleep 2
-            timeout=$((timeout - 2))
-          done
-          if [ $timeout -le 0 ]; then
-            echo "❌ Timeout waiting for Vault"
+            # Start standby Vault (will be used for failover testing)
+            docker run -d --name vault-standby --cap-add=IPC_LOCK -p 8201:8200 \
+              -e VAULT_DEV_ROOT_TOKEN_ID=standby-token \
+              -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+              hashicorp/vault:$VAULT_VERSION
+
+            # Wait for both instances
+            for port_name in "8200:Primary" "8201:Standby"; do
+              port=$(echo $port_name | cut -d: -f1)
+              name=$(echo $port_name | cut -d: -f2)
+              echo "⏳ Waiting for $name Vault on port $port..."
+              timeout=60
+              while [ $timeout -gt 0 ]; do
+                if curl -s http://localhost:$port/v1/sys/health > /dev/null 2>&1; then
+                  echo "✅ $name Vault ready on port $port"
+                  break
+                fi
+                sleep 2
+                timeout=$((timeout - 2))
+              done
+              [ $timeout -le 0 ] && { echo "❌ Timeout waiting for $name Vault"; exit 1; }
+            done
+            ;;
+
+          "multi-vault")
+            echo "🏗️ Setting up Multi-vault scenario: Multiple independent Vault clusters"
+            # Start Vault cluster 1 (Finance)
+            docker run -d --name vault-finance --cap-add=IPC_LOCK -p 8200:8200 \
+              -e VAULT_DEV_ROOT_TOKEN_ID=finance-root \
+              -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+              hashicorp/vault:$VAULT_VERSION
+
+            # Start Vault cluster 2 (Engineering)
+            docker run -d --name vault-engineering --cap-add=IPC_LOCK -p 8201:8200 \
+              -e VAULT_DEV_ROOT_TOKEN_ID=eng-root \
+              -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+              hashicorp/vault:$VAULT_VERSION
+
+            # Start Vault cluster 3 (Operations)
+            docker run -d --name vault-operations --cap-add=IPC_LOCK -p 8202:8200 \
+              -e VAULT_DEV_ROOT_TOKEN_ID=ops-root \
+              -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+              hashicorp/vault:$VAULT_VERSION
+
+            # Wait for all three instances
+            for port_name in "8200:Finance" "8201:Engineering" "8202:Operations"; do
+              port=$(echo $port_name | cut -d: -f1)
+              cluster=$(echo $port_name | cut -d: -f2)
+              echo "⏳ Waiting for $cluster Vault cluster on port $port..."
+              timeout=60
+              while [ $timeout -gt 0 ]; do
+                if curl -s http://localhost:$port/v1/sys/health > /dev/null 2>&1; then
+                  echo "✅ $cluster Vault cluster ready on port $port"
+                  break
+                fi
+                sleep 2
+                timeout=$((timeout - 2))
+              done
+              [ $timeout -le 0 ] && { echo "❌ Timeout waiting for $cluster Vault"; exit 1; }
+            done
+            ;;
+
+          *)
+            echo "❌ Unknown test scenario: $TEST_SCENARIO"
             exit 1
-          fi
-        fi
+            ;;
+        esac
 
     - name: Deploy operator with Helm
       env:
@@ -179,15 +223,26 @@ jobs:
         # Create vault configuration secret (delete and recreate if exists)
         kubectl delete secret vault-config --namespace=vault-operator-system --ignore-not-found=true
 
-        if [ "$TEST_SCENARIO" = "multi-vault" ]; then
-          kubectl create secret generic vault-config \
-            --namespace=vault-operator-system \
-            --from-literal=vault-endpoints="http://host.docker.internal:8200,http://host.docker.internal:8201"
-        else
-          kubectl create secret generic vault-config \
-            --namespace=vault-operator-system \
-            --from-literal=vault-endpoints="http://host.docker.internal:8200"
-        fi
+        case "$TEST_SCENARIO" in
+          "basic")
+            echo "📝 Creating config for Basic scenario (single Vault)"
+            kubectl create secret generic vault-config \
+              --namespace=vault-operator-system \
+              --from-literal=vault-endpoints="http://host.docker.internal:8200"
+            ;;
+          "failover")
+            echo "📝 Creating config for Failover scenario (primary + standby)"
+            kubectl create secret generic vault-config \
+              --namespace=vault-operator-system \
+              --from-literal=vault-endpoints="http://host.docker.internal:8200,http://host.docker.internal:8201"
+            ;;
+          "multi-vault")
+            echo "📝 Creating config for Multi-vault scenario (3 clusters)"
+            kubectl create secret generic vault-config \
+              --namespace=vault-operator-system \
+              --from-literal=vault-endpoints="http://host.docker.internal:8200,http://host.docker.internal:8201,http://host.docker.internal:8202"
+            ;;
+        esac
 
         # Deploy using Helm with upgrade --install to handle existing installations
         echo "🚀 Deploying with Helm (increased timeout for pod startup)..."
@@ -223,12 +278,61 @@ jobs:
         echo "🏛️ Test 2: Initial Vault Status Check"
         VAULT_STATUS=$(curl -s http://localhost:8200/v1/sys/seal-status || echo "failed")
         echo "Vault status: $VAULT_STATUS"
-        
+
         # Test 3: Create VaultUnsealConfig CRD resource
-        echo "📝 Test 3: Creating VaultUnsealConfig Resource"
-        
-        if [ "$TEST_SCENARIO" = "multi-vault" ]; then
-          cat <<EOF | kubectl apply -f -
+        echo "📝 Test 3: Creating VaultUnsealConfig Resource for $TEST_SCENARIO scenario"
+
+        case "$TEST_SCENARIO" in
+          "basic")
+            cat <<EOF | kubectl apply -f -
+        apiVersion: vault.io/v1
+        kind: VaultUnsealConfig
+        metadata:
+          name: test-basic-vault-config
+          namespace: default
+        spec:
+          vaultInstances:
+          - name: vault-basic
+            endpoint: "http://host.docker.internal:8200"
+            unsealKeys:
+            - "$(echo -n 'basic-key-1' | base64)"
+            - "$(echo -n 'basic-key-2' | base64)"
+            - "$(echo -n 'basic-key-3' | base64)"
+            threshold: 3
+            tlsSkipVerify: true
+        EOF
+            ;;
+
+          "failover")
+            cat <<EOF | kubectl apply -f -
+        apiVersion: vault.io/v1
+        kind: VaultUnsealConfig
+        metadata:
+          name: test-failover-vault-config
+          namespace: default
+        spec:
+          vaultInstances:
+          - name: vault-primary
+            endpoint: "http://host.docker.internal:8200"
+            unsealKeys:
+            - "$(echo -n 'failover-primary-key-1' | base64)"
+            - "$(echo -n 'failover-primary-key-2' | base64)"
+            - "$(echo -n 'failover-primary-key-3' | base64)"
+            threshold: 3
+            tlsSkipVerify: true
+          - name: vault-standby
+            endpoint: "http://host.docker.internal:8201"
+            unsealKeys:
+            - "$(echo -n 'failover-standby-key-1' | base64)"
+            - "$(echo -n 'failover-standby-key-2' | base64)"
+            - "$(echo -n 'failover-standby-key-3' | base64)"
+            threshold: 3
+            tlsSkipVerify: true
+        EOF
+            ;;
+
+          "multi-vault")
+            cat <<EOF | kubectl apply -f -
         apiVersion: vault.io/v1
         kind: VaultUnsealConfig
         metadata:
@@ -236,43 +340,34 @@ jobs:
           namespace: default
         spec:
           vaultInstances:
-          - name: vault-primary
+          - name: vault-finance
             endpoint: "http://host.docker.internal:8200"
             unsealKeys:
-            - "$(echo -n 'test-key-1' | base64)"
-            - "$(echo -n 'test-key-2' | base64)"
-            - "$(echo -n 'test-key-3' | base64)"
+            - "$(echo -n 'finance-key-1' | base64)"
+            - "$(echo -n 'finance-key-2' | base64)"
+            - "$(echo -n 'finance-key-3' | base64)"
             threshold: 3
             tlsSkipVerify: true
-          - name: vault-secondary
+          - name: vault-engineering
             endpoint: "http://host.docker.internal:8201"
             unsealKeys:
-            - "$(echo -n 'test-key-1' | base64)"
-            - "$(echo -n 'test-key-2' | base64)"
-            - "$(echo -n 'test-key-3' | base64)"
+            - "$(echo -n 'engineering-key-1' | base64)"
+            - "$(echo -n 'engineering-key-2' | base64)"
+            - "$(echo -n 'engineering-key-3' | base64)"
             threshold: 3
             tlsSkipVerify: true
-        EOF
-        else
-          cat <<EOF | kubectl apply -f -
-        apiVersion: vault.io/v1
-        kind: VaultUnsealConfig
-        metadata:
-          name: test-single-vault-config
-          namespace: default
-        spec:
-          vaultInstances:
-          - name: vault-primary
-            endpoint: "http://host.docker.internal:8200"
+          - name: vault-operations
+            endpoint: "http://host.docker.internal:8202"
             unsealKeys:
-            - "$(echo -n 'test-key-1' | base64)"
-            - "$(echo -n 'test-key-2' | base64)"
-            - "$(echo -n 'test-key-3' | base64)"
+            - "$(echo -n 'operations-key-1' | base64)"
+            - "$(echo -n 'operations-key-2' | base64)"
+            - "$(echo -n 'operations-key-3' | base64)"
             threshold: 3
             tlsSkipVerify: true
         EOF
-        fi
-        
+            ;;
+        esac
+
         echo "✅ VaultUnsealConfig resource created"
 
         # Test 4: Verify CRD resource was created
@@ -293,15 +388,27 @@ jobs:
         kubectl get vaultunsealconfigs -o yaml
 
         # Test 8: Test Vault unsealing (note: dev mode Vault doesn't seal/unseal like production)
-        echo "🔓 Test 8: Vault Accessibility Test"
-        if [ "$TEST_SCENARIO" = "multi-vault" ]; then
-          echo "Testing both Vault instances..."
-          curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Primary Vault test failed"
-          curl -s http://localhost:8201/v1/sys/health | jq '.initialized // false' || echo "Secondary Vault test failed"
-        else
-          echo "Testing single Vault instance..."
-          curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Vault test failed"
-        fi
+        echo "🔓 Test 8: Vault Accessibility Test for $TEST_SCENARIO scenario"
+
+        case "$TEST_SCENARIO" in
+          "basic")
+            echo "🧪 Testing single basic Vault instance..."
+            curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Basic Vault test failed"
+            ;;
+
+          "failover")
+            echo "🧪 Testing primary and standby Vault instances..."
+            curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Primary Vault test failed"
+            curl -s http://localhost:8201/v1/sys/health | jq '.initialized // false' || echo "Standby Vault test failed"
+            ;;
+
+          "multi-vault")
+            echo "🧪 Testing all three Vault clusters..."
+            curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Finance Vault test failed"
+            curl -s http://localhost:8201/v1/sys/health | jq '.initialized // false' || echo "Engineering Vault test failed"
+            curl -s http://localhost:8202/v1/sys/health | jq '.initialized // false' || echo "Operations Vault test failed"
+            ;;
+        esac
 
         # Test 9: Check for any error events
         echo "⚠️ Test 9: Check for Error Events"
@@ -317,16 +424,16 @@ jobs:
     - name: Test resource cleanup and recreation
       run: |
         echo "🧹 Testing resource lifecycle management..."
-        
+
         # Delete the VaultUnsealConfig
         kubectl delete vaultunsealconfigs --all
-        
+
         # Wait for cleanup
         sleep 10
-        
+
         # Verify cleanup in logs
         kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=20
-        
+
         # Recreate resource to test operator resilience
         cat <<EOF | kubectl apply -f -
         apiVersion: vault.io/v1
@@ -343,21 +450,21 @@ jobs:
             threshold: 1
             tlsSkipVerify: true
         EOF
-        
+
         # Wait and verify
         sleep 15
         kubectl get vaultunsealconfigs -o wide
         kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=10
-        
+
         echo "✅ Resource lifecycle tests completed!"
 
     - name: Test with production-like Vault (sealed state)
       run: |
         echo "🏭 Testing with production-like sealed Vault..."
-        
+
         # Stop dev mode Vault
         docker stop vault-primary || true
-        
+
         # Start Vault in production mode (sealed by default)
         docker run -d --name vault-prod --cap-add=IPC_LOCK -p 8202:8200 \
           -e VAULT_API_ADDR=http://0.0.0.0:8200 \
@@ -366,14 +473,14 @@ jobs:
           docker run -d --name vault-prod --cap-add=IPC_LOCK -p 8202:8200 \
             hashicorp/vault:${{ matrix.vault-version }} server -dev=false
         }
-        
+
         # Wait for Vault to start
         sleep 10
-        
+
         # Check sealed status
         echo "🔒 Checking sealed Vault status..."
         curl -s http://localhost:8202/v1/sys/seal-status | jq '.' || echo "Sealed Vault not accessible yet"
-        
+
         # Create VaultUnsealConfig for production Vault
         cat <<EOF | kubectl apply -f -
         apiVersion: vault.io/v1
@@ -392,22 +499,22 @@ jobs:
             threshold: 3
             tlsSkipVerify: true
         EOF
-        
+
         # Wait for operator to attempt unsealing
         echo "⏳ Waiting for operator to process production Vault..."
         sleep 20
-        
+
         # Check operator logs for unsealing attempts
         echo "📝 Operator logs for production Vault processing:"
         kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=30
-        
+
         # Check resource status
         kubectl get vaultunsealconfigs test-prod-vault-config -o yaml | grep -A 10 status: || echo "No status found"
-        
+
         # Clean up production Vault
         docker stop vault-prod || true
         docker rm vault-prod || true
-        
+
         echo "✅ Production Vault testing completed!"
 
     - name: Cleanup
@@ -419,8 +526,8 @@ jobs:
         # Delete k3d cluster
         k3d cluster delete vault-test || true
 
-        # Stop Vault containers
-        docker rm -f vault-primary vault-secondary vault-prod || true
+        # Stop all Vault containers
+        docker rm -f vault-primary vault-standby vault-secondary vault-finance vault-engineering vault-operations vault-prod || true
 
   helm-chart-tests:
     name: Helm Chart Tests

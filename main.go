@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
@@ -18,6 +19,11 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+
+	// Build-time variables
+	version   = "dev"
+	buildTime = "unknown"
+	gitCommit = "unknown"
 )
 
 func init() {
@@ -29,12 +35,16 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var showVersion bool
+	var healthCheck bool
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&showVersion, "version", false, "Show version information and exit.")
+	flag.BoolVar(&healthCheck, "health-check", false, "Perform health check and exit.")
 
 	opts := zap.Options{
 		Development: true,
@@ -42,9 +52,23 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
+	// Handle version flag
+	if showVersion {
+		fmt.Printf("vault-autounseal-operator version %s\n", version)
+		fmt.Printf("Build time: %s\n", buildTime)
+		fmt.Printf("Git commit: %s\n", gitCommit)
+		os.Exit(0)
+	}
+
+	// Handle health check flag (basic validation)
+	if healthCheck {
+		fmt.Println("OK")
+		os.Exit(0)
+	}
+
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	setupLog.Info("starting vault auto-unseal operator", "version", "1.1.3")
+	setupLog.Info("starting vault auto-unseal operator", "version", version)
 
 	config, err := ctrl.GetConfig()
 	if err != nil {
