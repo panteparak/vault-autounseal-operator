@@ -44,7 +44,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	setupLog.Info("starting vault auto-unseal operator", "version", "1.1.0")
+	setupLog.Info("starting vault auto-unseal operator", "version", "1.1.3")
 
 	config, err := ctrl.GetConfig()
 	if err != nil {

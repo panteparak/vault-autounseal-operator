@@ -2,7 +2,6 @@ name: Release
 
 on:
   push:
-    branches: [ main ]
     tags: [ 'v*' ]
   workflow_dispatch:
 
@@ -38,7 +37,7 @@ jobs:
   semantic-release:
     runs-on: ubuntu-latest
     needs: determine-version
-    if: needs.determine-version.outputs.is-tag == 'false'
+    if: false  # Disabled - only manual tags trigger releases
     permissions:
       contents: write
       packages: write
