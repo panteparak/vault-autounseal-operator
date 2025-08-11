@@ -137,10 +137,9 @@ jobs:
         VAULT_VERSION: ${{ matrix.vault-version }}
       run: |
         echo "🔧 Deploying vault-autounseal-operator using Helm for scenario: $TEST_SCENARIO"
-
+        kubectl get crd vaultunsealconfigs.vault.io || true
         # Create namespace (ignore if exists)
         kubectl create namespace vault-operator-system || true
-
         # Create test configuration values
         cat > /tmp/test-values.yaml <<EOF
         image:
