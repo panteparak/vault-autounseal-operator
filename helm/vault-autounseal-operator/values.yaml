@@ -2,9 +2,9 @@
 replicaCount: 1
 
 image:
-  repository: vault-autounseal-operator
+  repository: ghcr.io/panteparak/vault-autounseal-operator
   pullPolicy: IfNotPresent
-  tag: "latest"
+  tag: ""  # defaults to .Chart.AppVersion
 
 nameOverride: ""
 fullnameOverride: ""
