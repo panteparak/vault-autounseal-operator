@@ -1,0 +1,76 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+examples/
+
+# Build artifacts
+bin/
+dist/
+build/
+release/
+
+# Test files
+*_test.go
+testdata/
+coverage.out
+*.test
+*.cover
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Dependencies (handled by go mod)
+vendor/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Kubernetes manifests (not needed in container)
+manifests/
+helm/
+k8s/
+deploy/
+
+# Config files
+.env*
+config.yaml
+*.yaml
+*.yml
+!go.mod
+!go.sum
+
+# Binary files
+manager
+main
+vault-autounseal-operator
+
+# Generated files
+generated/
+config/crd/bases/
+
+# Make artifacts
+Makefile
+
+# License and changelog
+LICENSE*
+CHANGELOG*

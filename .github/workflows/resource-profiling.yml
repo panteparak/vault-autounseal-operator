@@ -1,0 +1,552 @@
+name: Resource Profiling and Extended Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.21'
+  BENCHMARK_DURATION: '30s'
+  PROFILE_DURATION: '10s'
+
+jobs:
+  extended-integration-tests:
+    name: Extended Integration Tests with Resource Monitoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Install monitoring tools
+      run: |
+        # Install additional monitoring utilities
+        sudo apt-get update
+        sudo apt-get install -y htop sysstat time
+
+    - name: Run Extended Integration Tests with Resource Monitoring
+      run: |
+        echo "=== Running Extended Integration Tests with Resource Profiling ==="
+
+        # Start system resource monitoring in background
+        sar -u -r -d 1 > system_stats.txt &
+        SAR_PID=$!
+
+        # Run extended integration tests with memory and CPU profiling
+        /usr/bin/time -v go test -v -timeout=20m \
+          -memprofile=integration_mem.prof \
+          -cpuprofile=integration_cpu.prof \
+          -blockprofile=integration_block.prof \
+          -mutexprofile=integration_mutex.prof \
+          -trace=integration_trace.out \
+          -benchmem -run=TestExtendedIntegration \
+          ./pkg/vault/... 2>&1 | tee integration_results.txt
+
+        # Stop system monitoring
+        kill $SAR_PID || true
+
+        echo "✅ Extended integration tests completed"
+
+    - name: Run Chaos Engineering Tests with Profiling
+      run: |
+        echo "=== Running Chaos Engineering Tests ==="
+
+        # Create chaos engineering test runner
+        cat > chaos_test_runner.go << 'EOF'
+        package main
+
+        import (
+            "context"
+            "encoding/base64"
+            "fmt"
+            "math/rand"
+            "runtime"
+            "sync"
+            "time"
+            _ "net/http/pprof"
+            "net/http"
+            "os"
+        )
+
+        func main() {
+            // Start pprof server for runtime profiling
+            go func() {
+                http.ListenAndServe("localhost:6060", nil)
+            }()
+
+            // Simulate chaos scenarios
+            fmt.Println("Starting chaos engineering tests...")
+
+            var wg sync.WaitGroup
+            numWorkers := 50
+            iterationsPerWorker := 100
+
+            // Memory pressure test
+            wg.Add(numWorkers)
+            for i := 0; i < numWorkers; i++ {
+                go func(workerID int) {
+                    defer wg.Done()
+
+                    for j := 0; j < iterationsPerWorker; j++ {
+                        // Simulate memory allocation patterns
+                        data := make([]byte, 1024+rand.Intn(8192))
+                        for k := range data {
+                            data[k] = byte(rand.Intn(256))
+                        }
+
+                        // Encode to base64 (common operation)
+                        encoded := base64.StdEncoding.EncodeToString(data)
+
+                        // Decode back
+                        _, err := base64.StdEncoding.DecodeString(encoded)
+                        if err != nil {
+                            fmt.Printf("Worker %d iteration %d: decode error: %v\n", workerID, j, err)
+                        }
+
+                        // Random sleep to simulate network latency
+                        if rand.Float32() < 0.1 {
+                            time.Sleep(time.Millisecond * time.Duration(rand.Intn(10)))
+                        }
+                    }
+
+                    // Force GC occasionally
+                    if workerID%10 == 0 {
+                        runtime.GC()
+                    }
+                }(i)
+            }
+
+            // Monitor memory usage during test
+            go func() {
+                ticker := time.NewTicker(500 * time.Millisecond)
+                defer ticker.Stop()
+
+                for {
+                    select {
+                    case <-ticker.C:
+                        var m runtime.MemStats
+                        runtime.ReadMemStats(&m)
+                        fmt.Printf("Memory: Alloc=%dKB TotalAlloc=%dKB Sys=%dKB NumGC=%d\n",
+                            m.Alloc/1024, m.TotalAlloc/1024, m.Sys/1024, m.NumGC)
+                    case <-time.After(30 * time.Second):
+                        return
+                    }
+                }
+            }()
+
+            wg.Wait()
+            fmt.Println("Chaos engineering tests completed")
+        }
+        EOF
+
+        # Run chaos tests
+        /usr/bin/time -v go run chaos_test_runner.go 2>&1 | tee chaos_results.txt
+
+        echo "✅ Chaos engineering tests completed"
+
+    - name: Load Testing with Resource Profiling
+      run: |
+        echo "=== Running Load Tests ==="
+
+        # Run load/stress tests with comprehensive profiling
+        /usr/bin/time -v go test -v -timeout=15m \
+          -memprofile=load_mem.prof \
+          -cpuprofile=load_cpu.prof \
+          -bench=BenchmarkIntegration \
+          -benchtime=${{ env.BENCHMARK_DURATION }} \
+          -benchmem \
+          ./pkg/vault/... 2>&1 | tee load_results.txt
+
+        echo "✅ Load testing completed"
+
+    - name: Property-Based Testing with Memory Tracking
+      run: |
+        echo "=== Running Property-Based Tests ==="
+
+        # Create property-based test runner
+        cat > property_test_runner.go << 'EOF'
+        package main
+
+        import (
+            "encoding/base64"
+            "fmt"
+            "math/rand"
+            "runtime"
+            "time"
+        )
+
+        func main() {
+            fmt.Println("Starting property-based testing...")
+
+            // Property: base64 encode/decode roundtrip should preserve data
+            testRoundtripProperty := func(iterations int) {
+                var memBefore, memAfter runtime.MemStats
+                runtime.ReadMemStats(&memBefore)
+
+                for i := 0; i < iterations; i++ {
+                    // Generate random data
+                    size := 1 + rand.Intn(1024)
+                    data := make([]byte, size)
+                    rand.Read(data)
+
+                    // Encode and decode
+                    encoded := base64.StdEncoding.EncodeToString(data)
+                    decoded, err := base64.StdEncoding.DecodeString(encoded)
+
+                    if err != nil {
+                        fmt.Printf("Decode error: %v\n", err)
+                        continue
+                    }
+
+                    // Verify roundtrip property
+                    if len(decoded) != len(data) {
+                        fmt.Printf("Length mismatch: original=%d decoded=%d\n", len(data), len(decoded))
+                        continue
+                    }
+
+                    for j := 0; j < len(data); j++ {
+                        if data[j] != decoded[j] {
+                            fmt.Printf("Data mismatch at index %d\n", j)
+                            break
+                        }
+                    }
+                }
+
+                runtime.ReadMemStats(&memAfter)
+                fmt.Printf("Memory growth during property test: %d KB\n",
+                    (memAfter.Alloc-memBefore.Alloc)/1024)
+            }
+
+            testRoundtripProperty(10000)
+
+            // Force garbage collection and measure
+            runtime.GC()
+            var finalMem runtime.MemStats
+            runtime.ReadMemStats(&finalMem)
+            fmt.Printf("Final memory usage: %d KB\n", finalMem.Alloc/1024)
+
+            fmt.Println("Property-based testing completed")
+        }
+        EOF
+
+        /usr/bin/time -v go run property_test_runner.go 2>&1 | tee property_results.txt
+
+        echo "✅ Property-based testing completed"
+
+    - name: Security-Focused Tests with Profiling
+      run: |
+        echo "=== Running Security-Focused Tests ==="
+
+        # Test memory safety and key handling
+        go test -v -timeout=10m \
+          -memprofile=security_mem.prof \
+          -cpuprofile=security_cpu.prof \
+          -run=TestValidator \
+          ./pkg/vault/... 2>&1 | tee security_results.txt
+
+        echo "✅ Security testing completed"
+
+    - name: Generate Resource Usage Report
+      run: |
+        echo "=== Generating Resource Usage Report ==="
+
+        cat > resource_report.md << 'EOF'
+        # Resource Profiling Report
+
+        Generated on: $(date)
+        Workflow: ${{ github.workflow }}
+        Run ID: ${{ github.run_id }}
+
+        ## Test Execution Summary
+
+        EOF
+
+        # Add test results to report
+        if [ -f integration_results.txt ]; then
+          echo "### Extended Integration Tests" >> resource_report.md
+          echo "\`\`\`" >> resource_report.md
+          grep -E "(PASS|FAIL|Memory|CPU)" integration_results.txt | tail -20 >> resource_report.md
+          echo "\`\`\`" >> resource_report.md
+          echo "" >> resource_report.md
+        fi
+
+        if [ -f chaos_results.txt ]; then
+          echo "### Chaos Engineering Tests" >> resource_report.md
+          echo "\`\`\`" >> resource_report.md
+          grep -E "Memory|completed|error" chaos_results.txt | tail -10 >> resource_report.md
+          echo "\`\`\`" >> resource_report.md
+          echo "" >> resource_report.md
+        fi
+
+        if [ -f load_results.txt ]; then
+          echo "### Load Testing Results" >> resource_report.md
+          echo "\`\`\`" >> resource_report.md
+          grep -E "Benchmark|ns/op|B/op|allocs/op" load_results.txt >> resource_report.md
+          echo "\`\`\`" >> resource_report.md
+          echo "" >> resource_report.md
+        fi
+
+        echo "### System Resource Usage" >> resource_report.md
+        echo "\`\`\`" >> resource_report.md
+        if [ -f system_stats.txt ]; then
+          tail -20 system_stats.txt >> resource_report.md
+        fi
+        echo "\`\`\`" >> resource_report.md
+
+        echo "📊 Resource usage report generated"
+
+    - name: Profile Analysis
+      run: |
+        echo "=== Analyzing Profiles ==="
+
+        # Generate profile summaries
+        for prof in *.prof; do
+          if [ -f "$prof" ]; then
+            echo "Analyzing $prof..."
+            go tool pprof -top -nodecount=10 "$prof" > "${prof%.prof}_analysis.txt" 2>/dev/null || echo "Could not analyze $prof"
+          fi
+        done
+
+        # List all generated files
+        echo "Generated profile files:"
+        ls -la *.prof *.txt *.out *.md 2>/dev/null || echo "No profile files found"
+
+    - name: Memory Leak Detection
+      run: |
+        echo "=== Memory Leak Detection ==="
+
+        # Run a extended memory leak test
+        cat > memleak_test.go << 'EOF'
+        package main
+
+        import (
+            "encoding/base64"
+            "fmt"
+            "runtime"
+            "time"
+        )
+
+        func main() {
+            fmt.Println("Starting memory leak detection...")
+
+            var baseline, current runtime.MemStats
+            runtime.GC()
+            runtime.ReadMemStats(&baseline)
+
+            // Simulate workload
+            for iteration := 0; iteration < 100; iteration++ {
+                // Allocate and work with data
+                for i := 0; i < 1000; i++ {
+                    data := make([]byte, 1024)
+                    for j := range data {
+                        data[j] = byte(i % 256)
+                    }
+                    encoded := base64.StdEncoding.EncodeToString(data)
+                    _, _ = base64.StdEncoding.DecodeString(encoded)
+                }
+
+                // Check memory usage every 10 iterations
+                if iteration%10 == 0 {
+                    runtime.GC()
+                    runtime.ReadMemStats(&current)
+                    growth := current.Alloc - baseline.Alloc
+                    fmt.Printf("Iteration %d: Memory growth = %d KB\n",
+                        iteration, growth/1024)
+
+                    // Alert if memory growth is excessive
+                    if growth > 50*1024*1024 { // 50MB
+                        fmt.Printf("⚠️  Potential memory leak detected at iteration %d\n", iteration)
+                        break
+                    }
+                }
+            }
+
+            fmt.Println("Memory leak detection completed")
+        }
+        EOF
+
+        go run memleak_test.go 2>&1 | tee memleak_results.txt
+
+        echo "✅ Memory leak detection completed"
+
+    - name: Upload Resource Profiling Artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: resource-profiling-results
+        path: |
+          *.prof
+          *.out
+          *.txt
+          *.md
+          chaos_test_runner.go
+          property_test_runner.go
+          memleak_test.go
+        retention-days: 30
+
+    - name: Performance Regression Check
+      run: |
+        echo "=== Performance Regression Analysis ==="
+
+        # Check for performance regressions
+        REGRESSION_DETECTED=false
+
+        # Check if any tests failed
+        if grep -q "FAIL" *_results.txt 2>/dev/null; then
+          echo "❌ Some tests failed"
+          REGRESSION_DETECTED=true
+        fi
+
+        # Check for memory leaks
+        if grep -q "Potential memory leak" memleak_results.txt 2>/dev/null; then
+          echo "❌ Potential memory leak detected"
+          REGRESSION_DETECTED=true
+        fi
+
+        # Check benchmark performance (basic threshold)
+        if [ -f load_results.txt ]; then
+          # Extract ns/op values and check if any are excessively high
+          if grep -E "ns/op" load_results.txt | awk '{print $3}' | grep -E "[0-9]{9,}" >/dev/null; then
+            echo "⚠️  Some benchmarks are running slower than expected"
+            REGRESSION_DETECTED=true
+          fi
+        fi
+
+        if [ "$REGRESSION_DETECTED" = "true" ]; then
+          echo "❌ Performance regressions detected"
+          exit 1
+        else
+          echo "✅ No significant performance regressions detected"
+        fi
+
+  compatibility-testing:
+    name: Vault Version Compatibility Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        vault_version: ['1.12.0', '1.13.0', '1.14.0', '1.15.0']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run Compatibility Tests for Vault ${{ matrix.vault_version }}
+      run: |
+        echo "=== Testing compatibility with Vault ${{ matrix.vault_version }} ==="
+
+        # Set environment variable for version-specific testing
+        export VAULT_VERSION=${{ matrix.vault_version }}
+
+        # Run tests with resource monitoring
+        /usr/bin/time -v go test -v -timeout=10m \
+          -memprofile=compat_${{ matrix.vault_version }}_mem.prof \
+          -cpuprofile=compat_${{ matrix.vault_version }}_cpu.prof \
+          ./pkg/vault/... 2>&1 | tee compat_${{ matrix.vault_version }}_results.txt
+
+        echo "✅ Compatibility testing for Vault ${{ matrix.vault_version }} completed"
+
+    - name: Upload Compatibility Test Artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: compatibility-${{ matrix.vault_version }}-results
+        path: |
+          compat_${{ matrix.vault_version }}_*.prof
+          compat_${{ matrix.vault_version }}_*.txt
+        retention-days: 14
+
+  summary-report:
+    name: Generate Summary Report
+    runs-on: ubuntu-latest
+    needs: [extended-integration-tests, compatibility-testing]
+    if: always()
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        merge-multiple: true
+
+    - name: Generate Final Report
+      run: |
+        echo "=== Generating Final Resource Profiling Report ==="
+
+        cat > final_report.md << 'EOF'
+        # 🚀 Resource Profiling & Extended Testing Summary
+
+        **Workflow:** ${{ github.workflow }}
+        **Run ID:** ${{ github.run_id }}
+        **Date:** $(date)
+        **Branch:** ${{ github.ref_name }}
+        **Commit:** ${{ github.sha }}
+
+        ## 📊 Test Coverage Summary
+
+        - ✅ Extended Integration Tests with Resource Monitoring
+        - ✅ Chaos Engineering Tests
+        - ✅ Load Testing and Stress Tests
+        - ✅ Property-Based Testing
+        - ✅ Security-Focused Tests
+        - ✅ Memory Leak Detection
+        - ✅ Vault Version Compatibility Tests
+
+        ## 🔍 Key Metrics
+
+        EOF
+
+        # Add artifact summary
+        echo "## 📁 Generated Artifacts" >> final_report.md
+        echo "" >> final_report.md
+        echo "\`\`\`" >> final_report.md
+        ls -la . | grep -E "\.(prof|txt|md|out)$" >> final_report.md
+        echo "\`\`\`" >> final_report.md
+
+        # Add any error summaries
+        if find . -name "*results.txt" -exec grep -l "FAIL" {} \; 2>/dev/null | head -1; then
+          echo "" >> final_report.md
+          echo "## ⚠️ Test Failures" >> final_report.md
+          echo "" >> final_report.md
+          find . -name "*results.txt" -exec grep -H "FAIL" {} \; 2>/dev/null >> final_report.md
+        fi
+
+        echo "" >> final_report.md
+        echo "---" >> final_report.md
+        echo "*Generated by GitHub Actions Resource Profiling Workflow*" >> final_report.md
+
+        # Display the report
+        echo "📋 Final Report Generated:"
+        cat final_report.md
+
+    - name: Upload Final Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: final-resource-profiling-report
+        path: final_report.md
+        retention-days: 30

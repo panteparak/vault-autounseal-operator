@@ -1,0 +1,326 @@
+# Comprehensive Testing Makefile
+# This file provides comprehensive testing targets with resource profiling
+
+.PHONY: help test test-unit test-integration test-extended test-chaos test-load test-security test-property test-compatibility test-all
+.PHONY: profile profile-cpu profile-memory profile-all clean-profiles
+.PHONY: benchmark benchmark-extended bench-compare report test-report coverage test-docker
+.PHONY: test-ci test-local test-fast test-slow test-debug test-race test-leak
+
+# Default target
+help: ## Show this help message
+	@echo "Comprehensive Testing Targets:"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Environment Variables:"
+	@echo "  LOAD_TEST_DURATION       Duration for load tests (default: 30s)"
+	@echo "  CHAOS_TEST_DURATION      Duration for chaos tests (default: 20s)"
+	@echo "  SECURITY_TEST_ITERATIONS Number of security test iterations (default: 100)"
+	@echo "  PROPERTY_TEST_ITERATIONS Number of property test iterations (default: 500)"
+	@echo "  PROFILE_DURATION         Duration for profiling (default: 30s)"
+	@echo "  VAULT_VERSION            Vault version for compatibility testing (default: 1.15.0)"
+	@echo ""
+
+# Test configuration
+GO_VERSION := $(shell go version | awk '{print $$3}')
+PACKAGE := ./pkg/vault/...
+TEST_TIMEOUT := 10m
+RACE_DETECTOR := -race
+COVERAGE_OUT := coverage.out
+BENCHMARK_OUT := benchmark.txt
+PROFILE_DIR := profiles
+REPORT_DIR := reports
+
+# Test execution targets
+test: test-unit ## Run standard unit tests
+	@echo "✅ Standard unit tests completed"
+
+test-unit: ## Run unit tests with race detection and coverage
+	@echo "🧪 Running unit tests..."
+	go test $(RACE_DETECTOR) -timeout=$(TEST_TIMEOUT) -coverprofile=$(COVERAGE_OUT) $(PACKAGE)
+
+test-integration: ## Run integration tests
+	@echo "🔗 Running integration tests..."
+	go test -timeout=$(TEST_TIMEOUT) -tags=integration $(PACKAGE) -run="TestExtendedIntegration"
+
+test-extended: ## Run extended integration tests with resource profiling
+	@echo "🚀 Running extended integration tests..."
+	mkdir -p $(PROFILE_DIR)
+	PROFILE_CPU=true PROFILE_MEMORY=true PROFILE_BLOCK=true \
+	go test -timeout=$(TEST_TIMEOUT) -cpuprofile=$(PROFILE_DIR)/extended_cpu.prof \
+		-memprofile=$(PROFILE_DIR)/extended_mem.prof \
+		-blockprofile=$(PROFILE_DIR)/extended_block.prof \
+		$(PACKAGE) -run="TestExtendedIntegration"
+
+test-chaos: ## Run chaos engineering tests
+	@echo "🌪️  Running chaos engineering tests..."
+	mkdir -p $(PROFILE_DIR)
+	CHAOS_TEST_DURATION=${CHAOS_TEST_DURATION:-20s} CHAOS_TEST_CLIENTS=${CHAOS_TEST_CLIENTS:-15} \
+	go test -timeout=$(TEST_TIMEOUT) -memprofile=$(PROFILE_DIR)/chaos_mem.prof \
+		$(PACKAGE) -run="TestChaosEngineering"
+
+test-load: ## Run load and stress tests
+	@echo "⚡ Running load and stress tests..."
+	mkdir -p $(PROFILE_DIR)
+	LOAD_TEST_DURATION=${LOAD_TEST_DURATION:-30s} LOAD_TEST_WORKERS=${LOAD_TEST_WORKERS:-10} \
+	go test -timeout=$(TEST_TIMEOUT) -cpuprofile=$(PROFILE_DIR)/load_cpu.prof \
+		-memprofile=$(PROFILE_DIR)/load_mem.prof \
+		$(PACKAGE) -run="TestLoadTesting"
+
+test-security: ## Run security-focused tests
+	@echo "🔒 Running security tests..."
+	SECURITY_TEST_ITERATIONS=${SECURITY_TEST_ITERATIONS:-100} SECURITY_TIMING_TESTS=${SECURITY_TIMING_TESTS:-50} \
+	go test -timeout=$(TEST_TIMEOUT) $(PACKAGE) -run="TestSecurity"
+
+test-property: ## Run property-based tests
+	@echo "🎲 Running property-based tests..."
+	PROPERTY_TEST_ITERATIONS=${PROPERTY_TEST_ITERATIONS:-500} \
+	go test -timeout=$(TEST_TIMEOUT) $(PACKAGE) -run="TestPropertyBased"
+
+test-compatibility: ## Run Vault version compatibility tests
+	@echo "🔄 Running compatibility tests..."
+	VAULT_VERSION=${VAULT_VERSION:-1.15.0} \
+	go test -timeout=$(TEST_TIMEOUT) $(PACKAGE) -run="TestCompatibility"
+
+test-comprehensive: ## Run comprehensive testing framework
+	@echo "🎯 Running comprehensive testing framework..."
+	mkdir -p $(PROFILE_DIR) $(REPORT_DIR)
+	PROFILE_CPU=true PROFILE_MEMORY=true PROFILE_BLOCK=true PROFILE_MUTEX=true \
+	REPORT_VERBOSE=true REPORT_METRICS=true \
+	go test -timeout=15m -cpuprofile=$(PROFILE_DIR)/comprehensive_cpu.prof \
+		-memprofile=$(PROFILE_DIR)/comprehensive_mem.prof \
+		-blockprofile=$(PROFILE_DIR)/comprehensive_block.prof \
+		-mutexprofile=$(PROFILE_DIR)/comprehensive_mutex.prof \
+		$(PACKAGE) -run="TestComprehensive"
+
+test-all: test-unit test-integration test-extended test-chaos test-load test-security test-property test-compatibility test-comprehensive ## Run all test suites
+	@echo "🎉 All test suites completed!"
+
+# Performance and profiling targets
+benchmark: ## Run standard benchmarks
+	@echo "📊 Running benchmarks..."
+	go test -bench=. -benchmem -benchtime=10s $(PACKAGE) | tee $(BENCHMARK_OUT)
+
+benchmark-extended: ## Run extended benchmarks with profiling
+	@echo "📊 Running extended benchmarks..."
+	mkdir -p $(PROFILE_DIR)
+	go test -bench=. -benchmem -benchtime=30s \
+		-cpuprofile=$(PROFILE_DIR)/bench_cpu.prof \
+		-memprofile=$(PROFILE_DIR)/bench_mem.prof \
+		$(PACKAGE) | tee benchmark_extended.txt
+
+bench-compare: ## Compare benchmark results (requires baseline)
+	@echo "📈 Comparing benchmark results..."
+	@if [ -f benchmark_baseline.txt ]; then \
+		echo "Comparing against baseline..."; \
+		go get golang.org/x/perf/cmd/benchcmp; \
+		benchcmp benchmark_baseline.txt $(BENCHMARK_OUT); \
+	else \
+		echo "No baseline found. Current results saved as baseline."; \
+		cp $(BENCHMARK_OUT) benchmark_baseline.txt; \
+	fi
+
+profile-cpu: ## Generate CPU profile
+	@echo "🖥️  Generating CPU profile..."
+	mkdir -p $(PROFILE_DIR)
+	go test -cpuprofile=$(PROFILE_DIR)/cpu.prof -run=TestComprehensive $(PACKAGE)
+	@echo "CPU profile saved to $(PROFILE_DIR)/cpu.prof"
+	@echo "View with: go tool pprof $(PROFILE_DIR)/cpu.prof"
+
+profile-memory: ## Generate memory profile
+	@echo "💾 Generating memory profile..."
+	mkdir -p $(PROFILE_DIR)
+	go test -memprofile=$(PROFILE_DIR)/mem.prof -run=TestComprehensive $(PACKAGE)
+	@echo "Memory profile saved to $(PROFILE_DIR)/mem.prof"
+	@echo "View with: go tool pprof $(PROFILE_DIR)/mem.prof"
+
+profile-all: ## Generate all profiles (CPU, memory, block, mutex)
+	@echo "🔍 Generating all profiles..."
+	mkdir -p $(PROFILE_DIR)
+	PROFILE_DURATION=${PROFILE_DURATION:-30s} \
+	go test -timeout=$(TEST_TIMEOUT) \
+		-cpuprofile=$(PROFILE_DIR)/all_cpu.prof \
+		-memprofile=$(PROFILE_DIR)/all_mem.prof \
+		-blockprofile=$(PROFILE_DIR)/all_block.prof \
+		-mutexprofile=$(PROFILE_DIR)/all_mutex.prof \
+		-run=TestComprehensive $(PACKAGE)
+	@echo "All profiles saved to $(PROFILE_DIR)/"
+	@echo "View with: go tool pprof $(PROFILE_DIR)/all_<type>.prof"
+
+# Coverage and reporting
+coverage: test-unit ## Generate and view coverage report
+	@echo "📋 Generating coverage report..."
+	go tool cover -html=$(COVERAGE_OUT) -o coverage.html
+	@echo "Coverage report generated: coverage.html"
+	@if command -v open >/dev/null 2>&1; then \
+		open coverage.html; \
+	elif command -v xdg-open >/dev/null 2>&1; then \
+		xdg-open coverage.html; \
+	fi
+
+coverage-summary: test-unit ## Show coverage summary
+	@echo "📊 Coverage Summary:"
+	@go tool cover -func=$(COVERAGE_OUT) | grep total
+
+test-report: ## Generate comprehensive test report
+	@echo "📄 Generating comprehensive test report..."
+	mkdir -p $(REPORT_DIR)
+	@echo "Test execution completed at $(shell date)" > $(REPORT_DIR)/test_summary.txt
+	@echo "Go version: $(GO_VERSION)" >> $(REPORT_DIR)/test_summary.txt
+	@echo "Package: $(PACKAGE)" >> $(REPORT_DIR)/test_summary.txt
+	@echo "" >> $(REPORT_DIR)/test_summary.txt
+	@if [ -f $(COVERAGE_OUT) ]; then \
+		echo "Coverage Summary:" >> $(REPORT_DIR)/test_summary.txt; \
+		go tool cover -func=$(COVERAGE_OUT) | grep total >> $(REPORT_DIR)/test_summary.txt; \
+		echo "" >> $(REPORT_DIR)/test_summary.txt; \
+	fi
+	@if [ -f $(BENCHMARK_OUT) ]; then \
+		echo "Benchmark Results:" >> $(REPORT_DIR)/test_summary.txt; \
+		tail -20 $(BENCHMARK_OUT) >> $(REPORT_DIR)/test_summary.txt; \
+	fi
+	@echo "Report generated: $(REPORT_DIR)/test_summary.txt"
+
+# CI/CD targets
+test-ci: ## Run tests in CI environment
+	@echo "🤖 Running tests in CI mode..."
+	@echo "Environment: CI=true, SHORT=false"
+	CI=true go test -v -timeout=$(TEST_TIMEOUT) $(RACE_DETECTOR) \
+		-coverprofile=$(COVERAGE_OUT) -covermode=atomic $(PACKAGE)
+	@echo "Uploading coverage to codecov..."
+	@if command -v codecov >/dev/null 2>&1; then \
+		codecov -f $(COVERAGE_OUT); \
+	else \
+		echo "codecov not available, skipping upload"; \
+	fi
+
+test-local: ## Run tests in local development environment
+	@echo "💻 Running tests in local mode..."
+	go test -v -short -timeout=5m $(RACE_DETECTOR) $(PACKAGE)
+
+test-fast: ## Run fast tests only (short mode)
+	@echo "⚡ Running fast tests..."
+	go test -short -timeout=2m $(PACKAGE)
+
+test-slow: ## Run slow/comprehensive tests only
+	@echo "🐌 Running comprehensive tests..."
+	go test -timeout=30m -run="TestComprehensive|TestExtended|TestLoad|TestChaos" $(PACKAGE)
+
+test-debug: ## Run tests with debug output
+	@echo "🔍 Running tests with debug output..."
+	go test -v -timeout=$(TEST_TIMEOUT) $(PACKAGE) -args -test.debug=true
+
+test-race: ## Run tests with race detector (extended)
+	@echo "🏁 Running race detection tests..."
+	go test -race -timeout=$(TEST_TIMEOUT) $(PACKAGE)
+
+test-leak: ## Run tests with leak detection
+	@echo "🕳️  Running leak detection tests..."
+	go test -timeout=$(TEST_TIMEOUT) $(PACKAGE) -run="TestMemory|TestLeak|TestComprehensive"
+	@echo "Check for goroutine leaks in test output"
+
+# Docker testing
+test-docker: ## Run tests in Docker container
+	@echo "🐳 Running tests in Docker..."
+	docker run --rm -v $(PWD):/app -w /app golang:$(shell go version | awk '{print $$3}' | sed 's/go//') \
+		make test-all
+
+# Analysis and optimization
+analyze-profiles: ## Analyze generated profiles
+	@echo "🔬 Analyzing profiles..."
+	@if [ -d $(PROFILE_DIR) ]; then \
+		echo "Available profiles:"; \
+		ls -la $(PROFILE_DIR)/*.prof 2>/dev/null || echo "No profiles found"; \
+		echo ""; \
+		echo "Analysis commands:"; \
+		echo "  CPU: go tool pprof $(PROFILE_DIR)/cpu.prof"; \
+		echo "  Memory: go tool pprof $(PROFILE_DIR)/mem.prof"; \
+		echo "  Web UI: go tool pprof -http=:8080 $(PROFILE_DIR)/cpu.prof"; \
+	else \
+		echo "No profile directory found. Run 'make profile-all' first."; \
+	fi
+
+test-performance: ## Run performance regression tests
+	@echo "🚀 Running performance tests..."
+	@echo "Warming up..."
+	@go test -bench=BenchmarkIntegration -benchtime=5s $(PACKAGE) >/dev/null 2>&1
+	@echo "Running performance benchmarks..."
+	@go test -bench=. -benchmem -benchtime=30s $(PACKAGE) | tee performance.txt
+	@echo "Performance results saved to performance.txt"
+
+# Cleanup targets
+clean-profiles: ## Clean up profile files
+	@echo "🧹 Cleaning up profiles..."
+	rm -rf $(PROFILE_DIR)
+	rm -f *.prof *.out trace.out
+
+clean-reports: ## Clean up report files
+	@echo "🧹 Cleaning up reports..."
+	rm -rf $(REPORT_DIR)
+	rm -f *.html *.txt test_report.* coverage.* benchmark.*
+
+clean-all: clean-profiles clean-reports ## Clean up all generated files
+	@echo "🧹 All cleanup completed"
+
+# Development helpers
+watch-tests: ## Watch for changes and run tests continuously
+	@echo "👀 Watching for changes..."
+	@if command -v fswatch >/dev/null 2>&1; then \
+		fswatch -o ./pkg/vault/ | xargs -n1 -I{} make test-fast; \
+	elif command -v inotifywait >/dev/null 2>&1; then \
+		while inotifywait -r -e modify ./pkg/vault/; do make test-fast; done; \
+	else \
+		echo "Install fswatch (macOS) or inotify-tools (Linux) to use this target"; \
+	fi
+
+test-setup: ## Set up test environment
+	@echo "🔧 Setting up test environment..."
+	go mod download
+	go mod verify
+	mkdir -p $(PROFILE_DIR) $(REPORT_DIR)
+	@echo "Test environment ready"
+
+test-deps: ## Check test dependencies
+	@echo "🔍 Checking test dependencies..."
+	@go list -m all | grep -E "(ginkgo|gomega|testify)" || echo "Test frameworks detected"
+	@command -v go tool pprof >/dev/null 2>&1 && echo "✅ pprof available" || echo "❌ pprof not found"
+	@command -v go tool cover >/dev/null 2>&1 && echo "✅ coverage tools available" || echo "❌ coverage tools not found"
+
+# Information targets
+test-info: ## Show testing information
+	@echo "📊 Testing Information:"
+	@echo "  Go Version: $(GO_VERSION)"
+	@echo "  Package: $(PACKAGE)"
+	@echo "  Test Timeout: $(TEST_TIMEOUT)"
+	@echo "  Race Detector: $(RACE_DETECTOR)"
+	@echo "  Coverage File: $(COVERAGE_OUT)"
+	@echo "  Profile Directory: $(PROFILE_DIR)"
+	@echo "  Report Directory: $(REPORT_DIR)"
+	@echo ""
+	@echo "Environment Variables:"
+	@echo "  LOAD_TEST_DURATION: ${LOAD_TEST_DURATION:-30s}"
+	@echo "  CHAOS_TEST_DURATION: ${CHAOS_TEST_DURATION:-20s}"
+	@echo "  SECURITY_TEST_ITERATIONS: ${SECURITY_TEST_ITERATIONS:-100}"
+	@echo "  PROPERTY_TEST_ITERATIONS: ${PROPERTY_TEST_ITERATIONS:-500}"
+	@echo "  VAULT_VERSION: ${VAULT_VERSION:-1.15.0}"
+
+# Quick test combinations
+test-smoke: ## Run smoke tests (fastest essential tests)
+	@echo "💨 Running smoke tests..."
+	go test -short -run="TestDefault|TestBasic|TestValidat" $(PACKAGE)
+
+test-integration-full: test-integration test-extended test-chaos ## Run all integration tests
+	@echo "🔗 All integration tests completed"
+
+test-security-full: test-security ## Run comprehensive security tests
+	@echo "🔒 Security testing completed"
+	@echo "Run 'make analyze-profiles' to examine security test profiles"
+
+# Environment-specific targets
+test-dev: test-fast coverage ## Development testing (fast feedback)
+	@echo "💻 Development testing completed"
+
+test-staging: test-all benchmark ## Staging environment testing
+	@echo "🎭 Staging testing completed"
+
+test-production: test-ci ## Production-ready testing
+	@echo "🏭 Production testing completed"

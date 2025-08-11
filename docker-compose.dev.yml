@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # Vault Auto-Unseal Operator in development mode
+  operator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+      args:
+        - VERSION=dev
+        - BUILD_TIME=${BUILD_TIME:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}
+        - GIT_COMMIT=${GIT_COMMIT:-$(git rev-parse HEAD)}
+    volumes:
+      - .:/workspace:cached
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    ports:
+      - "8080:8080"  # Metrics
+      - "8081:8081"  # Health
+      - "9443:9443"  # Webhook
+      - "2345:2345"  # Debugger
+    environment:
+      - GOOS=linux
+      - GOARCH=amd64
+      - CGO_ENABLED=0
+    networks:
+      - vault-net
+    depends_on:
+      vault:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # HashiCorp Vault for testing
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: vault-test
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=dev-only-token
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - vault-net
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Vault UI for easier management
+  vault-ui:
+    image: djenriquez/vault-ui:latest
+    container_name: vault-ui
+    ports:
+      - "8000:8000"
+    environment:
+      - VAULT_URL_DEFAULT=http://vault:8200
+      - VAULT_AUTH_DEFAULT=TOKEN
+    networks:
+      - vault-net
+    depends_on:
+      vault:
+        condition: service_healthy
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./scripts/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - vault-net
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./scripts/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+    networks:
+      - vault-net
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
+  grafana-storage:
+
+networks:
+  vault-net:
+    driver: bridge
