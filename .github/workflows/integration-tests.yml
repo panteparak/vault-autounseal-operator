@@ -157,6 +157,7 @@ jobs:
           limits:
             cpu: 500m
             memory: 256Mi
+
         EOF
 
         # Create vault configuration secret (delete and recreate if exists)
