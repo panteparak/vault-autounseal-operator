@@ -38,18 +38,30 @@ spec:
         {{- end }}
         securityContext:
           {{- toYaml .Values.securityContext | nindent 10 }}
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: {{ .Values.service.healthPort }}
-          initialDelaySeconds: 15
-          periodSeconds: 20
-        readinessProbe:
+        startupProbe:
           httpGet:
             path: /readyz
             port: {{ .Values.service.healthPort }}
           initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 30
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.service.healthPort }}
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: {{ .Values.service.healthPort }}
+          initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
         ports:
         - name: metrics
           containerPort: {{ .Values.service.metricsPort }}

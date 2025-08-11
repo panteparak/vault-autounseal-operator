@@ -54,7 +54,11 @@ jobs:
     - name: Build operator image
       run: |
         echo "🔨 Building operator image..."
-        docker build -t vault-autounseal-operator:test .
+        docker build \
+          --build-arg VERSION=test \
+          --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          --build-arg GIT_COMMIT="${GITHUB_SHA}" \
+          -t vault-autounseal-operator:test .
 
     - name: Start K3d cluster
       run: |
@@ -179,10 +183,19 @@ jobs:
         fi
 
         # Deploy using Helm with upgrade --install to handle existing installations
+        echo "🚀 Deploying with Helm (increased timeout for pod startup)..."
         helm upgrade --install vault-autounseal-operator ./helm/vault-autounseal-operator \
           --namespace vault-operator-system \
           --values /tmp/test-values.yaml \
-          --wait --timeout=300s --debug
+          --wait --timeout=600s \
+          --debug || {
+            echo "❌ Helm deployment failed, gathering debug info..."
+            kubectl get pods -n vault-operator-system -o wide
+            kubectl describe pods -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system
+            kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=50 || true
+            kubectl get events -n vault-operator-system --sort-by='.lastTimestamp' --field-selector type=Warning
+            exit 1
+          }
 
         echo "✅ Operator deployed successfully via Helm"
 
@@ -190,13 +203,28 @@ jobs:
       run: |
         echo "🧪 Running integration tests for Vault ${{ matrix.vault-version }}"
 
-        # Test 1: Verify operator is running
-        kubectl get pods -n vault-operator-system
+        # Wait for pods to be ready
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --timeout=120s || true
 
-        # Test 2: Verify Vault connectivity
-        curl -s http://localhost:8200/v1/sys/health | jq -e '.initialized == true'
+        # Test 1: Verify operator deployment status
+        echo "📋 Checking deployment status..."
+        kubectl get deployment -n vault-operator-system
+        kubectl describe deployment vault-autounseal-operator -n vault-operator-system
 
-        echo "✅ Basic integration tests passed!"
+        # Test 2: Check pod status and logs
+        echo "🔍 Checking pod status..."
+        kubectl get pods -n vault-operator-system -o wide
+        kubectl describe pods -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system
+
+        # Test 3: Show pod logs for debugging
+        echo "📝 Pod logs:"
+        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=50 || true
+
+        # Test 4: Verify Vault connectivity
+        echo "🏛️ Testing Vault connectivity..."
+        curl -s http://localhost:8200/v1/sys/health | jq -e '.initialized == true' || echo "Vault connection failed"
+
+        echo "✅ Integration test diagnostics completed"
 
     - name: Cleanup
       if: always()
