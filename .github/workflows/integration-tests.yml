@@ -1,0 +1,243 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 4 * * 1'  # Weekly on Monday at 4 AM UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.21'
+
+jobs:
+  k3d-integration-test:
+    name: K3d Integration Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        vault-version: ['1.13.0', '1.14.0', '1.15.0']
+        test-scenario: ['basic', 'failover', 'multi-vault']
+        cluster-nodes: [1, 3]
+        exclude:
+          # Skip multi-vault on single node to reduce test matrix
+          - test-scenario: 'multi-vault'
+            cluster-nodes: 1
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        go mod download
+        
+        # Install k3d
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+        
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Install Helm
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+    - name: Build operator image
+      run: |
+        echo "🔨 Building operator image..."
+        docker build -t vault-autounseal-operator:test .
+
+    - name: Start K3d cluster
+      env:
+        CLUSTER_NODES: ${{ matrix.cluster-nodes }}
+      run: |
+        echo "🚀 Starting K3d cluster with $CLUSTER_NODES nodes..."
+        
+        # Create k3d cluster
+        if [ "$CLUSTER_NODES" = "1" ]; then
+          k3d cluster create vault-test --wait --timeout 300s
+        else
+          k3d cluster create vault-test --agents $((CLUSTER_NODES - 1)) --wait --timeout 300s
+        fi
+
+        # Import operator image into cluster
+        k3d image import vault-autounseal-operator:test -c vault-test
+        
+        # Verify cluster
+        kubectl get nodes
+        echo "✅ K3d cluster ready with $CLUSTER_NODES nodes"
+
+    - name: Start Vault instance(s)
+      env:
+        VAULT_VERSION: ${{ matrix.vault-version }}
+        TEST_SCENARIO: ${{ matrix.test-scenario }}
+      run: |
+        echo "🏛️ Starting Vault $VAULT_VERSION for scenario: $TEST_SCENARIO"
+        
+        if [ "$TEST_SCENARIO" = "multi-vault" ]; then
+          echo "Starting multiple Vault instances..."
+          
+          # Start primary Vault
+          docker run -d --name vault-primary --cap-add=IPC_LOCK -p 8200:8200 \
+            -e VAULT_DEV_ROOT_TOKEN_ID=root -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+            hashicorp/vault:$VAULT_VERSION
+
+          # Start secondary Vault
+          docker run -d --name vault-secondary --cap-add=IPC_LOCK -p 8201:8200 \
+            -e VAULT_DEV_ROOT_TOKEN_ID=root -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+            hashicorp/vault:$VAULT_VERSION
+
+          # Wait for both instances
+          for port in 8200 8201; do
+            echo "Waiting for Vault on port $port..."
+            timeout=60
+            while [ $timeout -gt 0 ]; do
+              if curl -s http://localhost:$port/v1/sys/health > /dev/null 2>&1; then
+                echo "✅ Vault on port $port is ready"
+                break
+              fi
+              sleep 2
+              timeout=$((timeout - 2))
+            done
+            if [ $timeout -le 0 ]; then
+              echo "❌ Timeout waiting for Vault on port $port"
+              exit 1
+            fi
+          done
+        else
+          echo "Starting single Vault instance..."
+          
+          docker run -d --name vault-primary --cap-add=IPC_LOCK -p 8200:8200 \
+            -e VAULT_DEV_ROOT_TOKEN_ID=root -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+            hashicorp/vault:$VAULT_VERSION
+
+          # Wait for Vault
+          echo "Waiting for Vault..."
+          timeout=60
+          while [ $timeout -gt 0 ]; do
+            if curl -s http://localhost:8200/v1/sys/health > /dev/null 2>&1; then
+              echo "✅ Vault is ready at http://localhost:8200"
+              break
+            fi
+            sleep 2
+            timeout=$((timeout - 2))
+          done
+          if [ $timeout -le 0 ]; then
+            echo "❌ Timeout waiting for Vault"
+            exit 1
+          fi
+        fi
+
+    - name: Deploy operator with Helm
+      env:
+        TEST_SCENARIO: ${{ matrix.test-scenario }}
+        VAULT_VERSION: ${{ matrix.vault-version }}
+      run: |
+        echo "🔧 Deploying vault-autounseal-operator using Helm for scenario: $TEST_SCENARIO"
+        
+        # Create namespace
+        kubectl create namespace vault-operator-system
+
+        # Create test configuration values
+        cat > /tmp/test-values.yaml <<EOF
+        image:
+          repository: vault-autounseal-operator
+          tag: test
+          pullPolicy: Never
+
+        operator:
+          logLevel: debug
+
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        EOF
+
+        # Create vault configuration secret
+        if [ "$TEST_SCENARIO" = "multi-vault" ]; then
+          kubectl create secret generic vault-config \
+            --namespace=vault-operator-system \
+            --from-literal=vault-endpoints="http://host.docker.internal:8200,http://host.docker.internal:8201"
+        else
+          kubectl create secret generic vault-config \
+            --namespace=vault-operator-system \
+            --from-literal=vault-endpoints="http://host.docker.internal:8200"
+        fi
+
+        # Deploy using Helm
+        helm install vault-autounseal-operator ./helm/vault-autounseal-operator \
+          --namespace vault-operator-system \
+          --values /tmp/test-values.yaml \
+          --wait --timeout=300s
+
+        echo "✅ Operator deployed successfully via Helm"
+
+    - name: Run basic integration tests
+      run: |
+        echo "🧪 Running integration tests for Vault ${{ matrix.vault-version }}"
+        
+        # Test 1: Verify operator is running
+        kubectl get pods -n vault-operator-system
+        
+        # Test 2: Verify Vault connectivity
+        curl -s http://localhost:8200/v1/sys/health | jq -e '.initialized == true'
+        
+        echo "✅ Basic integration tests passed!"
+
+    - name: Cleanup
+      if: always()
+      run: |
+        # Uninstall Helm chart
+        helm uninstall vault-autounseal-operator -n vault-operator-system || true
+        
+        # Delete k3d cluster
+        k3d cluster delete vault-test || true
+        
+        # Stop Vault containers
+        docker rm -f vault-primary vault-secondary || true
+
+  helm-chart-tests:
+    name: Helm Chart Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Helm
+      run: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+    - name: Lint Helm chart
+      run: |
+        echo "🔍 Linting Helm chart..."
+        helm lint ./helm/vault-autounseal-operator
+
+    - name: Template Helm chart
+      run: |
+        echo "📝 Templating Helm chart..."
+        helm template vault-autounseal-operator ./helm/vault-autounseal-operator > /tmp/template.yaml
+
+    - name: Package Helm chart
+      run: |
+        echo "📦 Packaging Helm chart..."
+        helm package ./helm/vault-autounseal-operator --destination /tmp/
