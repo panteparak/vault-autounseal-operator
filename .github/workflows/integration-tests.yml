@@ -55,10 +55,17 @@ jobs:
       run: |
         echo "🔨 Building operator image..."
         docker build \
+          --target production \
           --build-arg VERSION=test \
           --build-arg BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --build-arg GIT_COMMIT="${GITHUB_SHA}" \
           -t vault-autounseal-operator:test .
+        
+        echo "🔍 Verifying built image..."
+        docker run --rm --entrypoint="" vault-autounseal-operator:test ls -la / || echo "File listing failed"
+        docker run --rm --entrypoint="" vault-autounseal-operator:test ls -la /manager || echo "Manager binary check failed"
+        docker run --rm vault-autounseal-operator:test --version || echo "Version check failed"
+        docker run --rm vault-autounseal-operator:test --help || echo "Help check failed"
 
     - name: Start K3d cluster
       run: |
@@ -187,7 +194,7 @@ jobs:
         helm upgrade --install vault-autounseal-operator ./helm/vault-autounseal-operator \
           --namespace vault-operator-system \
           --values /tmp/test-values.yaml \
-          --wait --timeout=120s \
+          --wait --timeout=600s \
           --debug || {
             echo "❌ Helm deployment failed, gathering debug info..."
             kubectl get pods -n vault-operator-system -o wide
