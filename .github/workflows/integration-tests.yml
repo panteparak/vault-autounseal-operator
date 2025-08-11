@@ -140,6 +140,9 @@ jobs:
         kubectl get crd vaultunsealconfigs.vault.io || true
         # Create namespace (ignore if exists)
         kubectl create namespace vault-operator-system || true
+        # Clean up any existing CRDs to prevent conflicts
+        kubectl delete crd vaultunsealconfigs.vault.io --ignore-not-found=true
+
         # Create test configuration values
         cat > /tmp/test-values.yaml <<EOF
         image:
@@ -158,6 +161,8 @@ jobs:
             cpu: 500m
             memory: 256Mi
 
+        crd:
+          create: true
         EOF
 
         # Create vault configuration secret (delete and recreate if exists)

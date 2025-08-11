@@ -82,6 +82,10 @@ rbac:
   # Specifies whether RBAC resources should be created
   create: true
 
+## CRD configuration
+crd:
+  # Specifies whether CRDs should be installed
+  create: true
 
 ## Monitoring
 monitoring:
