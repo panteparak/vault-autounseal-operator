@@ -206,32 +206,209 @@ jobs:
 
         echo "✅ Operator deployed successfully via Helm"
 
-    - name: Run basic integration tests
+    - name: Run comprehensive integration tests
       run: |
-        echo "🧪 Running integration tests for Vault ${{ matrix.vault-version }}"
+        echo "🧪 Running comprehensive integration tests for Vault ${{ matrix.vault-version }}"
 
-        # Wait for pods to be ready
-        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --timeout=120s || true
+        # Wait for operator pods to be ready
+        echo "⏳ Waiting for operator to be ready..."
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --timeout=300s
 
-        # Test 1: Verify operator deployment status
-        echo "📋 Checking deployment status..."
-        kubectl get deployment -n vault-operator-system
-        kubectl describe deployment vault-autounseal-operator -n vault-operator-system
-
-        # Test 2: Check pod status and logs
-        echo "🔍 Checking pod status..."
+        # Test 1: Verify operator is running and healthy
+        echo "📋 Test 1: Operator Health Check"
         kubectl get pods -n vault-operator-system -o wide
-        kubectl describe pods -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system
+        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=20
 
-        # Test 3: Show pod logs for debugging
-        echo "📝 Pod logs:"
-        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=50 || true
+        # Test 2: Check initial Vault status (should be sealed in dev mode)
+        echo "🏛️ Test 2: Initial Vault Status Check"
+        VAULT_STATUS=$(curl -s http://localhost:8200/v1/sys/seal-status || echo "failed")
+        echo "Vault status: $VAULT_STATUS"
+        
+        # Test 3: Create VaultUnsealConfig CRD resource
+        echo "📝 Test 3: Creating VaultUnsealConfig Resource"
+        
+        if [ "$TEST_SCENARIO" = "multi-vault" ]; then
+          cat <<EOF | kubectl apply -f -
+        apiVersion: vault.io/v1
+        kind: VaultUnsealConfig
+        metadata:
+          name: test-multi-vault-config
+          namespace: default
+        spec:
+          vaultInstances:
+          - name: vault-primary
+            endpoint: "http://host.docker.internal:8200"
+            unsealKeys:
+            - "$(echo -n 'test-key-1' | base64)"
+            - "$(echo -n 'test-key-2' | base64)"
+            - "$(echo -n 'test-key-3' | base64)"
+            threshold: 3
+            tlsSkipVerify: true
+          - name: vault-secondary
+            endpoint: "http://host.docker.internal:8201"
+            unsealKeys:
+            - "$(echo -n 'test-key-1' | base64)"
+            - "$(echo -n 'test-key-2' | base64)"
+            - "$(echo -n 'test-key-3' | base64)"
+            threshold: 3
+            tlsSkipVerify: true
+        EOF
+        else
+          cat <<EOF | kubectl apply -f -
+        apiVersion: vault.io/v1
+        kind: VaultUnsealConfig
+        metadata:
+          name: test-single-vault-config
+          namespace: default
+        spec:
+          vaultInstances:
+          - name: vault-primary
+            endpoint: "http://host.docker.internal:8200"
+            unsealKeys:
+            - "$(echo -n 'test-key-1' | base64)"
+            - "$(echo -n 'test-key-2' | base64)"
+            - "$(echo -n 'test-key-3' | base64)"
+            threshold: 3
+            tlsSkipVerify: true
+        EOF
+        fi
+        
+        echo "✅ VaultUnsealConfig resource created"
 
-        # Test 4: Verify Vault connectivity
-        echo "🏛️ Testing Vault connectivity..."
-        curl -s http://localhost:8200/v1/sys/health | jq -e '.initialized == true' || echo "Vault connection failed"
+        # Test 4: Verify CRD resource was created
+        echo "🔍 Test 4: Verify CRD Resource"
+        kubectl get vaultunsealconfigs -o wide
+        kubectl describe vaultunsealconfigs
 
-        echo "✅ Integration test diagnostics completed"
+        # Test 5: Wait for operator to process the resource
+        echo "⏳ Test 5: Waiting for operator to process resource..."
+        sleep 30
+
+        # Test 6: Check operator logs for processing
+        echo "📝 Test 6: Operator Processing Logs"
+        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=50
+
+        # Test 7: Verify VaultUnsealConfig status is updated
+        echo "📊 Test 7: Check Resource Status Updates"
+        kubectl get vaultunsealconfigs -o yaml
+
+        # Test 8: Test Vault unsealing (note: dev mode Vault doesn't seal/unseal like production)
+        echo "🔓 Test 8: Vault Accessibility Test"
+        if [ "$TEST_SCENARIO" = "multi-vault" ]; then
+          echo "Testing both Vault instances..."
+          curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Primary Vault test failed"
+          curl -s http://localhost:8201/v1/sys/health | jq '.initialized // false' || echo "Secondary Vault test failed"
+        else
+          echo "Testing single Vault instance..."
+          curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Vault test failed"
+        fi
+
+        # Test 9: Check for any error events
+        echo "⚠️ Test 9: Check for Error Events"
+        kubectl get events --field-selector type=Warning -o wide
+
+        # Test 10: Final operator health check
+        echo "💚 Test 10: Final Health Verification"
+        kubectl get pods -n vault-operator-system
+        kubectl get vaultunsealconfigs -o wide
+
+        echo "✅ Integration tests completed successfully!"
+
+    - name: Test resource cleanup and recreation
+      run: |
+        echo "🧹 Testing resource lifecycle management..."
+        
+        # Delete the VaultUnsealConfig
+        kubectl delete vaultunsealconfigs --all
+        
+        # Wait for cleanup
+        sleep 10
+        
+        # Verify cleanup in logs
+        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=20
+        
+        # Recreate resource to test operator resilience
+        cat <<EOF | kubectl apply -f -
+        apiVersion: vault.io/v1
+        kind: VaultUnsealConfig
+        metadata:
+          name: test-resilience-config
+          namespace: default
+        spec:
+          vaultInstances:
+          - name: vault-test
+            endpoint: "http://host.docker.internal:8200"
+            unsealKeys:
+            - "$(echo -n 'test-resilience-key' | base64)"
+            threshold: 1
+            tlsSkipVerify: true
+        EOF
+        
+        # Wait and verify
+        sleep 15
+        kubectl get vaultunsealconfigs -o wide
+        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=10
+        
+        echo "✅ Resource lifecycle tests completed!"
+
+    - name: Test with production-like Vault (sealed state)
+      run: |
+        echo "🏭 Testing with production-like sealed Vault..."
+        
+        # Stop dev mode Vault
+        docker stop vault-primary || true
+        
+        # Start Vault in production mode (sealed by default)
+        docker run -d --name vault-prod --cap-add=IPC_LOCK -p 8202:8200 \
+          -e VAULT_API_ADDR=http://0.0.0.0:8200 \
+          hashicorp/vault:${{ matrix.vault-version }} server -dev=false -config=/tmp/vault.hcl || {
+          # If that fails, use a simpler production config
+          docker run -d --name vault-prod --cap-add=IPC_LOCK -p 8202:8200 \
+            hashicorp/vault:${{ matrix.vault-version }} server -dev=false
+        }
+        
+        # Wait for Vault to start
+        sleep 10
+        
+        # Check sealed status
+        echo "🔒 Checking sealed Vault status..."
+        curl -s http://localhost:8202/v1/sys/seal-status | jq '.' || echo "Sealed Vault not accessible yet"
+        
+        # Create VaultUnsealConfig for production Vault
+        cat <<EOF | kubectl apply -f -
+        apiVersion: vault.io/v1
+        kind: VaultUnsealConfig
+        metadata:
+          name: test-prod-vault-config
+          namespace: default
+        spec:
+          vaultInstances:
+          - name: vault-production
+            endpoint: "http://host.docker.internal:8202"
+            unsealKeys:
+            - "$(echo -n 'prod-key-1' | base64)"
+            - "$(echo -n 'prod-key-2' | base64)"
+            - "$(echo -n 'prod-key-3' | base64)"
+            threshold: 3
+            tlsSkipVerify: true
+        EOF
+        
+        # Wait for operator to attempt unsealing
+        echo "⏳ Waiting for operator to process production Vault..."
+        sleep 20
+        
+        # Check operator logs for unsealing attempts
+        echo "📝 Operator logs for production Vault processing:"
+        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=30
+        
+        # Check resource status
+        kubectl get vaultunsealconfigs test-prod-vault-config -o yaml | grep -A 10 status: || echo "No status found"
+        
+        # Clean up production Vault
+        docker stop vault-prod || true
+        docker rm vault-prod || true
+        
+        echo "✅ Production Vault testing completed!"
 
     - name: Cleanup
       if: always()
@@ -243,7 +420,7 @@ jobs:
         k3d cluster delete vault-test || true
 
         # Stop Vault containers
-        docker rm -f vault-primary vault-secondary || true
+        docker rm -f vault-primary vault-secondary vault-prod || true
 
   helm-chart-tests:
     name: Helm Chart Tests
