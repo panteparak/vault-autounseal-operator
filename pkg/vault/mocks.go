@@ -146,8 +146,8 @@ func (m *MockVaultClient) IsInitialized(ctx context.Context) (bool, error) {
 
 // HealthCheck implements VaultClient
 func (m *MockVaultClient) HealthCheck(ctx context.Context) (*api.HealthResponse, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	m.callCounts["HealthCheck"]++
 
@@ -183,6 +183,12 @@ func (m *MockVaultClient) SetSealed(sealed bool) {
 		m.unsealProgress = 0
 		m.submittedKeys = nil
 	}
+}
+
+func (m *MockVaultClient) GetSealed() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.sealed
 }
 
 func (m *MockVaultClient) SetHealthy(healthy bool) {

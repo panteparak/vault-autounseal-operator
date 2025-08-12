@@ -215,9 +215,9 @@ func NewLoadTestRunner(numWorkers int, duration time.Duration) *LoadTestRunner {
 		duration:   duration,
 		operationMix: map[string]float32{
 			operationIsSealed: 0.4,
-			"HealthCheck":   0.3,
-			"GetSealStatus": 0.2,
-			"Unseal":        0.1,
+			"HealthCheck":     0.3,
+			"GetSealStatus":   0.2,
+			"Unseal":          0.1,
 		},
 	}
 }

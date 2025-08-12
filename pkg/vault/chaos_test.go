@@ -196,7 +196,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 			factory := NewMockClientFactory()
 
 			// Track memory usage during test
-			var initialMem, peakMem runtime.MemStats
+			var initialMem runtime.MemStats
 			runtime.GC()
 			runtime.ReadMemStats(&initialMem)
 
@@ -213,6 +213,8 @@ var _ = Describe("Chaos Engineering Tests", func() {
 			// Generate large amounts of data
 			ctx := context.Background()
 			var wg sync.WaitGroup
+			var peakMemMu sync.Mutex
+			var peakMem runtime.MemStats
 
 			for i := 0; i < numClients; i++ {
 				wg.Add(1)
@@ -237,12 +239,14 @@ var _ = Describe("Chaos Engineering Tests", func() {
 						validator := NewDefaultKeyValidator()
 						_ = validator.ValidateKeys(keys, 1)
 
-						// Check current memory
+						// Check current memory (with synchronization)
 						var currentMem runtime.MemStats
 						runtime.ReadMemStats(&currentMem)
+						peakMemMu.Lock()
 						if currentMem.Alloc > peakMem.Alloc {
 							peakMem = currentMem
 						}
+						peakMemMu.Unlock()
 					}
 				}(i)
 			}
@@ -379,7 +383,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 
 						// Random modifications to client state
 						if rand.Float32() < 0.1 {
-							client.SetSealed(!client.sealed)
+							client.SetSealed(!client.GetSealed())
 						}
 						if rand.Float32() < 0.05 {
 							client.SetResponseDelay(time.Duration(rand.Intn(10)) * time.Millisecond)
