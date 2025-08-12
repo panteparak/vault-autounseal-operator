@@ -250,8 +250,8 @@ func (tr *TestReporter) GenerateReport(runner *TestRunner) error {
 
 	encoder := json.NewEncoder(jsonFile)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(report); err != nil {
-		return fmt.Errorf("failed to write JSON report: %w", err)
+	if encodeErr := encoder.Encode(report); encodeErr != nil {
+		return fmt.Errorf("failed to write JSON report: %w", encodeErr)
 	}
 
 	// Write human-readable report

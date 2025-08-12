@@ -271,7 +271,7 @@ var _ = Describe("Load and Stress Tests", func() {
 					for j := 0; j < 50; j++ {
 						_, err := mockClient.IsSealed(ctx)
 						if err != nil {
-							// Acceptable under memory pressure
+							// Acceptable under memory pressure - continue processing
 						}
 
 						// Process some of the large data
@@ -282,7 +282,7 @@ var _ = Describe("Load and Stress Tests", func() {
 
 					mockClient.Close()
 
-					// Clear memory
+					// Clear memory and trigger GC to test memory cleanup
 					largeData = nil
 					runtime.GC()
 				}(i)
@@ -453,7 +453,7 @@ var _ = Describe("Load and Stress Tests", func() {
 						atomic.AddInt64(&operationCount, 1)
 
 						if err != nil {
-							// Expected under contention
+							// Expected under contention - continue processing
 						}
 
 						// Hold resource briefly

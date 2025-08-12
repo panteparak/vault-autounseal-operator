@@ -59,12 +59,12 @@ var _ = Describe("Comprehensive Testing Framework", func() {
 				os.Unsetenv("SECURITY_TEST_ITERATIONS")
 			}()
 
-			config := DefaultTestConfig()
-			config.LoadFromEnvironment()
+			testConfig := DefaultTestConfig()
+			testConfig.LoadFromEnvironment()
 
-			Expect(config.LoadTestDuration).To(Equal(45 * time.Second))
-			Expect(config.LoadTestWorkers).To(Equal(20))
-			Expect(config.SecurityTestIterations).To(Equal(200))
+			Expect(testConfig.LoadTestDuration).To(Equal(45 * time.Second))
+			Expect(testConfig.LoadTestWorkers).To(Equal(20))
+			Expect(testConfig.SecurityTestIterations).To(Equal(200))
 		})
 	})
 
@@ -280,8 +280,9 @@ var _ = Describe("Comprehensive Testing Framework", func() {
 
 			metrics.TakeMemorySnapshot()
 
-			// Clear data
+			// Clear data and force GC
 			data = nil
+			runtime.GC()
 
 			metrics.TakeMemorySnapshot()
 
