@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// Constants for commonly used strings
+const (
+	trueString = "true"
+)
+
 // TestConfig holds configuration for various test scenarios
 type TestConfig struct {
 	// Load Testing
@@ -157,7 +162,7 @@ func (tc *TestConfig) LoadFromEnvironment() {
 		}
 	}
 	if val := os.Getenv("SECURITY_MEMORY_PRESSURE"); val != "" {
-		tc.SecurityMemoryPressure = val == "true"
+		tc.SecurityMemoryPressure = val == trueString
 	}
 
 	// Property Testing
@@ -213,19 +218,19 @@ func (tc *TestConfig) LoadFromEnvironment() {
 
 	// Resource Profiling
 	if val := os.Getenv("PROFILE_CPU"); val != "" {
-		tc.ProfileCPU = val == "true"
+		tc.ProfileCPU = val == trueString
 	}
 	if val := os.Getenv("PROFILE_MEMORY"); val != "" {
-		tc.ProfileMemory = val == "true"
+		tc.ProfileMemory = val == trueString
 	}
 	if val := os.Getenv("PROFILE_BLOCK"); val != "" {
-		tc.ProfileBlock = val == "true"
+		tc.ProfileBlock = val == trueString
 	}
 	if val := os.Getenv("PROFILE_MUTEX"); val != "" {
-		tc.ProfileMutex = val == "true"
+		tc.ProfileMutex = val == trueString
 	}
 	if val := os.Getenv("PROFILE_TRACE"); val != "" {
-		tc.ProfileTrace = val == "true"
+		tc.ProfileTrace = val == trueString
 	}
 	if val := os.Getenv("PROFILE_DURATION"); val != "" {
 		if d, err := time.ParseDuration(val); err == nil {
@@ -235,13 +240,13 @@ func (tc *TestConfig) LoadFromEnvironment() {
 
 	// Reporting
 	if val := os.Getenv("REPORT_VERBOSE"); val != "" {
-		tc.ReportVerbose = val == "true"
+		tc.ReportVerbose = val == trueString
 	}
 	if val := os.Getenv("REPORT_METRICS"); val != "" {
-		tc.ReportMetrics = val == "true"
+		tc.ReportMetrics = val == trueString
 	}
 	if val := os.Getenv("REPORT_MEMORY_SNAPSHOTS"); val != "" {
-		tc.ReportMemorySnapshots = val == "true"
+		tc.ReportMemorySnapshots = val == trueString
 	}
 }
 

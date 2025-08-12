@@ -379,7 +379,7 @@ var _ = Describe("Load and Stress Tests", func() {
 
 			// Result collector
 			go func() {
-				for i := 0; i < int(numWorkers*operationsPerWorker); i++ {
+				for i := 0; i < numWorkers*operationsPerWorker; i++ {
 					err := <-resultChan
 					if err != nil {
 						atomic.AddInt64(&errors, 1)

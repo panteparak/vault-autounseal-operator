@@ -577,30 +577,3 @@ var _ = Describe("Vault Version Compatibility Tests", func() {
 		})
 	})
 })
-
-// Helper function to simulate version-specific behavior
-func getVersionSpecificConfig(version VaultVersion) map[string]interface{} {
-	config := make(map[string]interface{})
-
-	// Base configuration for all versions
-	config["timeout"] = 30 * time.Second
-	config["max_retries"] = 3
-
-	// Version-specific enhancements
-	if version.IsAtLeast(1, 13, 0) {
-		config["enhanced_auth"] = true
-		config["timeout"] = 45 * time.Second
-	}
-
-	if version.IsAtLeast(1, 14, 0) {
-		config["advanced_features"] = true
-		config["max_retries"] = 5
-	}
-
-	if version.IsAtLeast(1, 15, 0) {
-		config["latest_optimizations"] = true
-		config["timeout"] = 60 * time.Second
-	}
-
-	return config
-}

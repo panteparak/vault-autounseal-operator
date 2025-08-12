@@ -667,7 +667,7 @@ func (tr *TestRunner) GetResults() map[string]*TestSuiteResult {
 
 // SaveProfiles saves profiling data to specified directory
 func (tr *TestRunner) SaveProfiles(dir string) error {
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create profile directory: %w", err)
 	}
 

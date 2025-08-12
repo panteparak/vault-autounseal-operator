@@ -9,7 +9,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"unicode"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -209,7 +208,7 @@ var _ = Describe("Property-Based Testing", func() {
 				for i := 0; i < 10; i++ {
 					// Create 32-byte data with forbidden string
 					keyData := make([]byte, 32)
-					copy(keyData, []byte(forbidden))
+					copy(keyData, forbidden)
 					// Fill rest with random data
 					for j := len(forbidden); j < 32; j++ {
 						keyData[j] = byte(1 + rand.Intn(255))
@@ -445,44 +444,4 @@ func generateUniqueValidKeys(count int) []string {
 	}
 
 	return keys
-}
-
-func generateRandomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	result := make([]byte, length)
-	for i := range result {
-		result[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(result)
-}
-
-func generateUnicodeString(length int) string {
-	// Generate string with various unicode ranges
-	var result strings.Builder
-
-	unicodeRanges := []struct {
-		start, end rune
-	}{
-		{0x0020, 0x007E},   // Basic Latin
-		{0x00A0, 0x00FF},   // Latin-1 Supplement
-		{0x0100, 0x017F},   // Latin Extended-A
-		{0x4E00, 0x9FFF},   // CJK Unified Ideographs (sample)
-		{0x1F600, 0x1F64F}, // Emoticons
-	}
-
-	for i := 0; i < length; i++ {
-		rangeIdx := rand.Intn(len(unicodeRanges))
-		selectedRange := unicodeRanges[rangeIdx]
-
-		char := selectedRange.start + rune(rand.Intn(int(selectedRange.end-selectedRange.start+1)))
-
-		// Ensure we don't generate invalid unicode
-		if char != unicode.ReplacementChar && unicode.IsPrint(char) {
-			result.WriteRune(char)
-		} else {
-			result.WriteRune('A') // Fallback
-		}
-	}
-
-	return result.String()
 }

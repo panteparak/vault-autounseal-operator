@@ -13,6 +13,11 @@ import (
 	"time"
 )
 
+// Constants for commonly used strings
+const (
+	operationIsSealed = "IsSealed"
+)
+
 // TestMetrics provides detailed testing metrics collection
 type TestMetrics struct {
 	mu                   sync.RWMutex
@@ -209,7 +214,7 @@ func NewLoadTestRunner(numWorkers int, duration time.Duration) *LoadTestRunner {
 		numWorkers: numWorkers,
 		duration:   duration,
 		operationMix: map[string]float32{
-			"IsSealed":      0.4,
+			operationIsSealed: 0.4,
 			"HealthCheck":   0.3,
 			"GetSealStatus": 0.2,
 			"Unseal":        0.1,
@@ -285,7 +290,7 @@ func (ltr *LoadTestRunner) selectOperation() string {
 		}
 	}
 
-	return "IsSealed" // fallback
+	return operationIsSealed // fallback
 }
 
 // executeOperation performs the selected operation and records metrics
@@ -297,7 +302,7 @@ func (ltr *LoadTestRunner) executeOperation(ctx context.Context, client VaultCli
 	var err error
 
 	switch operation {
-	case "IsSealed":
+	case operationIsSealed:
 		_, err = client.IsSealed(ctx)
 	case "HealthCheck":
 		_, err = client.HealthCheck(ctx)
@@ -488,7 +493,7 @@ func (ctr *ChaosTestRunner) operationWorker(ctx context.Context, wg *sync.WaitGr
 			return
 		default:
 			// Perform random operations
-			operations := []string{"IsSealed", "HealthCheck", "GetSealStatus"}
+			operations := []string{operationIsSealed, "HealthCheck", "GetSealStatus"}
 			operation := operations[math_rand.Intn(len(operations))]
 
 			ctr.metrics.StartConcurrentOperation()
@@ -496,7 +501,7 @@ func (ctr *ChaosTestRunner) operationWorker(ctx context.Context, wg *sync.WaitGr
 			var err error
 
 			switch operation {
-			case "IsSealed":
+			case operationIsSealed:
 				_, err = client.IsSealed(ctx)
 			case "HealthCheck":
 				_, err = client.HealthCheck(ctx)
@@ -554,7 +559,12 @@ func (ptg *PropertyTestGenerator) GenerateRandomKeys(count int, minSize, maxSize
 	for i := 0; i < count; i++ {
 		size := minSize + ptg.rand.Intn(maxSize-minSize+1)
 		data := make([]byte, size)
-		rand.Read(data)
+		if _, err := rand.Read(data); err != nil {
+			// Fallback to deterministic data if crypto/rand fails
+			for i := range data {
+				data[i] = byte(ptg.rand.Intn(256))
+			}
+		}
 
 		// Ensure non-zero data to avoid validation failures
 		for j := range data {
@@ -714,27 +724,27 @@ func (ta *TimingAnalyzer) AnalyzeConstantTime() TimingAnalysis {
 		return TimingAnalysis{}
 	}
 
-	var min, max, total time.Duration
-	min = ta.measurements[0]
-	max = ta.measurements[0]
+	var minDuration, maxDuration, total time.Duration
+	minDuration = ta.measurements[0]
+	maxDuration = ta.measurements[0]
 
 	for _, d := range ta.measurements {
 		total += d
-		if d < min {
-			min = d
+		if d < minDuration {
+			minDuration = d
 		}
-		if d > max {
-			max = d
+		if d > maxDuration {
+			maxDuration = d
 		}
 	}
 
 	avg := total / time.Duration(len(ta.measurements))
-	variance := float64(max-min) / float64(avg)
+	variance := float64(maxDuration-minDuration) / float64(avg)
 
 	return TimingAnalysis{
 		Count:          len(ta.measurements),
-		Min:            min,
-		Max:            max,
+		Min:            minDuration,
+		Max:            maxDuration,
 		Average:        avg,
 		Variance:       variance,
 		IsConstantTime: variance < 2.0, // Threshold for constant-time

@@ -283,7 +283,7 @@ var _ = Describe("Security-Focused Tests", func() {
 				baseKey + "A",
 				strings.ToUpper(baseKey),
 				strings.ToLower(baseKey),
-				string(reverseString(baseKey)),
+				reverseString(baseKey),
 			}
 
 			encodedKeys := make([]string, len(derivedKeys))
@@ -631,62 +631,9 @@ func reverseString(s string) string {
 	return string(runes)
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min64(a, b int64) int64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max64(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// Security-focused memory analysis (conceptual)
-func hasDataInMemory(pattern []byte) bool {
-	// This is a conceptual function. In practice, memory scanning
-	// would require unsafe operations and OS-specific code.
-	// For this test, we just return false as placeholder.
-
-	// In a real implementation, this might:
-	// 1. Scan process memory regions
-	// 2. Look for the specific byte pattern
-	// 3. Return true if found
-
-	_ = pattern // Suppress unused variable warning
-	return false
-}
-
-// Simulate memory pressure for security testing
-func createMemoryPressure() func() {
-	// Allocate some memory to create pressure
-	data := make([][]byte, 100)
-	for i := range data {
-		data[i] = make([]byte, 1024*1024) // 1MB each
-	}
-
-	return func() {
-		// Cleanup function
-		for i := range data {
-			data[i] = nil
-		}
-		runtime.GC()
-	}
 }

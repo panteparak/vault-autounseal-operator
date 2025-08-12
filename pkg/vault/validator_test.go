@@ -338,7 +338,7 @@ var _ = Describe("StrictKeyValidator", func() {
 			validator.SetForbiddenStrings([]string{"custom", "forbidden"})
 
 			keyData := make([]byte, 32)
-			copy(keyData, []byte("this-has-custom-content"))
+			copy(keyData, "this-has-custom-content")
 			key := base64.StdEncoding.EncodeToString(keyData)
 
 			err := validator.ValidateBase64Key(key)
