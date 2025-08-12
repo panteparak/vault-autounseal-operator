@@ -15,8 +15,8 @@ type TestConfig struct {
 	LoadTestOperationsPS int
 
 	// Chaos Testing
-	ChaosTestDuration    time.Duration
-	ChaosTestClients     int
+	ChaosTestDuration       time.Duration
+	ChaosTestClients        int
 	ChaosFailureProbability float32
 
 	// Security Testing
@@ -30,9 +30,9 @@ type TestConfig struct {
 	PropertyTestMaxKeySize int
 
 	// Memory Testing
-	MemoryTestSize        int
-	MemoryTestIterations  int
-	MemoryLeakThreshold   int64 // bytes
+	MemoryTestSize       int
+	MemoryTestIterations int
+	MemoryLeakThreshold  int64 // bytes
 
 	// Performance Testing
 	PerformanceIterations    int
@@ -44,17 +44,17 @@ type TestConfig struct {
 	CompatibilitySkipVersion bool
 
 	// Resource Profiling
-	ProfileCPU              bool
-	ProfileMemory           bool
-	ProfileBlock            bool
-	ProfileMutex            bool
-	ProfileTrace            bool
-	ProfileDuration         time.Duration
+	ProfileCPU      bool
+	ProfileMemory   bool
+	ProfileBlock    bool
+	ProfileMutex    bool
+	ProfileTrace    bool
+	ProfileDuration time.Duration
 
 	// Reporting
-	ReportVerbose           bool
-	ReportMetrics           bool
-	ReportMemorySnapshots   bool
+	ReportVerbose         bool
+	ReportMetrics         bool
+	ReportMemorySnapshots bool
 }
 
 // DefaultTestConfig returns default test configuration
@@ -91,7 +91,7 @@ func DefaultTestConfig() *TestConfig {
 		PerformanceThroughputMin: 100.0,
 
 		// Compatibility Testing
-		CompatibilityVersions: []string{"1.12.0", "1.13.0", "1.14.0", "1.15.0"},
+		CompatibilityVersions:    []string{"1.12.0", "1.13.0", "1.14.0", "1.15.0"},
 		CompatibilitySkipVersion: false,
 
 		// Resource Profiling
@@ -257,8 +257,8 @@ func (tc *TestConfig) GetLoadTestConfig() LoadTestConfig {
 // GetChaosTestConfig returns configuration for chaos testing
 func (tc *TestConfig) GetChaosTestConfig() ChaosTestConfig {
 	return ChaosTestConfig{
-		Duration:          tc.ChaosTestDuration,
-		Clients:           tc.ChaosTestClients,
+		Duration:           tc.ChaosTestDuration,
+		Clients:            tc.ChaosTestClients,
 		FailureProbability: tc.ChaosFailureProbability,
 	}
 }
@@ -266,9 +266,9 @@ func (tc *TestConfig) GetChaosTestConfig() ChaosTestConfig {
 // GetSecurityTestConfig returns configuration for security testing
 func (tc *TestConfig) GetSecurityTestConfig() SecurityTestConfig {
 	return SecurityTestConfig{
-		Iterations:      tc.SecurityTestIterations,
-		TimingTests:     tc.SecurityTimingTests,
-		MemoryPressure:  tc.SecurityMemoryPressure,
+		Iterations:     tc.SecurityTestIterations,
+		TimingTests:    tc.SecurityTimingTests,
+		MemoryPressure: tc.SecurityMemoryPressure,
 	}
 }
 
@@ -284,18 +284,18 @@ func (tc *TestConfig) GetPropertyTestConfig() PropertyTestConfig {
 // GetMemoryTestConfig returns configuration for memory testing
 func (tc *TestConfig) GetMemoryTestConfig() MemoryTestConfig {
 	return MemoryTestConfig{
-		Size:           tc.MemoryTestSize,
-		Iterations:     tc.MemoryTestIterations,
-		LeakThreshold:  tc.MemoryLeakThreshold,
+		Size:          tc.MemoryTestSize,
+		Iterations:    tc.MemoryTestIterations,
+		LeakThreshold: tc.MemoryLeakThreshold,
 	}
 }
 
 // GetPerformanceTestConfig returns configuration for performance testing
 func (tc *TestConfig) GetPerformanceTestConfig() PerformanceTestConfig {
 	return PerformanceTestConfig{
-		Iterations:     tc.PerformanceIterations,
-		LatencyLimit:   tc.PerformanceLatencyLimit,
-		ThroughputMin:  tc.PerformanceThroughputMin,
+		Iterations:    tc.PerformanceIterations,
+		LatencyLimit:  tc.PerformanceLatencyLimit,
+		ThroughputMin: tc.PerformanceThroughputMin,
 	}
 }
 
@@ -320,8 +320,8 @@ type LoadTestConfig struct {
 }
 
 type ChaosTestConfig struct {
-	Duration          time.Duration
-	Clients           int
+	Duration           time.Duration
+	Clients            int
 	FailureProbability float32
 }
 
@@ -360,10 +360,10 @@ type ProfilingConfig struct {
 
 // TestSuite represents a collection of tests with shared configuration
 type TestSuite struct {
-	Name        string
-	Config      *TestConfig
-	Tests       []TestCase
-	SetupFunc   func() error
+	Name         string
+	Config       *TestConfig
+	Tests        []TestCase
+	SetupFunc    func() error
 	TeardownFunc func() error
 }
 

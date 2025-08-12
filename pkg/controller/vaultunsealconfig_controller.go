@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -21,7 +22,8 @@ type VaultUnsealConfigReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 
-	vaultClients map[string]*vault.Client
+	vaultClients   map[string]*vault.Client
+	vaultClientsMu sync.RWMutex
 }
 
 // +kubebuilder:rbac:groups=vault.io,resources=vaultunsealconfigs,verbs=get;list;watch;create;update;patch;delete
@@ -40,9 +42,11 @@ func (r *VaultUnsealConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Initialize vault clients map if needed
+	r.vaultClientsMu.Lock()
 	if r.vaultClients == nil {
 		r.vaultClients = make(map[string]*vault.Client)
 	}
+	r.vaultClientsMu.Unlock()
 
 	logger.Info("Reconciling VaultUnsealConfig", "name", vaultConfig.Name, "namespace", vaultConfig.Namespace)
 
@@ -146,7 +150,10 @@ func (r *VaultUnsealConfigReconciler) processVaultInstance(
 	clientKey := fmt.Sprintf("%s/%s", namespace, instance.Name)
 
 	// Get or create vault client
+	r.vaultClientsMu.RLock()
 	vaultClient, exists := r.vaultClients[clientKey]
+	r.vaultClientsMu.RUnlock()
+
 	if !exists {
 		timeout := 30 * time.Second
 		var err error
@@ -154,7 +161,10 @@ func (r *VaultUnsealConfigReconciler) processVaultInstance(
 		if err != nil {
 			return vaultv1.VaultInstanceStatus{}, fmt.Errorf("failed to create vault client: %w", err)
 		}
+
+		r.vaultClientsMu.Lock()
 		r.vaultClients[clientKey] = vaultClient
+		r.vaultClientsMu.Unlock()
 	}
 
 	// Check if vault is sealed

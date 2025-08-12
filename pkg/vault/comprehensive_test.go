@@ -2,7 +2,10 @@ package vault
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -412,11 +415,11 @@ var _ = Describe("Comprehensive Testing Framework", func() {
 			// Mock some results
 			runner.results = map[string]*TestSuiteResult{
 				"MockSuite": {
-					Name:      "MockSuite",
-					Duration:  5 * time.Second,
-					Passed:    10,
-					Failures:  1,
-					Skipped:   2,
+					Name:     "MockSuite",
+					Duration: 5 * time.Second,
+					Passed:   10,
+					Failures: 1,
+					Skipped:  2,
 				},
 			}
 

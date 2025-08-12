@@ -1,10 +1,12 @@
 package vault
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"math/rand"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode"
@@ -46,12 +48,12 @@ var _ = Describe("Property-Based Testing", func() {
 
 		It("should handle edge cases in base64 encoding", func() {
 			edgeCases := [][]byte{
-				{},                    // Empty
-				{0},                   // Single zero byte
-				{255},                 // Single max byte
-				{0, 255},             // Min and max
-				{1, 2, 3},            // Small sequence
-				make([]byte, 1024),   // Large zero array
+				{},                 // Empty
+				{0},                // Single zero byte
+				{255},              // Single max byte
+				{0, 255},           // Min and max
+				{1, 2, 3},          // Small sequence
+				make([]byte, 1024), // Large zero array
 			}
 
 			// Fill large array with pattern
@@ -149,7 +151,7 @@ var _ = Describe("Property-Based Testing", func() {
 				"Ñäme wíth spëcîål çháracters",
 				"العربية",
 				"русский",
-				"\x00\x01\x02\x03", // Control characters
+				"\x00\x01\x02\x03",        // Control characters
 				strings.Repeat("A", 1000), // Long string
 			}
 
@@ -278,36 +280,36 @@ var _ = Describe("Property-Based Testing", func() {
 		It("should maintain error type consistency", func() {
 			// Property: Error type checking functions should be consistent
 			testCases := []struct {
-				createError func() error
-				isRetryable bool
+				createError  func() error
+				isRetryable  bool
 				isValidation bool
 			}{
 				{
 					createError: func() error {
 						return NewValidationError("test", "value", "message")
 					},
-					isRetryable: false,
+					isRetryable:  false,
 					isValidation: true,
 				},
 				{
 					createError: func() error {
 						return NewVaultError("op", "endpoint", fmt.Errorf("base"), true)
 					},
-					isRetryable: true,
+					isRetryable:  true,
 					isValidation: false,
 				},
 				{
 					createError: func() error {
 						return NewVaultError("op", "endpoint", fmt.Errorf("base"), false)
 					},
-					isRetryable: false,
+					isRetryable:  false,
 					isValidation: false,
 				},
 				{
 					createError: func() error {
 						return fmt.Errorf("generic error")
 					},
-					isRetryable: false,
+					isRetryable:  false,
 					isValidation: false,
 				},
 			}
@@ -461,10 +463,10 @@ func generateUnicodeString(length int) string {
 	unicodeRanges := []struct {
 		start, end rune
 	}{
-		{0x0020, 0x007E}, // Basic Latin
-		{0x00A0, 0x00FF}, // Latin-1 Supplement
-		{0x0100, 0x017F}, // Latin Extended-A
-		{0x4E00, 0x9FFF}, // CJK Unified Ideographs (sample)
+		{0x0020, 0x007E},   // Basic Latin
+		{0x00A0, 0x00FF},   // Latin-1 Supplement
+		{0x0100, 0x017F},   // Latin Extended-A
+		{0x4E00, 0x9FFF},   // CJK Unified Ideographs (sample)
 		{0x1F600, 0x1F64F}, // Emoticons
 	}
 
@@ -475,7 +477,7 @@ func generateUnicodeString(length int) string {
 		char := selectedRange.start + rune(rand.Intn(int(selectedRange.end-selectedRange.start+1)))
 
 		// Ensure we don't generate invalid unicode
-		if unicode.IsValid(char) {
+		if char != unicode.ReplacementChar && unicode.IsPrint(char) {
 			result.WriteRune(char)
 		} else {
 			result.WriteRune('A') // Fallback

@@ -330,7 +330,7 @@ func BenchmarkContextOperations(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			select {
 			case <-ctx.Done():
-				// Context cancelled
+				// Context canceled
 			default:
 				// Context still valid
 			}

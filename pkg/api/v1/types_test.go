@@ -42,7 +42,7 @@ var _ = Describe("VaultUnsealConfig API Types", func() {
 			Expect(instance.Name).To(Equal("minimal-vault"))
 			Expect(instance.Endpoint).To(Equal("http://vault:8200"))
 			Expect(len(instance.UnsealKeys)).To(Equal(1))
-			Expect(instance.Threshold).To(BeNil()) // Should use default
+			Expect(instance.Threshold).To(BeNil())       // Should use default
 			Expect(instance.TLSSkipVerify).To(BeFalse()) // Default value
 		})
 
@@ -70,11 +70,11 @@ var _ = Describe("VaultUnsealConfig API Types", func() {
 				threshold *int
 				expected  *int
 			}{
-				{nil, nil},                    // Default threshold
-				{intPtr(1), intPtr(1)},       // Single key threshold
-				{intPtr(3), intPtr(3)},       // Standard threshold
-				{intPtr(5), intPtr(5)},       // High threshold
-				{intPtr(10), intPtr(10)},     // Very high threshold
+				{nil, nil},               // Default threshold
+				{intPtr(1), intPtr(1)},   // Single key threshold
+				{intPtr(3), intPtr(3)},   // Standard threshold
+				{intPtr(5), intPtr(5)},   // High threshold
+				{intPtr(10), intPtr(10)}, // Very high threshold
 			}
 
 			for _, tc := range testCases {

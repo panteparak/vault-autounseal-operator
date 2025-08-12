@@ -66,7 +66,7 @@ func (s *DefaultUnsealStrategy) submitKeys(ctx context.Context, client VaultClie
 	for i, key := range keys {
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled during unseal operation: %w", ctx.Err())
+			return nil, fmt.Errorf("context canceled during unseal operation: %w", ctx.Err())
 		default:
 		}
 
@@ -106,7 +106,7 @@ func (s *DefaultUnsealStrategy) submitSingleKey(ctx context.Context, client Vaul
 
 // ParallelUnsealStrategy attempts to unseal multiple vault instances in parallel
 type ParallelUnsealStrategy struct {
-	baseStrategy UnsealStrategy
+	baseStrategy   UnsealStrategy
 	maxConcurrency int
 }
 
@@ -148,7 +148,7 @@ func (s *RetryUnsealStrategy) Unseal(ctx context.Context, client VaultClient, ke
 	for attempt := 0; attempt < s.retryPolicy.MaxAttempts(); attempt++ {
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled during retry attempt %d: %w", attempt, ctx.Err())
+			return nil, fmt.Errorf("context canceled during retry attempt %d: %w", attempt, ctx.Err())
 		default:
 		}
 
@@ -167,7 +167,7 @@ func (s *RetryUnsealStrategy) Unseal(ctx context.Context, client VaultClient, ke
 			delay := s.retryPolicy.NextDelay(attempt)
 			select {
 			case <-ctx.Done():
-				return nil, fmt.Errorf("context cancelled during retry delay: %w", ctx.Err())
+				return nil, fmt.Errorf("context canceled during retry delay: %w", ctx.Err())
 			case <-time.After(delay):
 			}
 		}

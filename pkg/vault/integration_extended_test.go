@@ -22,7 +22,7 @@ var _ = Describe("Extended Integration Tests", func() {
 	Describe("Multi-Client Orchestration", func() {
 		It("should handle multiple clients targeting different vault instances", func() {
 			factory := NewMockClientFactory()
-			metrics := NewMockClientMetrics()
+			_ = NewMockClientMetrics()
 
 			// Create multiple clients for different vault instances
 			clientConfigs := []struct {
@@ -99,7 +99,7 @@ var _ = Describe("Extended Integration Tests", func() {
 
 			clients := make([]*MockVaultClient, numClients)
 			for i := 0; i < numClients; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://vault-%d:8200", i), false, 5*time.Second)
+				_, err := factory.NewClient(fmt.Sprintf("http://vault-%d:8200", i), false, 5*time.Second)
 				Expect(err).ToNot(HaveOccurred())
 				clients[i] = factory.GetClient(fmt.Sprintf("http://vault-%d:8200", i))
 			}
@@ -200,8 +200,8 @@ var _ = Describe("Extended Integration Tests", func() {
 				threshold int
 				shouldErr bool
 			}{
-				{5, 3, false}, // Normal case
-				{3, 3, false}, // Exact match
+				{5, 3, false},  // Normal case
+				{3, 3, false},  // Exact match
 				{10, 3, false}, // More keys than needed
 				{2, 3, true},   // Not enough keys
 				{5, 0, true},   // Invalid threshold
@@ -397,7 +397,7 @@ var _ = Describe("Extended Integration Tests", func() {
 				{
 					URL:        "http://vault:8200",
 					Timeout:    24 * time.Hour, // Extremely long
-					MaxRetries: 1000,          // Many retries
+					MaxRetries: 1000,           // Many retries
 				},
 				{
 					URL:        "http://vault:8200",

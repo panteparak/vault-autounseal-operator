@@ -28,7 +28,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 
 			clients := make([]*MockVaultClient, numClients)
 			for i := 0; i < numClients; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://vault-%d:8200", i), false, 2*time.Second)
+				_, err := factory.NewClient(fmt.Sprintf("http://vault-%d:8200", i), false, 2*time.Second)
 				Expect(err).ToNot(HaveOccurred())
 				clients[i] = factory.GetClient(fmt.Sprintf("http://vault-%d:8200", i))
 			}
@@ -105,7 +105,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 
 			clients := make([]*MockVaultClient, numClients)
 			for i := 0; i < numClients; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://byzantine-%d:8200", i), false, 1*time.Second)
+				_, err := factory.NewClient(fmt.Sprintf("http://byzantine-%d:8200", i), false, 1*time.Second)
 				Expect(err).ToNot(HaveOccurred())
 				clients[i] = factory.GetClient(fmt.Sprintf("http://byzantine-%d:8200", i))
 			}
@@ -205,9 +205,9 @@ var _ = Describe("Chaos Engineering Tests", func() {
 			clients := make([]VaultClient, numClients)
 
 			for i := 0; i < numClients; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://memory-test-%d:8200", i), false, 100*time.Millisecond)
+				_, err := factory.NewClient(fmt.Sprintf("http://memory-test-%d:8200", i), false, 100*time.Millisecond)
 				Expect(err).ToNot(HaveOccurred())
-				clients[i] = client
+				clients[i] = factory.GetClient(fmt.Sprintf("http://memory-test-%d:8200", i))
 			}
 
 			// Generate large amounts of data
@@ -274,7 +274,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 
 			// Simulate scenarios that might leak goroutines
 			for i := 0; i < numIterations; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://goroutine-test-%d:8200", i), false, 50*time.Millisecond)
+				_, err := factory.NewClient(fmt.Sprintf("http://goroutine-test-%d:8200", i), false, 50*time.Millisecond)
 				Expect(err).ToNot(HaveOccurred())
 
 				mockClient := factory.GetClient(fmt.Sprintf("http://goroutine-test-%d:8200", i))
@@ -286,14 +286,14 @@ var _ = Describe("Chaos Engineering Tests", func() {
 				go func(c VaultClient, ctx context.Context) {
 					_, _ = c.IsSealed(ctx)
 					_, _ = c.HealthCheck(ctx)
-				}(client, ctx)
+				}(mockClient, ctx)
 
 				// Sometimes cancel, sometimes let timeout
 				if i%2 == 0 {
 					cancel()
 				} else {
 					time.Sleep(15 * time.Millisecond) // Let it timeout
-					cancel() // Clean up
+					cancel()                          // Clean up
 				}
 
 				// Configure failures that might cause goroutine issues
@@ -301,7 +301,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 					mockClient.SetResponseDelay(100 * time.Millisecond)
 				}
 
-				client.Close()
+				mockClient.Close()
 			}
 
 			// Allow time for cleanup
@@ -339,7 +339,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 			// Create clients
 			clients := make([]*MockVaultClient, 10)
 			for i := 0; i < 10; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://race-test-%d:8200", i), false, 100*time.Millisecond)
+				_, err := factory.NewClient(fmt.Sprintf("http://race-test-%d:8200", i), false, 100*time.Millisecond)
 				Expect(err).ToNot(HaveOccurred())
 				clients[i] = factory.GetClient(fmt.Sprintf("http://race-test-%d:8200", i))
 			}
@@ -428,7 +428,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 			clients := make([]*MockVaultClient, numClients)
 
 			for i := 0; i < numClients; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://error-cascade-%d:8200", i), false, 100*time.Millisecond)
+				_, err := factory.NewClient(fmt.Sprintf("http://error-cascade-%d:8200", i), false, 100*time.Millisecond)
 				Expect(err).ToNot(HaveOccurred())
 				clients[i] = factory.GetClient(fmt.Sprintf("http://error-cascade-%d:8200", i))
 			}
@@ -516,7 +516,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 
 			clients := make([]*MockVaultClient, numClients)
 			for i := 0; i < numClients; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://time-chaos-%d:8200", i), false, 200*time.Millisecond)
+				_, err := factory.NewClient(fmt.Sprintf("http://time-chaos-%d:8200", i), false, 200*time.Millisecond)
 				Expect(err).ToNot(HaveOccurred())
 				clients[i] = factory.GetClient(fmt.Sprintf("http://time-chaos-%d:8200", i))
 			}

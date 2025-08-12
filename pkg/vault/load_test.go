@@ -29,7 +29,7 @@ var _ = Describe("Load and Stress Tests", func() {
 
 			clients := make([]*MockVaultClient, numClients)
 			for i := 0; i < numClients; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://load-test-%d:8200", i), false, 50*time.Millisecond)
+				_, err := factory.NewClient(fmt.Sprintf("http://load-test-%d:8200", i), false, 50*time.Millisecond)
 				Expect(err).ToNot(HaveOccurred())
 				clients[i] = factory.GetClient(fmt.Sprintf("http://load-test-%d:8200", i))
 
@@ -104,7 +104,7 @@ var _ = Describe("Load and Stress Tests", func() {
 
 		It("should handle high volume unseal operations", func() {
 			strategy := NewDefaultUnsealStrategy(NewDefaultKeyValidator(), NewMockClientMetrics())
-			factory := NewMockClientFactory()
+			_ = NewMockClientFactory()
 
 			numClients := 50
 			operationsPerClient := 200
@@ -263,12 +263,13 @@ var _ = Describe("Load and Stress Tests", func() {
 					}
 
 					// Perform operations under memory pressure
-					client, err := factory.NewClient(fmt.Sprintf("http://memory-pressure-%d:8200", workerID), false, 100*time.Millisecond)
+					_, err := factory.NewClient(fmt.Sprintf("http://memory-pressure-%d:8200", workerID), false, 100*time.Millisecond)
 					Expect(err).ToNot(HaveOccurred())
 
+					mockClient := factory.GetClient(fmt.Sprintf("http://memory-pressure-%d:8200", workerID))
 					ctx := context.Background()
 					for j := 0; j < 50; j++ {
-						_, err := client.IsSealed(ctx)
+						_, err := mockClient.IsSealed(ctx)
 						if err != nil {
 							// Acceptable under memory pressure
 						}
@@ -279,7 +280,7 @@ var _ = Describe("Load and Stress Tests", func() {
 						}
 					}
 
-					client.Close()
+					mockClient.Close()
 
 					// Clear memory
 					largeData = nil
@@ -422,9 +423,9 @@ var _ = Describe("Load and Stress Tests", func() {
 
 			clients := make([]VaultClient, numClients)
 			for i := 0; i < numClients; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://contention-%d:8200", i), false, 100*time.Millisecond)
+				_, err := factory.NewClient(fmt.Sprintf("http://contention-%d:8200", i), false, 100*time.Millisecond)
 				Expect(err).ToNot(HaveOccurred())
-				clients[i] = client
+				clients[i] = factory.GetClient(fmt.Sprintf("http://contention-%d:8200", i))
 			}
 
 			var wg sync.WaitGroup
@@ -486,7 +487,7 @@ var _ = Describe("Load and Stress Tests", func() {
 
 			clients := make([]*MockVaultClient, numClients)
 			for i := 0; i < numClients; i++ {
-				client, err := factory.NewClient(fmt.Sprintf("http://network-sim-%d:8200", i), false, 200*time.Millisecond)
+				_, err := factory.NewClient(fmt.Sprintf("http://network-sim-%d:8200", i), false, 200*time.Millisecond)
 				Expect(err).ToNot(HaveOccurred())
 				clients[i] = factory.GetClient(fmt.Sprintf("http://network-sim-%d:8200", i))
 			}

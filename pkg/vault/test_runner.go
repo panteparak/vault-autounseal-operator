@@ -15,12 +15,12 @@ import (
 
 // TestRunner orchestrates comprehensive testing with resource profiling
 type TestRunner struct {
-	config       *TestConfig
-	profiler     *ResourceProfiler
-	reporter     *TestReporter
-	suites       []*TestSuite
-	results      map[string]*TestSuiteResult
-	mu           sync.RWMutex
+	config   *TestConfig
+	profiler *ResourceProfiler
+	reporter *TestReporter
+	suites   []*TestSuite
+	results  map[string]*TestSuiteResult
+	mu       sync.RWMutex
 }
 
 // NewTestRunner creates a new test runner
@@ -235,10 +235,10 @@ func (tr *TestReporter) ReportTestEnd(result *TestResult) {
 // GenerateReport generates a comprehensive test report
 func (tr *TestReporter) GenerateReport(runner *TestRunner) error {
 	report := ComprehensiveReport{
-		Timestamp:    time.Now(),
+		Timestamp:     time.Now(),
 		Configuration: runner.config,
-		Suites:       runner.results,
-		Summary:      tr.generateSummary(runner.results),
+		Suites:        runner.results,
+		Summary:       tr.generateSummary(runner.results),
 	}
 
 	// Write JSON report
@@ -340,10 +340,10 @@ func (tr *TestReporter) writeTextReport(file *os.File, report *ComprehensiveRepo
 
 // ComprehensiveReport represents the complete test report
 type ComprehensiveReport struct {
-	Timestamp     time.Time                      `json:"timestamp"`
-	Configuration *TestConfig                    `json:"configuration"`
-	Suites        map[string]*TestSuiteResult    `json:"suites"`
-	Summary       ReportSummary                  `json:"summary"`
+	Timestamp     time.Time                   `json:"timestamp"`
+	Configuration *TestConfig                 `json:"configuration"`
+	Suites        map[string]*TestSuiteResult `json:"suites"`
+	Summary       ReportSummary               `json:"summary"`
 }
 
 // ReportSummary provides overall statistics

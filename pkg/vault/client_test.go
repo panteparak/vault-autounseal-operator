@@ -166,7 +166,7 @@ var _ = Describe("VaultClient", func() {
 				for _, key := range invalidKeys {
 					// Test input validation directly without network calls
 					_, err := base64.StdEncoding.DecodeString(key)
-					if key != "" && key != " " {  // Empty and space might decode as valid base64
+					if key != "" && key != " " { // Empty and space might decode as valid base64
 						Expect(err).To(HaveOccurred(), "Key should be invalid: %s", key)
 					}
 				}
@@ -178,7 +178,7 @@ var _ = Describe("VaultClient", func() {
 					base64.StdEncoding.EncodeToString([]byte("another-key-value")),
 					base64.StdEncoding.EncodeToString([]byte("key with spaces")),
 					base64.StdEncoding.EncodeToString([]byte("special!@#$%^&*()characters")),
-					"dGVzdA==", // "test"
+					"dGVzdA==",     // "test"
 					"YWJjZGVmZ2g=", // "abcdefgh"
 				}
 
@@ -338,7 +338,7 @@ var _ = Describe("VaultClient", func() {
 		})
 
 		Context("Context Cancellation", func() {
-			It("should handle cancelled context", func() {
+			It("should handle canceled context", func() {
 				cancelledCtx, cancel := context.WithCancel(ctx)
 				cancel() // Cancel immediately
 

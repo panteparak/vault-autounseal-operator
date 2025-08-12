@@ -15,9 +15,9 @@ import (
 
 // TestMetrics provides detailed testing metrics collection
 type TestMetrics struct {
-	mu                    sync.RWMutex
-	operationCounts       map[string]int64
-	operationDurations    map[string][]time.Duration
+	mu                   sync.RWMutex
+	operationCounts      map[string]int64
+	operationDurations   map[string][]time.Duration
 	errorCounts          map[string]int64
 	memorySnapshots      []MemorySnapshot
 	concurrentOperations int64
@@ -26,11 +26,11 @@ type TestMetrics struct {
 
 // MemorySnapshot captures memory usage at a point in time
 type MemorySnapshot struct {
-	Timestamp time.Time
-	Alloc     uint64
+	Timestamp  time.Time
+	Alloc      uint64
 	TotalAlloc uint64
-	Sys       uint64
-	NumGC     uint32
+	Sys        uint64
+	NumGC      uint32
 	Goroutines int
 }
 
@@ -39,8 +39,8 @@ func NewTestMetrics() *TestMetrics {
 	return &TestMetrics{
 		operationCounts:    make(map[string]int64),
 		operationDurations: make(map[string][]time.Duration),
-		errorCounts:       make(map[string]int64),
-		testStartTime:     time.Now(),
+		errorCounts:        make(map[string]int64),
+		testStartTime:      time.Now(),
 	}
 }
 
@@ -94,11 +94,11 @@ func (tm *TestMetrics) GetSummary() TestSummary {
 	summary := TestSummary{
 		TestDuration:         time.Since(tm.testStartTime),
 		TotalOperations:      0,
-		TotalErrors:         0,
-		OperationBreakdown:  make(map[string]OperationStats),
+		TotalErrors:          0,
+		OperationBreakdown:   make(map[string]OperationStats),
 		ConcurrentOperations: atomic.LoadInt64(&tm.concurrentOperations),
-		MemoryGrowth:        0,
-		PeakMemory:          0,
+		MemoryGrowth:         0,
+		PeakMemory:           0,
 	}
 
 	// Calculate operation stats
@@ -110,12 +110,12 @@ func (tm *TestMetrics) GetSummary() TestSummary {
 		summary.TotalErrors += errors
 
 		stats := OperationStats{
-			Count:      count,
-			Errors:     errors,
-			ErrorRate:  float64(errors) / float64(count),
-			TotalTime:  0,
-			MinTime:    time.Hour, // Initialize with high value
-			MaxTime:    0,
+			Count:     count,
+			Errors:    errors,
+			ErrorRate: float64(errors) / float64(count),
+			TotalTime: 0,
+			MinTime:   time.Hour, // Initialize with high value
+			MaxTime:   0,
 		}
 
 		if len(durations) > 0 {
@@ -155,11 +155,11 @@ func (tm *TestMetrics) GetSummary() TestSummary {
 type TestSummary struct {
 	TestDuration         time.Duration
 	TotalOperations      int64
-	TotalErrors         int64
-	OperationBreakdown  map[string]OperationStats
+	TotalErrors          int64
+	OperationBreakdown   map[string]OperationStats
 	ConcurrentOperations int64
-	MemoryGrowth        int64
-	PeakMemory          uint64
+	MemoryGrowth         int64
+	PeakMemory           uint64
 }
 
 // OperationStats provides statistics for a specific operation type
@@ -209,10 +209,10 @@ func NewLoadTestRunner(numWorkers int, duration time.Duration) *LoadTestRunner {
 		numWorkers: numWorkers,
 		duration:   duration,
 		operationMix: map[string]float32{
-			"IsSealed":    0.4,
-			"HealthCheck": 0.3,
+			"IsSealed":      0.4,
+			"HealthCheck":   0.3,
 			"GetSealStatus": 0.2,
-			"Unseal":      0.1,
+			"Unseal":        0.1,
 		},
 	}
 }
@@ -330,10 +330,10 @@ func (ltr *LoadTestRunner) memoryMonitor(ctx context.Context) {
 
 // ChaosTestRunner provides utilities for chaos engineering tests
 type ChaosTestRunner struct {
-	metrics       *TestMetrics
-	factory       *MockClientFactory
-	clients       []*MockVaultClient
-	numClients    int
+	metrics        *TestMetrics
+	factory        *MockClientFactory
+	clients        []*MockVaultClient
+	numClients     int
 	chaosScenarios []ChaosScenario
 }
 
@@ -612,11 +612,11 @@ func (ptg *PropertyTestGenerator) GenerateInvalidKeys(count int) []string {
 // GenerateEdgeCaseThresholds generates threshold values for edge case testing
 func (ptg *PropertyTestGenerator) GenerateEdgeCaseThresholds() []int {
 	return []int{
-		-1000,  // Very negative
-		-1,     // Negative
-		0,      // Zero
-		1,      // Minimum valid
-		1000,   // Large positive
+		-1000,              // Very negative
+		-1,                 // Negative
+		0,                  // Zero
+		1,                  // Minimum valid
+		1000,               // Large positive
 		int(^uint(0) >> 1), // Max int
 	}
 }
@@ -732,11 +732,11 @@ func (ta *TimingAnalyzer) AnalyzeConstantTime() TimingAnalysis {
 	variance := float64(max-min) / float64(avg)
 
 	return TimingAnalysis{
-		Count:    len(ta.measurements),
-		Min:      min,
-		Max:      max,
-		Average:  avg,
-		Variance: variance,
+		Count:          len(ta.measurements),
+		Min:            min,
+		Max:            max,
+		Average:        avg,
+		Variance:       variance,
 		IsConstantTime: variance < 2.0, // Threshold for constant-time
 	}
 }

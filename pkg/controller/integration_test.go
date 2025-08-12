@@ -37,8 +37,8 @@ var _ = Describe("VaultUnsealConfig Controller Integration", func() {
 		It("should handle complete reconciliation cycle", func() {
 			vaultConfig := &vaultv1.VaultUnsealConfig{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "e2e-test-config",
-					Namespace: "vault-system",
+					Name:       "e2e-test-config",
+					Namespace:  "vault-system",
 					Generation: 1,
 				},
 				Spec: vaultv1.VaultUnsealConfigSpec{

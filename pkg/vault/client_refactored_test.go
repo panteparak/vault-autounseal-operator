@@ -151,7 +151,7 @@ var _ = Describe("Client Operations", func() {
 			})
 		})
 
-		Context("with cancelled context", func() {
+		Context("with canceled context", func() {
 			It("should handle context cancellation", func() {
 				cancelCtx, cancel := context.WithCancel(ctx)
 				cancel()

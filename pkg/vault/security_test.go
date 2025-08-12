@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unsafe"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -77,8 +76,14 @@ var _ = Describe("Security-Focused Tests", func() {
 
 			// Times should not reveal information about key content
 			// Allow for some variance, but reject excessive timing differences
-			maxValidTime := max(validTime1, validTime2)
-			minValidTime := min(validTime1, validTime2)
+			maxValidTime := validTime1
+			if validTime2 > validTime1 {
+				maxValidTime = validTime2
+			}
+			minValidTime := validTime1
+			if validTime2 < validTime1 {
+				minValidTime = validTime2
+			}
 
 			timingRatio := float64(maxValidTime) / float64(minValidTime)
 			Expect(timingRatio).To(BeNumerically("<", 3.0), "Valid key validation times should be similar")
@@ -193,7 +198,15 @@ var _ = Describe("Security-Focused Tests", func() {
 			time2 := measureComparisonTime(key1, key3, numTests) // Same
 
 			// Timing should be similar for both cases (constant-time property)
-			timingRatio := float64(max(time1, time2)) / float64(min(time1, time2))
+			maxTime := time1
+			if time2 > time1 {
+				maxTime = time2
+			}
+			minTime := time1
+			if time2 < time1 {
+				minTime = time2
+			}
+			timingRatio := float64(maxTime) / float64(minTime)
 			Expect(timingRatio).To(BeNumerically("<", 2.0), "Comparison timing should be constant")
 		})
 	})
@@ -203,11 +216,11 @@ var _ = Describe("Security-Focused Tests", func() {
 			validator := NewDefaultKeyValidator()
 
 			weakKeys := [][]byte{
-				make([]byte, 32),                                    // All zeros
-				[]byte(strings.Repeat("\x01", 32)),                 // All ones
-				[]byte(strings.Repeat("\xFF", 32)),                 // All max bytes
-				[]byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),          // Repeating pattern
-				[]byte("12341234123412341234123412341234"),          // Short pattern repeated
+				make([]byte, 32),                           // All zeros
+				[]byte(strings.Repeat("\x01", 32)),         // All ones
+				[]byte(strings.Repeat("\xFF", 32)),         // All max bytes
+				[]byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), // Repeating pattern
+				[]byte("12341234123412341234123412341234"), // Short pattern repeated
 			}
 
 			for i, keyData := range weakKeys {
@@ -226,9 +239,9 @@ var _ = Describe("Security-Focused Tests", func() {
 
 			// Low entropy keys
 			lowEntropyKeys := [][]byte{
-				[]byte(strings.Repeat("A", 32)),          // No entropy
-				[]byte("AAAAAAAAAAAAAAABBBBBBBBBBBBBBB"),    // Very low entropy
-				[]byte("ABABABABABABABABABABABABABABABAB"),  // Alternating pattern
+				[]byte(strings.Repeat("A", 32)),            // No entropy
+				[]byte("AAAAAAAAAAAAAAABBBBBBBBBBBBBBB"),   // Very low entropy
+				[]byte("ABABABABABABABABABABABABABABABAB"), // Alternating pattern
 			}
 
 			// High entropy keys
@@ -248,7 +261,7 @@ var _ = Describe("Security-Focused Tests", func() {
 			}
 
 			// High entropy should pass (if no other issues)
-			for i, keyData := range highEntropyKeys {
+			for _, keyData := range highEntropyKeys {
 				key := base64.StdEncoding.EncodeToString(keyData)
 				err := strictValidator.ValidateBase64Key(key)
 				// May fail on other criteria (forbidden strings), but not entropy
@@ -259,7 +272,7 @@ var _ = Describe("Security-Focused Tests", func() {
 		})
 
 		It("should handle key derivation attacks", func() {
-			validator := NewDefaultKeyValidator()
+			_ = NewDefaultKeyValidator()
 
 			// Test keys that might be related/derived from each other
 			baseKey := "base-key-for-derivation-test"
@@ -335,7 +348,7 @@ var _ = Describe("Security-Focused Tests", func() {
 			ctxWithValue := context.WithValue(context.Background(), "test-key", "test-value")
 			contexts = append(contexts, ctxWithValue)
 
-			// Add cancelled context
+			// Add canceled context
 			cancelledCtx, cancel := context.WithCancel(context.Background())
 			cancel()
 			contexts = append(contexts, cancelledCtx)
@@ -537,7 +550,15 @@ var _ = Describe("Security-Focused Tests", func() {
 			uncachedTime := measureValidationTime(validator, uncachedKey, numTests)
 
 			// Timing should not reveal cache state significantly
-			timingRatio := float64(max(cachedTime, uncachedTime)) / float64(min(cachedTime, uncachedTime))
+			maxTime := cachedTime
+			if uncachedTime > cachedTime {
+				maxTime = uncachedTime
+			}
+			minTime := cachedTime
+			if uncachedTime < cachedTime {
+				minTime = uncachedTime
+			}
+			timingRatio := float64(maxTime) / float64(minTime)
 			Expect(timingRatio).To(BeNumerically("<", 5.0),
 				"Cache timing should not leak significant information")
 		})

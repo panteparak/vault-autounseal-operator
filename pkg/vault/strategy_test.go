@@ -142,7 +142,7 @@ var _ = Describe("DefaultUnsealStrategy", func() {
 		})
 
 		Context("with context cancellation", func() {
-			It("should handle cancelled context", func() {
+			It("should handle canceled context", func() {
 				cancelledCtx, cancel := context.WithCancel(ctx)
 				cancel() // Cancel immediately
 
@@ -238,7 +238,7 @@ var _ = Describe("RetryUnsealStrategy", func() {
 		})
 
 		Context("with context cancellation during retry", func() {
-			It("should stop retrying when context is cancelled", func() {
+			It("should stop retrying when context is canceled", func() {
 				cancelCtx, cancel := context.WithCancel(ctx)
 				mockClient.SetFailSealStatus(true)
 				keys := []string{base64.StdEncoding.EncodeToString([]byte("key1"))}

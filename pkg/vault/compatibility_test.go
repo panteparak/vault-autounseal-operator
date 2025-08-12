@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -90,10 +92,10 @@ var _ = Describe("Vault Version Compatibility Tests", func() {
 					threshold int
 					progress  int
 				}{
-					{true, 3, 0},   // Sealed, no progress
-					{true, 3, 1},   // Sealed, partial progress
-					{true, 3, 2},   // Sealed, almost unsealed
-					{false, 3, 0},  // Unsealed
+					{true, 3, 0},  // Sealed, no progress
+					{true, 3, 1},  // Sealed, partial progress
+					{true, 3, 2},  // Sealed, almost unsealed
+					{false, 3, 0}, // Unsealed
 				}
 
 				ctx := context.Background()
@@ -231,10 +233,10 @@ var _ = Describe("Vault Version Compatibility Tests", func() {
 
 				// Test health check variations
 				healthConfigs := []struct {
-					healthy       bool
-					initialized   bool
-					standby       bool
-					description   string
+					healthy     bool
+					initialized bool
+					standby     bool
+					description string
 				}{
 					{true, true, false, "active and healthy"},
 					{true, true, true, "standby and healthy"},
@@ -277,7 +279,7 @@ var _ = Describe("Vault Version Compatibility Tests", func() {
 				for _, config := range authConfigs {
 					testVersion := ParseVersion(config.version)
 					if currentVersion.Major > testVersion.Major ||
-					   (currentVersion.Major == testVersion.Major && currentVersion.Minor >= testVersion.Minor) {
+						(currentVersion.Major == testVersion.Major && currentVersion.Minor >= testVersion.Minor) {
 
 						scheme := "http"
 						if config.tlsRequired {
@@ -315,9 +317,9 @@ var _ = Describe("Vault Version Compatibility Tests", func() {
 
 				for _, test := range configTests {
 					if currentVersion.Major > test.minVersion.Major ||
-					   (currentVersion.Major == test.minVersion.Major &&
-					    currentVersion.Minor >= test.minVersion.Minor &&
-					    currentVersion.Patch >= test.minVersion.Patch) {
+						(currentVersion.Major == test.minVersion.Major &&
+							currentVersion.Minor >= test.minVersion.Minor &&
+							currentVersion.Patch >= test.minVersion.Patch) {
 
 						if test.shouldWork {
 							// Configuration should be supported
@@ -556,7 +558,7 @@ var _ = Describe("Vault Version Compatibility Tests", func() {
 
 				// Test that our code handles both versions appropriately
 				if currentVersion.IsAtLeast(fromVer.Major, fromVer.Minor, fromVer.Patch) &&
-				   !currentVersion.IsAtLeast(toVer.Major+1, 0, 0) {
+					!currentVersion.IsAtLeast(toVer.Major+1, 0, 0) {
 
 					// We're in a compatible version range
 					factory := NewMockClientFactory()

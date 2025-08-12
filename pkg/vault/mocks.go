@@ -11,22 +11,22 @@ import (
 
 // MockVaultClient implements VaultClient for testing
 type MockVaultClient struct {
-	mu                sync.RWMutex
-	sealed            bool
-	initialized       bool
-	healthy           bool
-	unsealProgress    int
-	unsealThreshold   int
-	submittedKeys     []string
-	failHealthCheck   bool
-	failSealStatus    bool
-	failUnseal        bool
-	failInitialized   bool
-	responseDelay     time.Duration
-	callCounts        map[string]int
-	lastError         error
-	sealStatusResp    *api.SealStatusResponse
-	healthResp        *api.HealthResponse
+	mu              sync.RWMutex
+	sealed          bool
+	initialized     bool
+	healthy         bool
+	unsealProgress  int
+	unsealThreshold int
+	submittedKeys   []string
+	failHealthCheck bool
+	failSealStatus  bool
+	failUnseal      bool
+	failInitialized bool
+	responseDelay   time.Duration
+	callCounts      map[string]int
+	lastError       error
+	sealStatusResp  *api.SealStatusResponse
+	healthResp      *api.HealthResponse
 }
 
 // NewMockVaultClient creates a new mock vault client
@@ -247,10 +247,10 @@ func (m *MockVaultClient) Reset() {
 
 // MockClientMetrics implements ClientMetrics for testing
 type MockClientMetrics struct {
-	mu                     sync.RWMutex
-	unsealAttempts         []UnsealAttemptMetric
-	healthChecks           []HealthCheckMetric
-	sealStatusChecks       []SealStatusCheckMetric
+	mu               sync.RWMutex
+	unsealAttempts   []UnsealAttemptMetric
+	healthChecks     []HealthCheckMetric
+	sealStatusChecks []SealStatusCheckMetric
 }
 
 type UnsealAttemptMetric struct {
