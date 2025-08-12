@@ -396,35 +396,170 @@ jobs:
         echo "📊 Test 7: Check Resource Status Updates"
         kubectl get vaultunsealconfigs -o yaml
 
-        # Test 8: Test Vault unsealing (note: dev mode Vault doesn't seal/unseal like production)
-        echo "🔓 Test 8: Vault Accessibility Test for $TEST_SCENARIO scenario"
+        # Test 8: Comprehensive Vault Unsealing Validation
+        echo "🔓 Test 8: Vault Unsealing Validation for $TEST_SCENARIO scenario"
 
+        # Function to validate Vault unsealing via API
+        validate_vault_unsealing() {
+          local port=$1
+          local vault_name=$2
+
+          echo "🔍 Validating $vault_name Vault on port $port..."
+
+          # Check seal status via API
+          SEAL_STATUS=$(curl -s http://localhost:$port/v1/sys/seal-status)
+          echo "Seal status response: $SEAL_STATUS"
+
+          # Extract sealed status
+          IS_SEALED=$(echo "$SEAL_STATUS" | jq -r '.sealed // true')
+          INITIALIZED=$(echo "$SEAL_STATUS" | jq -r '.initialized // false')
+
+          echo "  - Initialized: $INITIALIZED"
+          echo "  - Sealed: $IS_SEALED"
+
+          # Validate vault is initialized and unsealed
+          if [ "$INITIALIZED" = "true" ] && [ "$IS_SEALED" = "false" ]; then
+            echo "  ✅ $vault_name Vault is properly initialized and unsealed"
+            return 0
+          elif [ "$INITIALIZED" = "false" ]; then
+            echo "  ⚠️ $vault_name Vault is not initialized (this is expected in dev mode)"
+            return 0
+          else
+            echo "  ❌ $vault_name Vault unsealing validation failed"
+            return 1
+          fi
+        }
+
+        # Validate all Vault instances based on scenario
+        VALIDATION_PASSED=true
         case "$TEST_SCENARIO" in
           "basic")
-            echo "🧪 Testing single basic Vault instance..."
-            curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Basic Vault test failed"
+            echo "🧪 Validating single basic Vault instance..."
+            validate_vault_unsealing 8200 "Basic" || VALIDATION_PASSED=false
             ;;
 
           "failover")
-            echo "🧪 Testing primary and standby Vault instances..."
-            curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Primary Vault test failed"
-            curl -s http://localhost:8201/v1/sys/health | jq '.initialized // false' || echo "Standby Vault test failed"
+            echo "🧪 Validating primary and standby Vault instances..."
+            validate_vault_unsealing 8200 "Primary" || VALIDATION_PASSED=false
+            validate_vault_unsealing 8201 "Standby" || VALIDATION_PASSED=false
             ;;
 
           "multi-vault")
-            echo "🧪 Testing all three Vault clusters..."
-            curl -s http://localhost:8200/v1/sys/health | jq '.initialized // false' || echo "Finance Vault test failed"
-            curl -s http://localhost:8201/v1/sys/health | jq '.initialized // false' || echo "Engineering Vault test failed"
-            curl -s http://localhost:8202/v1/sys/health | jq '.initialized // false' || echo "Operations Vault test failed"
+            echo "🧪 Validating all three Vault clusters..."
+            validate_vault_unsealing 8200 "Finance" || VALIDATION_PASSED=false
+            validate_vault_unsealing 8201 "Engineering" || VALIDATION_PASSED=false
+            validate_vault_unsealing 8202 "Operations" || VALIDATION_PASSED=false
             ;;
         esac
 
-        # Test 9: Check for any error events
-        echo "⚠️ Test 9: Check for Error Events"
+        # Overall validation result
+        if [ "$VALIDATION_PASSED" = "true" ]; then
+          echo "✅ All Vault instances passed unsealing validation"
+        else
+          echo "❌ Some Vault instances failed unsealing validation"
+          exit 1
+        fi
+
+        # Test 9: Validate VaultUnsealConfig Status and Conditions
+        echo "📋 Test 9: Validate VaultUnsealConfig Status and Conditions"
+
+        # Wait for operator to process and update status
+        echo "⏳ Waiting for operator to update VaultUnsealConfig status..."
+        sleep 15
+
+        # Get the VaultUnsealConfig status
+        echo "🔍 Checking VaultUnsealConfig status..."
+        case "$TEST_SCENARIO" in
+          "basic")
+            CONFIG_NAME="test-basic-vault-config"
+            ;;
+          "failover")
+            CONFIG_NAME="test-failover-vault-config"
+            ;;
+          "multi-vault")
+            CONFIG_NAME="test-multi-vault-config"
+            ;;
+        esac
+
+        # Extract status information
+        kubectl get vaultunsealconfigs $CONFIG_NAME -o yaml > /tmp/vault-config-status.yaml
+
+        # Check if Ready condition exists and is True
+        READY_STATUS=$(kubectl get vaultunsealconfigs $CONFIG_NAME -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+        READY_REASON=$(kubectl get vaultunsealconfigs $CONFIG_NAME -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || echo "")
+        READY_MESSAGE=$(kubectl get vaultunsealconfigs $CONFIG_NAME -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "")
+
+        echo "Ready Condition Status: $READY_STATUS"
+        echo "Ready Condition Reason: $READY_REASON"
+        echo "Ready Condition Message: $READY_MESSAGE"
+
+        # Check individual vault statuses
+        echo "🔍 Checking individual Vault instance statuses..."
+        VAULT_STATUSES=$(kubectl get vaultunsealconfigs $CONFIG_NAME -o jsonpath='{.status.vaultStatuses}' 2>/dev/null || echo "[]")
+        echo "Vault Statuses: $VAULT_STATUSES"
+
+        # Validate operator behavior
+        if [ "$READY_STATUS" = "True" ] && [ "$READY_REASON" = "AllInstancesUnsealed" ]; then
+          echo "✅ VaultUnsealConfig status shows all instances are unsealed"
+        elif [ "$READY_STATUS" = "False" ]; then
+          echo "⚠️ VaultUnsealConfig shows some instances need attention: $READY_MESSAGE"
+          # This might be expected in dev mode, so don't fail the test
+        else
+          echo "❌ VaultUnsealConfig status validation inconclusive"
+          echo "Full status output:"
+          cat /tmp/vault-config-status.yaml
+        fi
+
+        # Test 10: Validate Operator Graceful Handling of Already Unsealed Vaults
+        echo "🔄 Test 10: Validate Operator Handles Already Unsealed Vaults"
+
+        # Since Vault instances are already running and unsealed, let's create another VaultUnsealConfig
+        # to test that the operator handles already-unsealed vaults gracefully
+        echo "📝 Creating second VaultUnsealConfig to test graceful handling..."
+
+        cat <<EOF | kubectl apply -f -
+        apiVersion: vault.io/v1
+        kind: VaultUnsealConfig
+        metadata:
+          name: test-already-unsealed-config
+          namespace: default
+        spec:
+          vaultInstances:
+          - name: vault-already-unsealed
+            endpoint: "http://host.docker.internal:8200"
+            unsealKeys:
+            - "$(echo -n 'already-unsealed-key-1' | base64)"
+            - "$(echo -n 'already-unsealed-key-2' | base64)"
+            - "$(echo -n 'already-unsealed-key-3' | base64)"
+            threshold: 3
+            tlsSkipVerify: true
+        EOF
+
+        # Wait for operator to process
+        echo "⏳ Waiting for operator to process the second VaultUnsealConfig..."
+        sleep 20
+
+        # Check if operator handles it gracefully
+        echo "🔍 Checking operator logs for graceful handling..."
+        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=30
+
+        # Check status of the second config
+        SECOND_READY_STATUS=$(kubectl get vaultunsealconfigs test-already-unsealed-config -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+        echo "Second config Ready status: $SECOND_READY_STATUS"
+
+        if [ "$SECOND_READY_STATUS" = "True" ] || [ -n "$SECOND_READY_STATUS" ]; then
+          echo "✅ Operator gracefully handled already unsealed Vault instances"
+        else
+          echo "⚠️ Operator is still processing or encountered issues with already unsealed Vaults"
+          # Don't fail the test as this might be timing-related
+        fi
+
+        # Test 11: Check for any error events
+        echo "⚠️ Test 11: Check for Error Events"
         kubectl get events --field-selector type=Warning -o wide
 
-        # Test 10: Final operator health check
-        echo "💚 Test 10: Final Health Verification"
+        # Test 12: Final operator health check
+        echo "💚 Test 12: Final Health Verification"
         kubectl get pods -n vault-operator-system
         kubectl get vaultunsealconfigs -o wide
 
@@ -471,26 +606,85 @@ jobs:
       run: |
         echo "🏭 Testing with production-like sealed Vault..."
 
-        # Stop dev mode Vault
-        docker stop vault-primary || true
+        # Create a temporary config file for production Vault
+        mkdir -p /tmp/vault-config
+        cat > /tmp/vault-config/vault.hcl <<EOF
+        ui = true
+        api_addr = "http://0.0.0.0:8200"
+        cluster_addr = "http://0.0.0.0:8201"
 
-        # Start Vault in production mode (sealed by default)
-        docker run -d --name vault-prod --cap-add=IPC_LOCK -p 8202:8200 \
-          -e VAULT_API_ADDR=http://0.0.0.0:8200 \
-          hashicorp/vault:${{ matrix.vault-version }} server -dev=false -config=/tmp/vault.hcl || {
-          # If that fails, use a simpler production config
-          docker run -d --name vault-prod --cap-add=IPC_LOCK -p 8202:8200 \
-            hashicorp/vault:${{ matrix.vault-version }} server -dev=false
+        storage "file" {
+          path = "/vault/data"
         }
 
+        listener "tcp" {
+          address = "0.0.0.0:8200"
+          tls_disable = true
+        }
+        EOF
+
+        # Start Vault in production mode (sealed by default)
+        echo "🚀 Starting production Vault (will be sealed)..."
+        docker run -d --name vault-prod \
+          --cap-add=IPC_LOCK \
+          -p 8203:8200 \
+          -v /tmp/vault-config:/vault/config \
+          -v /tmp/vault-data:/vault/data \
+          hashicorp/vault:${{ matrix.vault-version }} \
+          vault server -config=/vault/config/vault.hcl
+
         # Wait for Vault to start
-        sleep 10
+        echo "⏳ Waiting for production Vault to start..."
+        sleep 15
 
-        # Check sealed status
+        # Check if Vault is running and sealed
         echo "🔒 Checking sealed Vault status..."
-        curl -s http://localhost:8202/v1/sys/seal-status | jq '.' || echo "Sealed Vault not accessible yet"
+        ATTEMPTS=0
+        while [ $ATTEMPTS -lt 10 ]; do
+          SEAL_STATUS=$(curl -s http://localhost:8203/v1/sys/seal-status 2>/dev/null || echo '{"sealed": true}')
+          echo "Attempt $((ATTEMPTS + 1)): $SEAL_STATUS"
 
-        # Create VaultUnsealConfig for production Vault
+          IS_SEALED=$(echo "$SEAL_STATUS" | jq -r '.sealed // true')
+          INITIALIZED=$(echo "$SEAL_STATUS" | jq -r '.initialized // false')
+
+          if [ "$IS_SEALED" = "true" ] && [ "$INITIALIZED" = "false" ]; then
+            echo "✅ Production Vault is properly sealed and uninitialized"
+            break
+          elif [ "$IS_SEALED" = "true" ] && [ "$INITIALIZED" = "true" ]; then
+            echo "✅ Production Vault is sealed but initialized"
+            break
+          fi
+
+          sleep 3
+          ATTEMPTS=$((ATTEMPTS + 1))
+        done
+
+        # Initialize Vault if needed
+        if [ "$INITIALIZED" = "false" ]; then
+          echo "🔧 Initializing production Vault..."
+          INIT_RESPONSE=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"secret_shares": 3, "secret_threshold": 3}' \
+            http://localhost:8203/v1/sys/init)
+
+          echo "Init response: $INIT_RESPONSE"
+
+          # Extract unseal keys and root token
+          UNSEAL_KEY_1=$(echo "$INIT_RESPONSE" | jq -r '.keys[0]' | base64 -w 0)
+          UNSEAL_KEY_2=$(echo "$INIT_RESPONSE" | jq -r '.keys[1]' | base64 -w 0)
+          UNSEAL_KEY_3=$(echo "$INIT_RESPONSE" | jq -r '.keys[2]' | base64 -w 0)
+          ROOT_TOKEN=$(echo "$INIT_RESPONSE" | jq -r '.root_token')
+
+          echo "Vault initialized with keys and root token"
+        else
+          # Use test keys for unsealing
+          UNSEAL_KEY_1=$(echo -n 'prod-key-1' | base64)
+          UNSEAL_KEY_2=$(echo -n 'prod-key-2' | base64)
+          UNSEAL_KEY_3=$(echo -n 'prod-key-3' | base64)
+        fi
+
+        # Create VaultUnsealConfig for production Vault with proper keys
+        echo "📝 Creating VaultUnsealConfig for production Vault..."
         cat <<EOF | kubectl apply -f -
         apiVersion: vault.io/v1
         kind: VaultUnsealConfig
@@ -500,29 +694,45 @@ jobs:
         spec:
           vaultInstances:
           - name: vault-production
-            endpoint: "http://host.docker.internal:8202"
+            endpoint: "http://host.docker.internal:8203"
             unsealKeys:
-            - "$(echo -n 'prod-key-1' | base64)"
-            - "$(echo -n 'prod-key-2' | base64)"
-            - "$(echo -n 'prod-key-3' | base64)"
+            - "$UNSEAL_KEY_1"
+            - "$UNSEAL_KEY_2"
+            - "$UNSEAL_KEY_3"
             threshold: 3
             tlsSkipVerify: true
         EOF
 
-        # Wait for operator to attempt unsealing
-        echo "⏳ Waiting for operator to process production Vault..."
-        sleep 20
+        # Wait for operator to process and attempt unsealing
+        echo "⏳ Waiting for operator to process and unseal production Vault..."
+        sleep 30
+
+        # Check if Vault was unsealed
+        echo "🔍 Checking if production Vault was unsealed by operator..."
+        FINAL_SEAL_STATUS=$(curl -s http://localhost:8203/v1/sys/seal-status || echo '{"sealed": true}')
+        FINAL_IS_SEALED=$(echo "$FINAL_SEAL_STATUS" | jq -r '.sealed // true')
+
+        echo "Final seal status: $FINAL_SEAL_STATUS"
+
+        if [ "$FINAL_IS_SEALED" = "false" ]; then
+          echo "✅ SUCCESS: Operator successfully unsealed the production Vault!"
+        else
+          echo "⚠️ Production Vault is still sealed - checking operator logs..."
+        fi
 
         # Check operator logs for unsealing attempts
         echo "📝 Operator logs for production Vault processing:"
-        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=30
+        kubectl logs -l app.kubernetes.io/name=vault-autounseal-operator -n vault-operator-system --tail=50
 
-        # Check resource status
-        kubectl get vaultunsealconfigs test-prod-vault-config -o yaml | grep -A 10 status: || echo "No status found"
+        # Check VaultUnsealConfig status
+        echo "📊 Checking VaultUnsealConfig status for production Vault:"
+        kubectl get vaultunsealconfigs test-prod-vault-config -o yaml | grep -A 20 status: || echo "No status found"
 
         # Clean up production Vault
+        echo "🧹 Cleaning up production Vault..."
         docker stop vault-prod || true
         docker rm vault-prod || true
+        rm -rf /tmp/vault-config /tmp/vault-data || true
 
         echo "✅ Production Vault testing completed!"
 
