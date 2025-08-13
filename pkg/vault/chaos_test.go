@@ -1,10 +1,12 @@
+// +build integration
+
 package vault
 
 import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
+	math_rand "math/rand/v2"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -36,23 +38,23 @@ var _ = Describe("Chaos Engineering Tests", func() {
 			// Inject random failures
 			chaosGoroutine := func() {
 				for i := 0; i < 100; i++ {
-					time.Sleep(time.Duration(rand.Intn(50)) * time.Millisecond)
-					victimIndex := rand.Intn(numClients)
+					time.Sleep(time.Duration(math_rand.IntN(50)) * time.Millisecond)
+					victimIndex := math_rand.IntN(numClients)
 
 					// Random failure types
-					switch rand.Intn(4) {
+					switch math_rand.IntN(4) {
 					case 0:
 						clients[victimIndex].SetFailSealStatus(true)
 					case 1:
 						clients[victimIndex].SetFailHealthCheck(true)
 					case 2:
-						clients[victimIndex].SetResponseDelay(time.Duration(rand.Intn(100)) * time.Millisecond)
+						clients[victimIndex].SetResponseDelay(time.Duration(math_rand.IntN(100)) * time.Millisecond)
 					case 3:
 						clients[victimIndex].SetFailUnseal(true)
 					}
 
 					// Sometimes recover
-					if rand.Float32() < 0.3 {
+					if math_rand.Float32() < 0.3 {
 						clients[victimIndex].Reset()
 					}
 				}
@@ -83,7 +85,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 							atomic.AddInt64(&failureCount, 1)
 						}
 
-						time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+						time.Sleep(time.Duration(math_rand.IntN(10)) * time.Millisecond)
 					}
 				}(i)
 			}
@@ -115,7 +117,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 				switch i % 5 {
 				case 0:
 					// Slow responders
-					client.SetResponseDelay(time.Duration(100+rand.Intn(200)) * time.Millisecond)
+					client.SetResponseDelay(time.Duration(100+math_rand.IntN(200)) * time.Millisecond)
 				case 1:
 					// Intermittent failures
 					client.SetFailSealStatus(true)
@@ -366,12 +368,12 @@ var _ = Describe("Chaos Engineering Tests", func() {
 
 						// Race on metrics
 						endpoint := fmt.Sprintf("http://race-test-%d:8200", workerID%10)
-						duration := time.Duration(rand.Intn(1000)) * time.Microsecond
-						success := rand.Float32() > 0.1
+						duration := time.Duration(math_rand.IntN(1000)) * time.Microsecond
+						success := math_rand.Float32() > 0.1
 
 						metrics.RecordSealStatusCheck(endpoint, success, duration)
 						metrics.RecordHealthCheck(endpoint, success, duration)
-						if rand.Float32() > 0.7 {
+						if math_rand.Float32() > 0.7 {
 							metrics.RecordUnsealAttempt(endpoint, success, duration)
 						}
 
@@ -382,11 +384,11 @@ var _ = Describe("Chaos Engineering Tests", func() {
 						}
 
 						// Random modifications to client state
-						if rand.Float32() < 0.1 {
+						if math_rand.Float32() < 0.1 {
 							client.SetSealed(!client.GetSealed())
 						}
-						if rand.Float32() < 0.05 {
-							client.SetResponseDelay(time.Duration(rand.Intn(10)) * time.Millisecond)
+						if math_rand.Float32() < 0.05 {
+							client.SetResponseDelay(time.Duration(math_rand.IntN(10)) * time.Millisecond)
 						}
 					}
 				}(i)
@@ -444,10 +446,10 @@ var _ = Describe("Chaos Engineering Tests", func() {
 
 				// Cascade failures with delays
 				for i := 1; i < numClients; i++ {
-					time.Sleep(time.Duration(5+rand.Intn(10)) * time.Millisecond)
+					time.Sleep(time.Duration(5+math_rand.IntN(10)) * time.Millisecond)
 
 					// Each failure might trigger the next
-					switch rand.Intn(4) {
+					switch math_rand.IntN(4) {
 					case 0:
 						clients[i].SetFailSealStatus(true)
 					case 1:
@@ -456,15 +458,15 @@ var _ = Describe("Chaos Engineering Tests", func() {
 						clients[i].SetFailUnseal(true)
 					case 3:
 						// Sometimes break the cascade
-						if rand.Float32() < 0.2 {
+						if math_rand.Float32() < 0.2 {
 							return
 						}
 						clients[i].SetResponseDelay(50 * time.Millisecond)
 					}
 
 					// Add some recovery
-					if rand.Float32() < 0.1 {
-						clients[rand.Intn(i+1)].Reset()
+					if math_rand.Float32() < 0.1 {
+						clients[math_rand.IntN(i+1)].Reset()
 					}
 				}
 			}
@@ -486,7 +488,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 					client := clients[clientIndex]
 
 					// Add some jitter to avoid thundering herd
-					time.Sleep(time.Duration(rand.Intn(20)) * time.Millisecond)
+					time.Sleep(time.Duration(math_rand.IntN(20)) * time.Millisecond)
 
 					_, err := strategy.Unseal(ctx, client, keys, 1)
 					results[clientIndex] = err
@@ -529,7 +531,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 			for i, client := range clients {
 				// Different delay patterns to simulate clock skew
 				baseDelay := time.Duration(i*10) * time.Millisecond
-				jitter := time.Duration(rand.Intn(50)) * time.Millisecond
+				jitter := time.Duration(math_rand.IntN(50)) * time.Millisecond
 				client.SetResponseDelay(baseDelay + jitter)
 
 				// Some clients have variable delays (simulating network jitter)
@@ -537,7 +539,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 					go func(c *MockVaultClient) {
 						for j := 0; j < 50; j++ {
 							time.Sleep(20 * time.Millisecond)
-							newDelay := time.Duration(rand.Intn(100)) * time.Millisecond
+							newDelay := time.Duration(math_rand.IntN(100)) * time.Millisecond
 							c.SetResponseDelay(newDelay)
 						}
 					}(client)
@@ -592,9 +594,9 @@ var _ = Describe("Chaos Engineering Tests", func() {
 			// Configuration chaos injector
 			configChaos := func() {
 				for i := 0; i < 100; i++ {
-					time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+					time.Sleep(time.Duration(math_rand.IntN(10)) * time.Millisecond)
 
-					switch rand.Intn(6) {
+					switch math_rand.IntN(6) {
 					case 0:
 						// Toggle seal status
 						mockClient.SetSealed(!mockClient.sealed)
@@ -603,13 +605,13 @@ var _ = Describe("Chaos Engineering Tests", func() {
 						mockClient.SetHealthy(!mockClient.healthy)
 					case 2:
 						// Modify response delays
-						mockClient.SetResponseDelay(time.Duration(rand.Intn(50)) * time.Millisecond)
+						mockClient.SetResponseDelay(time.Duration(math_rand.IntN(50)) * time.Millisecond)
 					case 3:
 						// Toggle various failure modes
 						mockClient.SetFailSealStatus(!mockClient.failSealStatus)
 					case 4:
 						// Change unseal threshold
-						mockClient.unsealThreshold = 1 + rand.Intn(5)
+						mockClient.unsealThreshold = 1 + math_rand.IntN(5)
 					case 5:
 						// Reset to baseline
 						mockClient.Reset()
@@ -642,7 +644,7 @@ var _ = Describe("Chaos Engineering Tests", func() {
 							atomic.AddInt64(&errorCount, 1)
 						}
 
-						time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
+						time.Sleep(time.Duration(math_rand.IntN(5)) * time.Millisecond)
 					}
 				}()
 			}

@@ -417,11 +417,12 @@ func (ts *TestSuite) Run() *TestSuiteResult {
 		testResult := ts.runTest(test)
 		result.Results[test.Name] = testResult
 
-		if testResult.Error != nil {
+		switch {
+		case testResult.Error != nil:
 			result.Failures++
-		} else if testResult.Skipped {
+		case testResult.Skipped:
 			result.Skipped++
-		} else {
+		default:
 			result.Passed++
 		}
 	}

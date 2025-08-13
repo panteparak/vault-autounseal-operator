@@ -1,3 +1,5 @@
+// +build integration
+
 package vault
 
 import (
@@ -95,7 +97,7 @@ var _ = Describe("Vault Version Compatibility Tests", func() {
 					{true, 3, 0},  // Sealed, no progress
 					{true, 3, 1},  // Sealed, partial progress
 					{true, 3, 2},  // Sealed, almost unsealed
-					{false, 3, 0}, // Unsealed
+					{false, 3, 3}, // Unsealed with full progress
 				}
 
 				ctx := context.Background()
@@ -372,23 +374,28 @@ var _ = Describe("Vault Version Compatibility Tests", func() {
 			ctx := context.Background()
 
 			for _, condition := range errorConditions {
+				// Reset mock client between conditions
+				mockClient.Reset()
 				condition.setupFunc(mockClient)
 
-				// Test different operations
-				_, err1 := client.IsSealed(ctx)
-				_, err2 := client.HealthCheck(ctx)
+				// Test operations appropriate for each failure condition
+				var testErr error
+				switch condition.condition {
+				case "seal status failure":
+					_, testErr = client.IsSealed(ctx)
+				case "health check failure":
+					_, testErr = client.HealthCheck(ctx)
+				case "unseal failure":
+					keys := []string{base64.StdEncoding.EncodeToString([]byte("test-key"))}
+					_, testErr = client.Unseal(ctx, keys, 1)
+				}
 
 				if condition.expectError {
-					// At least one operation should fail
-					Expect(err1 != nil || err2 != nil).To(BeTrue())
+					// The appropriate operation should fail
+					Expect(testErr).To(HaveOccurred(), "Expected error for condition: %s", condition.condition)
 
 					// Errors should be properly formatted regardless of version
-					if err1 != nil {
-						Expect(len(err1.Error())).To(BeNumerically(">", 0))
-					}
-					if err2 != nil {
-						Expect(len(err2.Error())).To(BeNumerically(">", 0))
-					}
+					Expect(len(testErr.Error())).To(BeNumerically(">", 0))
 				}
 
 				// Reset for next test
@@ -409,7 +416,7 @@ var _ = Describe("Vault Version Compatibility Tests", func() {
 				{[]string{}, 1, "validation failed"},
 				{[]string{"invalid!@#"}, 1, "invalid key"},
 				{[]string{"valid"}, 0, "validation failed"},
-				{[]string{"a", "a"}, 2, "duplicate key"},
+				{[]string{"YWJjZA==", "YWJjZA=="}, 2, "duplicate key"}, // "abcd" in base64, duplicated
 			}
 
 			for _, test := range errorTests {

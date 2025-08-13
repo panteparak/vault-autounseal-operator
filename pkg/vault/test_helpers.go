@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	math_rand "math/rand"
+	math_rand "math/rand/v2"
 	"runtime"
 	"strings"
 	"sync"
@@ -144,7 +144,12 @@ func (tm *TestMetrics) GetSummary() TestSummary {
 		first := tm.memorySnapshots[0]
 		last := tm.memorySnapshots[len(tm.memorySnapshots)-1]
 
-		summary.MemoryGrowth = int64(last.Alloc) - int64(first.Alloc)
+		if last.Alloc >= first.Alloc {
+			summary.MemoryGrowth = int64(last.Alloc - first.Alloc)
+		} else {
+			// Memory was cleaned up - no growth
+			summary.MemoryGrowth = 0
+		}
 
 		for _, snapshot := range tm.memorySnapshots {
 			if snapshot.Alloc > summary.PeakMemory {
@@ -280,7 +285,7 @@ func (ltr *LoadTestRunner) worker(ctx context.Context, wg *sync.WaitGroup, worke
 
 // selectOperation chooses an operation based on the probability distribution
 func (ltr *LoadTestRunner) selectOperation() string {
-	r := float32(math_rand.Intn(1000)) / 1000.0
+	r := float32(math_rand.IntN(1000)) / 1000.0
 	cumulative := float32(0.0)
 
 	for operation, probability := range ltr.operationMix {
@@ -413,7 +418,7 @@ func NewChaosTestRunner(numClients int) *ChaosTestRunner {
 			Description: "Vault seal state changes frequently",
 			Probability: 0.25,
 			ApplyFunc: func(c *MockVaultClient) {
-				c.SetSealed(!c.sealed)
+				c.SetSealed(!c.GetSealed())
 			},
 			RecoverFunc: func(c *MockVaultClient) {
 				// State changes are part of the chaos, no explicit recovery needed
@@ -464,13 +469,13 @@ func (ctr *ChaosTestRunner) chaosInjector(ctx context.Context) {
 			// Apply chaos to random clients
 			for _, client := range ctr.clients {
 				for _, scenario := range ctr.chaosScenarios {
-					if float32(math_rand.Intn(1000))/1000.0 < scenario.Probability {
+					if float32(math_rand.IntN(1000))/1000.0 < scenario.Probability {
 						scenario.ApplyFunc(client)
 
 						// Schedule recovery
 						if scenario.RecoverFunc != nil {
 							go func(c *MockVaultClient, recover func(*MockVaultClient)) {
-								time.Sleep(time.Duration(math_rand.Intn(200)) * time.Millisecond)
+								time.Sleep(time.Duration(math_rand.IntN(200)) * time.Millisecond)
 								recover(c)
 							}(client, scenario.RecoverFunc)
 						}
@@ -494,7 +499,7 @@ func (ctr *ChaosTestRunner) operationWorker(ctx context.Context, wg *sync.WaitGr
 		default:
 			// Perform random operations
 			operations := []string{operationIsSealed, "HealthCheck", "GetSealStatus"}
-			operation := operations[math_rand.Intn(len(operations))]
+			operation := operations[math_rand.IntN(len(operations))]
 
 			ctr.metrics.StartConcurrentOperation()
 			start := time.Now()
@@ -514,7 +519,7 @@ func (ctr *ChaosTestRunner) operationWorker(ctx context.Context, wg *sync.WaitGr
 			ctr.metrics.EndConcurrentOperation()
 
 			// Small delay between operations
-			time.Sleep(time.Duration(math_rand.Intn(10)) * time.Millisecond)
+			time.Sleep(time.Duration(math_rand.IntN(10)) * time.Millisecond)
 		}
 	}
 }
@@ -532,7 +537,7 @@ func (ctr *ChaosTestRunner) memoryMonitor(ctx context.Context) {
 			ctr.metrics.TakeMemorySnapshot()
 
 			// Force GC occasionally to test memory cleanup
-			if math_rand.Intn(10) == 0 {
+			if math_rand.IntN(10) == 0 {
 				runtime.GC()
 			}
 		}
@@ -546,30 +551,30 @@ type PropertyTestGenerator struct {
 
 // NewPropertyTestGenerator creates a new property test generator
 func NewPropertyTestGenerator(seed int64) *PropertyTestGenerator {
-	source := math_rand.NewSource(seed)
+	source := math_rand.NewPCG(uint64(seed), 0)
 	return &PropertyTestGenerator{
 		rand: math_rand.New(source),
 	}
 }
 
 // GenerateRandomKeys generates random keys for testing
-func (ptg *PropertyTestGenerator) GenerateRandomKeys(count int, minSize, maxSize int) []string {
+func (ptg *PropertyTestGenerator) GenerateRandomKeys(count, minSize, maxSize int) []string {
 	keys := make([]string, count)
 
 	for i := 0; i < count; i++ {
-		size := minSize + ptg.rand.Intn(maxSize-minSize+1)
+		size := minSize + ptg.rand.IntN(maxSize-minSize+1)
 		data := make([]byte, size)
 		if _, err := rand.Read(data); err != nil {
 			// Fallback to deterministic data if crypto/rand fails
 			for i := range data {
-				data[i] = byte(ptg.rand.Intn(256))
+				data[i] = byte(ptg.rand.IntN(256))
 			}
 		}
 
 		// Ensure non-zero data to avoid validation failures
 		for j := range data {
 			if data[j] == 0 {
-				data[j] = byte(1 + ptg.rand.Intn(255))
+				data[j] = byte(1 + ptg.rand.IntN(255))
 			}
 		}
 
@@ -612,7 +617,7 @@ func (ptg *PropertyTestGenerator) GenerateInvalidKeys(count int) []string {
 	}
 
 	for i := 0; i < count; i++ {
-		pattern := invalidPatterns[ptg.rand.Intn(len(invalidPatterns))]
+		pattern := invalidPatterns[ptg.rand.IntN(len(invalidPatterns))]
 		keys[i] = pattern()
 	}
 

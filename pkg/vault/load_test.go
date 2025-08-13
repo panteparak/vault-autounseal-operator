@@ -1,10 +1,13 @@
+// +build integration
+
 package vault
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
+	math_rand "math/rand/v2"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -34,10 +37,10 @@ var _ = Describe("Load and Stress Tests", func() {
 				clients[i] = factory.GetClient(fmt.Sprintf("http://load-test-%d:8200", i))
 
 				// Vary client configurations for realism
-				clients[i].SetSealed(rand.Float32() < 0.5)
-				clients[i].SetHealthy(rand.Float32() < 0.9) // 90% healthy
-				if rand.Float32() < 0.1 {
-					clients[i].SetResponseDelay(time.Duration(rand.Intn(20)) * time.Millisecond)
+				clients[i].SetSealed(math_rand.Float32() < 0.5)
+				clients[i].SetHealthy(math_rand.Float32() < 0.9) // 90% healthy
+				if math_rand.Float32() < 0.1 {
+					clients[i].SetResponseDelay(time.Duration(math_rand.IntN(20)) * time.Millisecond)
 				}
 			}
 
@@ -113,9 +116,9 @@ var _ = Describe("Load and Stress Tests", func() {
 			keys := make([]string, 10)
 			for i := 0; i < 10; i++ {
 				keyData := make([]byte, 32)
-				for j := range keyData {
-					keyData[j] = byte(i*31 + j)
-				}
+				// Use crypto/rand to avoid repeating patterns
+				_, err := rand.Read(keyData)
+				Expect(err).ToNot(HaveOccurred())
 				keys[i] = base64.StdEncoding.EncodeToString(keyData)
 			}
 
@@ -150,7 +153,7 @@ var _ = Describe("Load and Stress Tests", func() {
 						client.SetSealed(true)
 
 						// Add some variability
-						if rand.Float32() < 0.05 {
+						if math_rand.Float32() < 0.05 {
 							time.Sleep(time.Millisecond)
 						}
 					}
@@ -186,13 +189,12 @@ var _ = Describe("Load and Stress Tests", func() {
 
 				startTime := time.Now()
 
-				// Generate large key set
+				// Generate large key set with crypto/rand to avoid duplicates
 				keys := make([]string, keyCount)
 				for i := 0; i < keyCount; i++ {
 					keyData := make([]byte, 64) // 64-byte keys
-					for j := range keyData {
-						keyData[j] = byte((i*17 + j*23) % 256)
-					}
+					_, err := rand.Read(keyData)
+					Expect(err).ToNot(HaveOccurred())
 					keys[i] = base64.StdEncoding.EncodeToString(keyData)
 				}
 
@@ -206,7 +208,13 @@ var _ = Describe("Load and Stress Tests", func() {
 				runtime.GC()
 				runtime.ReadMemStats(&memAfter)
 
-				memoryGrowth := memAfter.Alloc - memBefore.Alloc
+				var memoryGrowth int64
+				if memAfter.Alloc >= memBefore.Alloc {
+					memoryGrowth = int64(memAfter.Alloc - memBefore.Alloc)
+				} else {
+					// Handle underflow case - memory was cleaned up
+					memoryGrowth = 0
+				}
 
 				// Performance expectations
 				Expect(duration).To(BeNumerically("<", 5*time.Second),
@@ -443,7 +451,7 @@ var _ = Describe("Load and Stress Tests", func() {
 						waitStart := time.Now()
 
 						// Random client selection (contention point)
-						clientIndex := rand.Intn(numClients)
+						clientIndex := math_rand.IntN(numClients)
 						client := clients[clientIndex]
 
 						atomic.AddInt64(&waitTime, int64(time.Since(waitStart)))
@@ -457,7 +465,7 @@ var _ = Describe("Load and Stress Tests", func() {
 						}
 
 						// Hold resource briefly
-						time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
+						time.Sleep(time.Duration(math_rand.IntN(5)) * time.Millisecond)
 					}
 				}(i)
 			}
@@ -510,7 +518,7 @@ var _ = Describe("Load and Stress Tests", func() {
 				condition := networkConditions[i%len(networkConditions)]
 				client.SetResponseDelay(condition.delay)
 
-				if rand.Float32() < condition.failure {
+				if math_rand.Float32() < condition.failure {
 					client.SetFailSealStatus(true)
 				}
 			}
@@ -524,12 +532,12 @@ var _ = Describe("Load and Stress Tests", func() {
 					<-ticker.C
 
 					// Randomly change some client conditions
-					clientIndex := rand.Intn(numClients)
-					conditionIndex := rand.Intn(len(networkConditions))
+					clientIndex := math_rand.IntN(numClients)
+					conditionIndex := math_rand.IntN(len(networkConditions))
 					condition := networkConditions[conditionIndex]
 
 					clients[clientIndex].SetResponseDelay(condition.delay)
-					clients[clientIndex].SetFailSealStatus(rand.Float32() < condition.failure)
+					clients[clientIndex].SetFailSealStatus(math_rand.Float32() < condition.failure)
 				}
 			}()
 

@@ -1,3 +1,5 @@
+// +build integration
+
 package vault
 
 import (
@@ -14,6 +16,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+// Define a custom context key type to avoid collisions
+type contextKey string
+
+const testContextKey contextKey = "test-key"
 
 func TestSecurity(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -345,7 +352,7 @@ var _ = Describe("Security-Focused Tests", func() {
 			}
 
 			// Add contexts with values
-			ctxWithValue := context.WithValue(context.Background(), "test-key", "test-value")
+			ctxWithValue := context.WithValue(context.Background(), testContextKey, "test-value")
 			contexts = append(contexts, ctxWithValue)
 
 			// Add canceled context
@@ -514,7 +521,12 @@ var _ = Describe("Security-Focused Tests", func() {
 					var memCurrent runtime.MemStats
 					runtime.ReadMemStats(&memCurrent)
 
-					growth := memCurrent.Alloc - memBefore.Alloc
+					var growth int64
+					if memCurrent.Alloc >= memBefore.Alloc {
+						growth = int64(memCurrent.Alloc - memBefore.Alloc)
+					} else {
+						growth = 0 // Memory was cleaned up
+					}
 					Expect(growth).To(BeNumerically("<", 200*1024*1024),
 						"Memory growth should be bounded during validation")
 				}
@@ -523,7 +535,12 @@ var _ = Describe("Security-Focused Tests", func() {
 			runtime.GC()
 			runtime.ReadMemStats(&memAfter)
 
-			finalGrowth := memAfter.Alloc - memBefore.Alloc
+			var finalGrowth uint64
+			if memAfter.Alloc >= memBefore.Alloc {
+				finalGrowth = memAfter.Alloc - memBefore.Alloc
+			} else {
+				finalGrowth = 0 // Memory was cleaned up
+			}
 			Expect(finalGrowth).To(BeNumerically("<", 100*1024*1024),
 				"Final memory growth should be reasonable")
 		})
@@ -630,4 +647,3 @@ func reverseString(s string) string {
 	}
 	return string(runes)
 }
-

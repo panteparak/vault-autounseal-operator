@@ -33,7 +33,7 @@ services:
 
   # HashiCorp Vault for testing
   vault:
-    image: hashicorp/vault:1.15
+    image: hashicorp/vault:1.20.0
     container_name: vault-test
     ports:
       - "8200:8200"

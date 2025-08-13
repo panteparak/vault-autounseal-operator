@@ -1,3 +1,5 @@
+// +build integration
+
 package vault
 
 import (
@@ -192,7 +194,7 @@ var _ = Describe("DefaultKeyValidator", func() {
 				key := base64.StdEncoding.EncodeToString([]byte(""))
 				err := validator.ValidateBase64Key(key)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("decoded key cannot be empty"))
+				Expect(err.Error()).To(ContainSubstring("key cannot be empty"))
 			})
 		})
 

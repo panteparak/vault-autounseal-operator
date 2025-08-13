@@ -26,6 +26,9 @@ type VaultClient interface {
 
 	// Close closes the client and cleans up resources
 	Close() error
+
+	// IsClosed returns true if the client has been closed
+	IsClosed() bool
 }
 
 // ClientFactory creates vault clients

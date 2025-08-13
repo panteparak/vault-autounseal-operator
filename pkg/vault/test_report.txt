@@ -1,0 +1,44 @@
+🧪 Comprehensive Test Report
+Generated: 2025-08-14T01:31:40+07:00
+
+📊 Overall Summary:
+  Total Suites: 6
+  Total Tests: 6
+  Passed: 5 (83.3%)
+  Failed: 1
+  Skipped: 0
+  Total Duration: 51.736653208s
+  Average Suite Duration: 8.622775534s
+
+📋 Test Suite Details:
+  Property-Based Testing:
+    Duration: 35.562834ms
+    Tests: 1 passed, 0 failed, 0 skipped
+
+  Memory Testing:
+    Duration: 1.572026333s
+    Tests: 1 passed, 0 failed, 0 skipped
+
+  Compatibility Testing:
+    Duration: 33.791µs
+    Tests: 1 passed, 0 failed, 0 skipped
+
+  Load Testing:
+    Duration: 30.11883475s
+    Tests: 1 passed, 0 failed, 0 skipped
+
+  Chaos Engineering:
+    Duration: 20.009466584s
+    Tests: 1 passed, 0 failed, 0 skipped
+
+  Security Testing:
+    Duration: 728.916µs
+    Tests: 0 passed, 1 failed, 0 skipped
+    Failed: [InputSanitization]
+
+⚙️  Test Configuration:
+  Load Test Duration: 30s
+  Chaos Test Duration: 20s
+  Security Test Iterations: 100
+  Property Test Iterations: 500
+  Profiling Enabled: CPU=true, Memory=true, Block=true, Mutex=true

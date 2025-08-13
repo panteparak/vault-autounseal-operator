@@ -1,0 +1,47 @@
+version: '3.8'
+
+# Scenario 2: Sealed Vault (requires unsealing)
+services:
+  vault-sealed:
+    image: hashicorp/vault:1.20.0
+    container_name: vault-sealed
+    ports:
+      - "8201:8200"
+    volumes:
+      - vault-data:/vault/data
+      - ./test/vault-config:/vault/config
+    cap_add:
+      - IPC_LOCK
+    command: ["vault", "server", "-config=/vault/config/vault.hcl"]
+    depends_on:
+      - vault-storage
+    healthcheck:
+      test: ["CMD-SHELL", "vault status || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - vault-network
+
+  vault-storage:
+    image: consul:1.17.0
+    container_name: vault-storage
+    ports:
+      - "8500:8500"
+    command: ["consul", "agent", "-dev", "-client=0.0.0.0", "-ui"]
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - vault-network
+
+volumes:
+  vault-data:
+
+networks:
+  vault-network:
+    driver: bridge

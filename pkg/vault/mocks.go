@@ -15,6 +15,7 @@ type MockVaultClient struct {
 	sealed          bool
 	initialized     bool
 	healthy         bool
+	closed          bool
 	unsealProgress  int
 	unsealThreshold int
 	submittedKeys   []string
@@ -60,7 +61,11 @@ func (m *MockVaultClient) IsSealed(ctx context.Context) (bool, error) {
 	m.callCounts["IsSealed"]++
 
 	if m.responseDelay > 0 {
-		time.Sleep(m.responseDelay)
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-time.After(m.responseDelay):
+		}
 	}
 
 	if m.failSealStatus {
@@ -79,7 +84,11 @@ func (m *MockVaultClient) GetSealStatus(ctx context.Context) (*api.SealStatusRes
 	m.callCounts["GetSealStatus"]++
 
 	if m.responseDelay > 0 {
-		time.Sleep(m.responseDelay)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(m.responseDelay):
+		}
 	}
 
 	if m.failSealStatus {
@@ -89,7 +98,12 @@ func (m *MockVaultClient) GetSealStatus(ctx context.Context) (*api.SealStatusRes
 
 	// Update response with current state
 	m.sealStatusResp.Sealed = m.sealed
-	m.sealStatusResp.Progress = m.unsealProgress
+	// If unsealed, progress should be threshold, otherwise use unsealProgress if not explicitly set
+	if !m.sealed && m.sealStatusResp.Progress == 0 {
+		m.sealStatusResp.Progress = m.unsealThreshold
+	} else if m.sealStatusResp.Progress == 0 || m.unsealProgress != 0 {
+		m.sealStatusResp.Progress = m.unsealProgress
+	}
 
 	return m.sealStatusResp, nil
 }
@@ -102,7 +116,11 @@ func (m *MockVaultClient) Unseal(ctx context.Context, keys []string, threshold i
 	m.callCounts["Unseal"]++
 
 	if m.responseDelay > 0 {
-		time.Sleep(m.responseDelay)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(m.responseDelay):
+		}
 	}
 
 	if m.failUnseal {
@@ -133,7 +151,11 @@ func (m *MockVaultClient) IsInitialized(ctx context.Context) (bool, error) {
 	m.callCounts["IsInitialized"]++
 
 	if m.responseDelay > 0 {
-		time.Sleep(m.responseDelay)
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-time.After(m.responseDelay):
+		}
 	}
 
 	if m.failInitialized {
@@ -152,7 +174,11 @@ func (m *MockVaultClient) HealthCheck(ctx context.Context) (*api.HealthResponse,
 	m.callCounts["HealthCheck"]++
 
 	if m.responseDelay > 0 {
-		time.Sleep(m.responseDelay)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(m.responseDelay):
+		}
 	}
 
 	if m.failHealthCheck {
@@ -169,7 +195,14 @@ func (m *MockVaultClient) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.callCounts["Close"]++
+	m.closed = true
 	return nil
+}
+
+func (m *MockVaultClient) IsClosed() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.closed
 }
 
 // Mock control methods
@@ -215,6 +248,12 @@ func (m *MockVaultClient) SetFailUnseal(fail bool) {
 	m.failUnseal = fail
 }
 
+func (m *MockVaultClient) SetFailInitialized(fail bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.failInitialized = fail
+}
+
 func (m *MockVaultClient) SetResponseDelay(delay time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -235,11 +274,18 @@ func (m *MockVaultClient) GetSubmittedKeys() []string {
 	return keys
 }
 
+func (m *MockVaultClient) GetUnsealThreshold() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.unsealThreshold
+}
+
 func (m *MockVaultClient) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sealed = true
 	m.healthy = true
+	m.closed = false
 	m.unsealProgress = 0
 	m.submittedKeys = nil
 	m.failHealthCheck = false

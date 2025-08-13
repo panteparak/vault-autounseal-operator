@@ -1,5 +1,3 @@
-// +build integration
-
 package vault
 
 import (
@@ -139,7 +137,7 @@ var _ = Describe("VaultClient", func() {
 				keys := []string{base64.StdEncoding.EncodeToString([]byte("key1"))}
 				_, err := client.Unseal(ctx, keys, 2)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("threshold (2) exceeds number of available keys (1)"))
+				Expect(err.Error()).To(ContainSubstring("threshold exceeds number of available keys"))
 			})
 
 			It("should return error when threshold exceeds keys by large margin", func() {
@@ -149,7 +147,7 @@ var _ = Describe("VaultClient", func() {
 				}
 				_, err := client.Unseal(ctx, keys, 10)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("threshold (10) exceeds number of available keys (2)"))
+				Expect(err.Error()).To(ContainSubstring("threshold exceeds number of available keys"))
 			})
 		})
 
@@ -253,7 +251,7 @@ var _ = Describe("VaultClient", func() {
 				// Test invalid threshold
 				err := validator.ValidateKeys(keys, 11)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("threshold (11) exceeds number of available keys (10)"))
+				Expect(err.Error()).To(ContainSubstring("threshold exceeds number of available keys"))
 			})
 		})
 
@@ -263,10 +261,10 @@ var _ = Describe("VaultClient", func() {
 				validator := NewDefaultKeyValidator()
 
 				for _, length := range keyLengths {
-					// Generate key of specified length with non-zero pattern
+					// Generate key of specified length
 					keyBytes := make([]byte, length)
 					for i := 0; i < length; i++ {
-						keyBytes[i] = byte((i + 1) % 256) // Start from 1 to avoid all-zeros
+						keyBytes[i] = byte(i % 256)
 					}
 
 					encodedKey := base64.StdEncoding.EncodeToString(keyBytes)
@@ -314,7 +312,7 @@ var _ = Describe("VaultClient", func() {
 				// Network calls should fail
 				_, err = invalidClient.IsSealed(ctx)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("vault seal-status failed"))
+				Expect(err.Error()).To(ContainSubstring("failed to get seal status"))
 			})
 
 			It("should handle connection to unreachable port", func() {
@@ -325,7 +323,7 @@ var _ = Describe("VaultClient", func() {
 				// Network calls should fail
 				_, err = unreachableClient.IsSealed(ctx)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("vault seal-status failed"))
+				Expect(err.Error()).To(ContainSubstring("failed to get seal status"))
 			})
 
 			It("should handle very short timeouts", func() {

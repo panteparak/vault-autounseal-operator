@@ -2,6 +2,7 @@ package vault
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -45,7 +46,32 @@ type ValidationError struct {
 }
 
 func (ve *ValidationError) Error() string {
-	return fmt.Sprintf("validation failed for field '%s' with value '%v': %s", ve.Field, ve.Value, ve.Message)
+	// Redact sensitive field values for security
+	var displayValue interface{}
+	if ve.Field == "key" || ve.Field == "keys" || containsSensitiveContent(fmt.Sprintf("%v", ve.Value)) {
+		displayValue = "[REDACTED]"
+	} else {
+		displayValue = ve.Value
+	}
+	return fmt.Sprintf("validation failed for field '%s' with value '%v': %s", ve.Field, displayValue, ve.Message)
+}
+
+// containsSensitiveContent checks if a string contains sensitive patterns
+func containsSensitiveContent(value string) bool {
+	sensitivePatterns := []string{
+		"password", "secret", "key", "token", "credential",
+		"admin", "root", "auth", "login", "session",
+		"/etc/passwd", "/proc/", "C:\\Windows\\",
+		"127.0.0.1", "localhost", "192.168.", "10.0.0.",
+	}
+
+	valueLower := strings.ToLower(value)
+	for _, pattern := range sensitivePatterns {
+		if strings.Contains(valueLower, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+	return false
 }
 
 // NewValidationError creates a new ValidationError
@@ -135,13 +161,23 @@ func (ae *AuthenticationError) Unwrap() error {
 
 // Error checking helpers
 func IsRetryableError(err error) bool {
-	switch e := err.(type) {
-	case *VaultError:
-		return e.IsRetryable()
-	case *ConnectionError:
-		return e.IsRetryable()
-	default:
-		return false
+	// Handle wrapped errors by checking the underlying error chain
+	for {
+		switch e := err.(type) {
+		case *VaultError:
+			return e.IsRetryable()
+		case *ConnectionError:
+			return e.IsRetryable()
+		case interface{ Unwrap() error }:
+			// If the error implements Unwrap, check the underlying error
+			err = e.Unwrap()
+			if err == nil {
+				return false
+			}
+			continue
+		default:
+			return false
+		}
 	}
 }
 
@@ -158,4 +194,29 @@ func IsValidationError(err error) bool {
 func IsAuthenticationError(err error) bool {
 	_, ok := err.(*AuthenticationError)
 	return ok
+}
+
+func IsVaultError(err error) bool {
+	_, ok := err.(*VaultError)
+	return ok
+}
+
+func IsConnectionError(err error) bool {
+	_, ok := err.(*ConnectionError)
+	return ok
+}
+
+func NewConnectionError(endpoint string, err error, retryable bool) *ConnectionError {
+	return &ConnectionError{
+		Endpoint:  endpoint,
+		Err:       err,
+		Retryable: retryable,
+	}
+}
+
+func NewTimeoutError(operation, endpoint string, timeout time.Duration) *TimeoutError {
+	return &TimeoutError{
+		Operation: operation,
+		Timeout:   timeout,
+	}
 }

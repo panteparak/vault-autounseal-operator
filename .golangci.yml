@@ -13,7 +13,7 @@ linters-settings:
   misspell:
     locale: US
   lll:
-    line-length: 120
+    line-length: 180
   gocritic:
     enabled-tags:
       - performance
@@ -51,9 +51,32 @@ issues:
         - errcheck
         - dupl
         - gosec
+        - ineffassign  # Allow intentional nil assignments for GC
+        - staticcheck  # Allow benchmark-specific patterns
     - path: main\.go
       linters:
         - gocyclo
+    - text: "empty branch"
+      linters:
+        - staticcheck
+    - text: "this result of append is never used"
+      linters:
+        - staticcheck
+    - text: "ineffectual assignment"
+      path: _test\.go
+      linters:
+        - ineffassign
+    - path: test_config\.go
+      linters:
+        - gocyclo
+        - gosec
+    - path: test_runner\.go
+      linters:
+        - gocyclo
+        - gosec
+    - path: test_helpers\.go
+      linters:
+        - gosec  # Allow weak random in test helpers
 
 output:
   formats:

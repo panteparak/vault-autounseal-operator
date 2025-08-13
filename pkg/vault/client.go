@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,10 +49,38 @@ func NewClient(url string, tlsSkipVerify bool, timeout time.Duration) (*Client, 
 	return NewClientWithConfig(config)
 }
 
+// validateClientConfig validates the client configuration
+func validateClientConfig(config *ClientConfig) error {
+	if config.URL == "" {
+		return NewValidationError("url", config.URL, "URL cannot be empty")
+	}
+
+	// Basic URL validation
+	if !strings.HasPrefix(config.URL, "http://") && !strings.HasPrefix(config.URL, "https://") {
+		return NewValidationError("url", config.URL, "URL must start with http:// or https://")
+	}
+
+	// Reject extremely long URLs
+	if len(config.URL) > 2048 {
+		return NewValidationError("url", config.URL, "URL exceeds maximum length of 2048 characters")
+	}
+
+	// Reject extremely small timeouts
+	if config.Timeout < time.Millisecond {
+		return NewValidationError("timeout", config.Timeout, "Timeout must be at least 1 millisecond")
+	}
+
+	if config.MaxRetries < 0 {
+		return NewValidationError("maxRetries", config.MaxRetries, "MaxRetries cannot be negative")
+	}
+
+	return nil
+}
+
 // NewClientWithConfig creates a new Vault client with advanced configuration
 func NewClientWithConfig(config *ClientConfig) (*Client, error) {
-	if config.URL == "" {
-		return nil, NewValidationError("url", config.URL, "URL cannot be empty")
+	if err := validateClientConfig(config); err != nil {
+		return nil, err
 	}
 
 	if config.Timeout <= 0 {
@@ -97,11 +126,17 @@ func NewClientWithConfig(config *ClientConfig) (*Client, error) {
 		"X-Request-ID":           {fmt.Sprintf("vault-operator-%d", time.Now().UnixNano())},
 	})
 
+	// Set default validator if not provided
+	validator := config.Validator
+	if validator == nil {
+		validator = NewDefaultKeyValidator()
+	}
+
 	client := &Client{
 		client:    apiClient,
 		url:       config.URL,
 		timeout:   config.Timeout,
-		validator: config.Validator,
+		validator: validator,
 		metrics:   config.Metrics,
 	}
 

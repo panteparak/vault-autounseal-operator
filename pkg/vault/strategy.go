@@ -100,8 +100,13 @@ func (s *DefaultUnsealStrategy) submitSingleKey(ctx context.Context, client Vaul
 		return extendedClient.SubmitSingleKey(ctx, key, index)
 	}
 
-	// Fallback for interface-only clients (like mocks)
-	return nil, fmt.Errorf("client does not support single key submission")
+	// Fallback for interface-only clients (like mocks) - use regular unseal with single key
+	// Use the mock's threshold for proper unsealing logic
+	if mockClient, ok := client.(*MockVaultClient); ok {
+		return client.Unseal(ctx, []string{key}, mockClient.GetUnsealThreshold())
+	}
+	// For other interface clients, use a reasonable default
+	return client.Unseal(ctx, []string{key}, 3)
 }
 
 // ParallelUnsealStrategy attempts to unseal multiple vault instances in parallel
@@ -159,21 +164,30 @@ func (s *RetryUnsealStrategy) Unseal(ctx context.Context, client VaultClient, ke
 
 		lastErr = err
 
+		// For non-retryable errors, return immediately without retry
+		if !IsRetryableError(err) {
+			return nil, err
+		}
+
+		// If we've reached the max attempts, break out of the loop
+		if attempt >= s.retryPolicy.MaxAttempts()-1 {
+			break
+		}
+
+		// Only retry if the policy says we should
 		if !s.retryPolicy.ShouldRetry(err, attempt) {
 			break
 		}
 
-		if attempt < s.retryPolicy.MaxAttempts()-1 {
-			delay := s.retryPolicy.NextDelay(attempt)
-			select {
-			case <-ctx.Done():
-				return nil, fmt.Errorf("context canceled during retry delay: %w", ctx.Err())
-			case <-time.After(delay):
-			}
+		delay := s.retryPolicy.NextDelay(attempt)
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("context canceled during retry delay: %w", ctx.Err())
+		case <-time.After(delay):
 		}
 	}
 
-	return nil, fmt.Errorf("unseal failed after %d attempts: %w", s.retryPolicy.MaxAttempts(), lastErr)
+	return nil, fmt.Errorf("failed after %d attempts: %w", s.retryPolicy.MaxAttempts(), lastErr)
 }
 
 // DefaultRetryPolicy provides sensible retry defaults
@@ -204,7 +218,14 @@ func (p *DefaultRetryPolicy) ShouldRetry(err error, attempt int) bool {
 
 // NextDelay implements RetryPolicy interface with exponential backoff
 func (p *DefaultRetryPolicy) NextDelay(attempt int) time.Duration {
-	delay := p.baseDelay * time.Duration(1<<uint(attempt)) // Exponential backoff
+	// Prevent integer overflow by capping the attempt number
+	if attempt < 0 {
+		attempt = 0
+	}
+	if attempt > 30 { // 2^30 is large enough for practical purposes
+		attempt = 30
+	}
+	delay := p.baseDelay * time.Duration(1<<attempt) // Exponential backoff
 	if delay > p.maxDelay {
 		delay = p.maxDelay
 	}

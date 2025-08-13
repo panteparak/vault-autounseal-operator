@@ -1,10 +1,13 @@
+// +build integration
+
 package vault
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
+	math_rand "math/rand/v2"
 	"strings"
 	"sync"
 	"testing"
@@ -26,7 +29,7 @@ var _ = Describe("Property-Based Testing", func() {
 			testRoundtripProperty := func(iterations int) {
 				for i := 0; i < iterations; i++ {
 					// Generate random data
-					size := 1 + rand.Intn(1024)
+					size := 1 + math_rand.IntN(1024)
 					originalData := make([]byte, size)
 					rand.Read(originalData)
 
@@ -77,21 +80,21 @@ var _ = Describe("Property-Based Testing", func() {
 			// Property: ValidateKeys should never panic
 			for i := 0; i < 1000; i++ {
 				// Generate random key count and threshold
-				keyCount := rand.Intn(20)
-				threshold := rand.Intn(25)
+				keyCount := math_rand.IntN(20)
+				threshold := math_rand.IntN(25)
 
 				// Generate random keys
 				keys := make([]string, keyCount)
 				for j := 0; j < keyCount; j++ {
-					keySize := rand.Intn(200)
+					keySize := math_rand.IntN(200)
 					keyData := make([]byte, keySize)
 					rand.Read(keyData)
 					keys[j] = base64.StdEncoding.EncodeToString(keyData)
 				}
 
 				// Sometimes add invalid keys
-				if rand.Float32() < 0.2 && len(keys) > 0 {
-					invalidIndex := rand.Intn(len(keys))
+				if math_rand.Float32() < 0.2 && len(keys) > 0 {
+					invalidIndex := math_rand.IntN(len(keys))
 					keys[invalidIndex] = generateInvalidBase64()
 				}
 
@@ -107,8 +110,8 @@ var _ = Describe("Property-Based Testing", func() {
 
 			// Property: If threshold <= keyCount and threshold > 0, and all keys are valid, validation should succeed
 			for i := 0; i < 200; i++ {
-				keyCount := 1 + rand.Intn(20)
-				threshold := 1 + rand.Intn(keyCount) // Ensure threshold <= keyCount
+				keyCount := 1 + math_rand.IntN(20)
+				threshold := 1 + math_rand.IntN(keyCount) // Ensure threshold <= keyCount
 
 				// Generate valid, unique keys
 				keys := generateUniqueValidKeys(keyCount)
@@ -124,14 +127,14 @@ var _ = Describe("Property-Based Testing", func() {
 
 			// Property: Any key set with duplicates should be rejected
 			for i := 0; i < 100; i++ {
-				keyCount := 2 + rand.Intn(10)
+				keyCount := 2 + math_rand.IntN(10)
 				keys := generateUniqueValidKeys(keyCount)
 
 				// Introduce duplicate
-				dupIndex1 := rand.Intn(len(keys))
-				dupIndex2 := rand.Intn(len(keys))
+				dupIndex1 := math_rand.IntN(len(keys))
+				dupIndex2 := math_rand.IntN(len(keys))
 				for dupIndex2 == dupIndex1 {
-					dupIndex2 = rand.Intn(len(keys))
+					dupIndex2 = math_rand.IntN(len(keys))
 				}
 				keys[dupIndex2] = keys[dupIndex1]
 
@@ -174,10 +177,10 @@ var _ = Describe("Property-Based Testing", func() {
 
 			// Property: Only keys of exact required length should pass
 			for i := 0; i < 100; i++ {
-				keyLength := rand.Intn(100)
+				keyLength := math_rand.IntN(100)
 				keyData := make([]byte, keyLength)
 				for j := range keyData {
-					keyData[j] = byte(1 + rand.Intn(255)) // Avoid all-zero patterns
+					keyData[j] = byte(1 + math_rand.IntN(255)) // Avoid all-zero patterns
 				}
 
 				key := base64.StdEncoding.EncodeToString(keyData)
@@ -211,7 +214,7 @@ var _ = Describe("Property-Based Testing", func() {
 					copy(keyData, forbidden)
 					// Fill rest with random data
 					for j := len(forbidden); j < 32; j++ {
-						keyData[j] = byte(1 + rand.Intn(255))
+						keyData[j] = byte(1 + math_rand.IntN(255))
 					}
 
 					key := base64.StdEncoding.EncodeToString(keyData)
@@ -233,9 +236,9 @@ var _ = Describe("Property-Based Testing", func() {
 				client := NewMockVaultClient()
 				client.SetSealed(false) // Already unsealed
 
-				keyCount := 1 + rand.Intn(10)
+				keyCount := 1 + math_rand.IntN(10)
 				keys := generateUniqueValidKeys(keyCount)
-				threshold := 1 + rand.Intn(keyCount)
+				threshold := 1 + math_rand.IntN(keyCount)
 
 				result, err := strategy.Unseal(context.Background(), client, keys, threshold)
 
@@ -361,32 +364,32 @@ var _ = Describe("Property-Based Testing", func() {
 
 					for j := 0; j < operationsPerGoroutine; j++ {
 						// Random operations
-						switch rand.Intn(4) {
+						switch math_rand.IntN(4) {
 						case 0:
 							// Validation
-							keys := generateUniqueValidKeys(1 + rand.Intn(5))
+							keys := generateUniqueValidKeys(1 + math_rand.IntN(5))
 							validator.ValidateKeys(keys, len(keys))
 
 						case 1:
 							// Metrics recording
 							endpoint := fmt.Sprintf("endpoint-%d", goroutineID)
-							duration := time.Duration(rand.Intn(1000)) * time.Microsecond
-							success := rand.Float32() > 0.1
+							duration := time.Duration(math_rand.IntN(1000)) * time.Microsecond
+							success := math_rand.Float32() > 0.1
 							metrics.RecordSealStatusCheck(endpoint, success, duration)
 
 						case 2:
 							// Client operations
 							client := NewMockVaultClient()
-							client.SetSealed(rand.Float32() < 0.5)
+							client.SetSealed(math_rand.Float32() < 0.5)
 							_, _ = client.IsSealed(context.Background())
 
 						case 3:
 							// Key generation
-							_ = generateUniqueValidKeys(rand.Intn(10))
+							_ = generateUniqueValidKeys(math_rand.IntN(10))
 						}
 
 						// Add some randomness to timing
-						if rand.Float32() < 0.1 {
+						if math_rand.Float32() < 0.1 {
 							time.Sleep(time.Microsecond)
 						}
 					}
@@ -405,17 +408,17 @@ var _ = Describe("Property-Based Testing", func() {
 
 func generateInvalidBase64() string {
 	invalidChars := "!@#$%^&*()[]{}|;':\",./<>?`~"
-	length := 1 + rand.Intn(50)
+	length := 1 + math_rand.IntN(50)
 	result := make([]byte, length)
 
 	for i := 0; i < length; i++ {
-		if rand.Float32() < 0.5 {
+		if math_rand.Float32() < 0.5 {
 			// Invalid character
-			result[i] = invalidChars[rand.Intn(len(invalidChars))]
+			result[i] = invalidChars[math_rand.IntN(len(invalidChars))]
 		} else {
 			// Valid base64 character
 			validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
-			result[i] = validChars[rand.Intn(len(validChars))]
+			result[i] = validChars[math_rand.IntN(len(validChars))]
 		}
 	}
 
@@ -427,12 +430,12 @@ func generateUniqueValidKeys(count int) []string {
 	seen := make(map[string]bool)
 
 	for len(keys) < count {
-		keySize := 8 + rand.Intn(64)
+		keySize := 8 + math_rand.IntN(64)
 		keyData := make([]byte, keySize)
 
 		// Generate non-zero, varied data
 		for i := range keyData {
-			keyData[i] = byte(1 + rand.Intn(255))
+			keyData[i] = byte(1 + math_rand.IntN(255))
 		}
 
 		key := base64.StdEncoding.EncodeToString(keyData)
