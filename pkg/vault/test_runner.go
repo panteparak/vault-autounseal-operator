@@ -66,7 +66,7 @@ func (rp *ResourceProfiler) StartProfiling() error {
 		rp.profiles["cpu"] = cpuFile
 
 		if err := pprof.StartCPUProfile(cpuFile); err != nil {
-			cpuFile.Close()
+			_ = cpuFile.Close()
 			return fmt.Errorf("failed to start CPU profiling: %w", err)
 		}
 	}
@@ -79,7 +79,7 @@ func (rp *ResourceProfiler) StartProfiling() error {
 		rp.profiles["trace"] = traceFile
 
 		if err := trace.Start(traceFile); err != nil {
-			traceFile.Close()
+			_ = traceFile.Close()
 			return fmt.Errorf("failed to start tracing: %w", err)
 		}
 	}
@@ -123,7 +123,7 @@ func (rp *ResourceProfiler) StopProfiling() error {
 			if err := pprof.WriteHeapProfile(memFile); err != nil {
 				errors = append(errors, fmt.Errorf("failed to write memory profile: %w", err))
 			}
-			memFile.Close()
+			_ = memFile.Close()
 		}
 	}
 
@@ -136,7 +136,7 @@ func (rp *ResourceProfiler) StopProfiling() error {
 			if err := pprof.Lookup("block").WriteTo(blockFile, 0); err != nil {
 				errors = append(errors, fmt.Errorf("failed to write block profile: %w", err))
 			}
-			blockFile.Close()
+			_ = blockFile.Close()
 		}
 	}
 
@@ -149,7 +149,7 @@ func (rp *ResourceProfiler) StopProfiling() error {
 			if err := pprof.Lookup("mutex").WriteTo(mutexFile, 0); err != nil {
 				errors = append(errors, fmt.Errorf("failed to write mutex profile: %w", err))
 			}
-			mutexFile.Close()
+			_ = mutexFile.Close()
 		}
 	}
 
@@ -182,32 +182,32 @@ func (tr *TestReporter) SetOutput(file *os.File) {
 // ReportSuiteStart reports the start of a test suite
 func (tr *TestReporter) ReportSuiteStart(suite *TestSuite) {
 	if tr.config.ReportVerbose {
-		fmt.Fprintf(tr.output, "🚀 Starting test suite: %s\n", suite.Name)
-		fmt.Fprintf(tr.output, "   Tests: %d\n", len(suite.Tests))
-		fmt.Fprintf(tr.output, "   Configuration loaded from environment: %+v\n", tr.config)
+		_, _ = fmt.Fprintf(tr.output, "🚀 Starting test suite: %s\n", suite.Name)
+		_, _ = fmt.Fprintf(tr.output, "   Tests: %d\n", len(suite.Tests))
+		_, _ = fmt.Fprintf(tr.output, "   Configuration loaded from environment: %+v\n", tr.config)
 	}
 }
 
 // ReportSuiteEnd reports the end of a test suite
 func (tr *TestReporter) ReportSuiteEnd(result *TestSuiteResult) {
-	fmt.Fprintf(tr.output, "✅ Test suite completed: %s\n", result.Name)
-	fmt.Fprintf(tr.output, "%s\n", result.GetSummary())
+	_, _ = fmt.Fprintf(tr.output, "✅ Test suite completed: %s\n", result.Name)
+	_, _ = fmt.Fprintf(tr.output, "%s\n", result.GetSummary())
 
 	if len(result.GetFailedTests()) > 0 {
-		fmt.Fprintf(tr.output, "❌ Failed tests: %v\n", result.GetFailedTests())
+		_, _ = fmt.Fprintf(tr.output, "❌ Failed tests: %v\n", result.GetFailedTests())
 	}
 
 	if len(result.GetSkippedTests()) > 0 {
-		fmt.Fprintf(tr.output, "⏭️  Skipped tests: %v\n", result.GetSkippedTests())
+		_, _ = fmt.Fprintf(tr.output, "⏭️  Skipped tests: %v\n", result.GetSkippedTests())
 	}
 
-	fmt.Fprintf(tr.output, "\n")
+	_, _ = fmt.Fprintf(tr.output, "\n")
 }
 
 // ReportTestStart reports the start of an individual test
 func (tr *TestReporter) ReportTestStart(test TestCase) {
 	if tr.config.ReportVerbose {
-		fmt.Fprintf(tr.output, "  🧪 Running: %s (%s)\n", test.Name, test.Category)
+		_, _ = fmt.Fprintf(tr.output, "  🧪 Running: %s (%s)\n", test.Name, test.Category)
 	}
 }
 
@@ -221,14 +221,14 @@ func (tr *TestReporter) ReportTestEnd(result *TestResult) {
 	}
 
 	if tr.config.ReportVerbose {
-		fmt.Fprintf(tr.output, "    %s %s - %v", status, result.Name, result.Duration)
+		_, _ = fmt.Fprintf(tr.output, "    %s %s - %v", status, result.Name, result.Duration)
 		if result.Error != nil {
-			fmt.Fprintf(tr.output, " - Error: %v", result.Error)
+			_, _ = fmt.Fprintf(tr.output, " - Error: %v", result.Error)
 		}
 		if result.Skipped {
-			fmt.Fprintf(tr.output, " - Skipped: %s", result.SkipReason)
+			_, _ = fmt.Fprintf(tr.output, " - Skipped: %s", result.SkipReason)
 		}
-		fmt.Fprintf(tr.output, "\n")
+		_, _ = fmt.Fprintf(tr.output, "\n")
 	}
 }
 
@@ -246,7 +246,7 @@ func (tr *TestReporter) GenerateReport(runner *TestRunner) error {
 	if err != nil {
 		return fmt.Errorf("failed to create JSON report: %w", err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 
 	encoder := json.NewEncoder(jsonFile)
 	encoder.SetIndent("", "  ")
@@ -259,7 +259,7 @@ func (tr *TestReporter) GenerateReport(runner *TestRunner) error {
 	if err != nil {
 		return fmt.Errorf("failed to create text report: %w", err)
 	}
-	defer textFile.Close()
+	defer func() { _ = textFile.Close() }()
 
 	tr.writeTextReport(textFile, &report)
 
@@ -298,44 +298,44 @@ func (tr *TestReporter) generateSummary(results map[string]*TestSuiteResult) Rep
 
 // writeTextReport writes a human-readable report
 func (tr *TestReporter) writeTextReport(file *os.File, report *ComprehensiveReport) {
-	fmt.Fprintf(file, "🧪 Comprehensive Test Report\n")
-	fmt.Fprintf(file, "Generated: %s\n\n", report.Timestamp.Format(time.RFC3339))
+	_, _ = fmt.Fprintf(file, "🧪 Comprehensive Test Report\n")
+	_, _ = fmt.Fprintf(file, "Generated: %s\n\n", report.Timestamp.Format(time.RFC3339))
 
-	fmt.Fprintf(file, "📊 Overall Summary:\n")
-	fmt.Fprintf(file, "  Total Suites: %d\n", report.Summary.TotalSuites)
-	fmt.Fprintf(file, "  Total Tests: %d\n", report.Summary.TotalTests)
-	fmt.Fprintf(file, "  Passed: %d (%.1f%%)\n", report.Summary.TotalPassed, report.Summary.OverallPassRate)
-	fmt.Fprintf(file, "  Failed: %d\n", report.Summary.TotalFailed)
-	fmt.Fprintf(file, "  Skipped: %d\n", report.Summary.TotalSkipped)
-	fmt.Fprintf(file, "  Total Duration: %v\n", report.Summary.TotalDuration)
-	fmt.Fprintf(file, "  Average Suite Duration: %v\n", report.Summary.TotalDuration/time.Duration(report.Summary.TotalSuites))
-	fmt.Fprintf(file, "\n")
+	_, _ = fmt.Fprintf(file, "📊 Overall Summary:\n")
+	_, _ = fmt.Fprintf(file, "  Total Suites: %d\n", report.Summary.TotalSuites)
+	_, _ = fmt.Fprintf(file, "  Total Tests: %d\n", report.Summary.TotalTests)
+	_, _ = fmt.Fprintf(file, "  Passed: %d (%.1f%%)\n", report.Summary.TotalPassed, report.Summary.OverallPassRate)
+	_, _ = fmt.Fprintf(file, "  Failed: %d\n", report.Summary.TotalFailed)
+	_, _ = fmt.Fprintf(file, "  Skipped: %d\n", report.Summary.TotalSkipped)
+	_, _ = fmt.Fprintf(file, "  Total Duration: %v\n", report.Summary.TotalDuration)
+	_, _ = fmt.Fprintf(file, "  Average Suite Duration: %v\n", report.Summary.TotalDuration/time.Duration(report.Summary.TotalSuites))
+	_, _ = fmt.Fprintf(file, "\n")
 
 	// Suite details
-	fmt.Fprintf(file, "📋 Test Suite Details:\n")
+	_, _ = fmt.Fprintf(file, "📋 Test Suite Details:\n")
 	for suiteName, result := range report.Suites {
-		fmt.Fprintf(file, "  %s:\n", suiteName)
-		fmt.Fprintf(file, "    Duration: %v\n", result.Duration)
-		fmt.Fprintf(file, "    Tests: %d passed, %d failed, %d skipped\n",
+		_, _ = fmt.Fprintf(file, "  %s:\n", suiteName)
+		_, _ = fmt.Fprintf(file, "    Duration: %v\n", result.Duration)
+		_, _ = fmt.Fprintf(file, "    Tests: %d passed, %d failed, %d skipped\n",
 			result.Passed, result.Failures, result.Skipped)
 
 		if len(result.GetFailedTests()) > 0 {
-			fmt.Fprintf(file, "    Failed: %v\n", result.GetFailedTests())
+			_, _ = fmt.Fprintf(file, "    Failed: %v\n", result.GetFailedTests())
 		}
 
-		fmt.Fprintf(file, "\n")
+		_, _ = fmt.Fprintf(file, "\n")
 	}
 
 	// Configuration
-	fmt.Fprintf(file, "⚙️  Test Configuration:\n")
-	fmt.Fprintf(file, "  Load Test Duration: %v\n", report.Configuration.LoadTestDuration)
-	fmt.Fprintf(file, "  Chaos Test Duration: %v\n", report.Configuration.ChaosTestDuration)
-	fmt.Fprintf(file, "  Security Test Iterations: %d\n", report.Configuration.SecurityTestIterations)
-	fmt.Fprintf(file, "  Property Test Iterations: %d\n", report.Configuration.PropertyTestIterations)
-	fmt.Fprintf(file, "  Profiling Enabled: CPU=%t, Memory=%t, Block=%t, Mutex=%t\n",
+	_, _ = fmt.Fprintf(file, "⚙️  Test Configuration:\n")
+	_, _ = fmt.Fprintf(file, "  Load Test Duration: %v\n", report.Configuration.LoadTestDuration)
+	_, _ = fmt.Fprintf(file, "  Chaos Test Duration: %v\n", report.Configuration.ChaosTestDuration)
+	_, _ = fmt.Fprintf(file, "  Security Test Iterations: %d\n", report.Configuration.SecurityTestIterations)
+	_, _ = fmt.Fprintf(file, "  Property Test Iterations: %d\n", report.Configuration.PropertyTestIterations)
+	_, _ = fmt.Fprintf(file, "  Profiling Enabled: CPU=%t, Memory=%t, Block=%t, Mutex=%t\n",
 		report.Configuration.ProfileCPU, report.Configuration.ProfileMemory,
 		report.Configuration.ProfileBlock, report.Configuration.ProfileMutex)
-	fmt.Fprintf(file, "\n")
+	_, _ = fmt.Fprintf(file, "\n")
 }
 
 // ComprehensiveReport represents the complete test report
@@ -626,7 +626,7 @@ func (tr *TestRunner) runCompatibilityTest(config *TestConfig) error {
 	// Test with different version configurations
 	for _, version := range config.CompatibilityVersions {
 		// Set version in environment for test
-		os.Setenv("VAULT_VERSION", version)
+		_ = os.Setenv("VAULT_VERSION", version)
 
 		// Basic compatibility test
 		factory := NewMockClientFactory()
@@ -638,7 +638,7 @@ func (tr *TestRunner) runCompatibilityTest(config *TestConfig) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		_, err = client.IsSealed(ctx)
 		cancel()
-		client.Close()
+		_ = client.Close()
 
 		if err != nil {
 			// Network errors are acceptable in test environment
@@ -667,7 +667,7 @@ func (tr *TestRunner) GetResults() map[string]*TestSuiteResult {
 
 // SaveProfiles saves profiling data to specified directory
 func (tr *TestRunner) SaveProfiles(dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("failed to create profile directory: %w", err)
 	}
 

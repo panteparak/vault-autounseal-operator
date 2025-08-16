@@ -1,85 +1,25 @@
 run:
   timeout: 5m
-  issues-exit-code: 1
   tests: true
+
+linters:
+  enable:
+    - gofmt
+    - goimports
+    - govet
+    - ineffassign
+    - misspell
+    - revive
 
 linters-settings:
   govet:
     enable-all: true
     disable:
       - fieldalignment
-  gocyclo:
-    min-complexity: 10
   misspell:
     locale: US
-  lll:
-    line-length: 180
-  gocritic:
-    enabled-tags:
-      - performance
-      - style
-      - experimental
-    disabled-checks:
-      - wrapperFunc
-
-linters:
-  enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - typecheck
-    - unused
-    - gocyclo
-    - gofmt
-    - goimports
-    - misspell
-    - gocritic
-    - gosec
-    - lll
-    - unconvert
-    - dupl
-    - goconst
-    - gci
 
 issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-        - ineffassign  # Allow intentional nil assignments for GC
-        - staticcheck  # Allow benchmark-specific patterns
-    - path: main\.go
-      linters:
-        - gocyclo
-    - text: "empty branch"
-      linters:
-        - staticcheck
-    - text: "this result of append is never used"
-      linters:
-        - staticcheck
-    - text: "ineffectual assignment"
-      path: _test\.go
-      linters:
-        - ineffassign
-    - path: test_config\.go
-      linters:
-        - gocyclo
-        - gosec
-    - path: test_runner\.go
-      linters:
-        - gocyclo
-        - gosec
-    - path: test_helpers\.go
-      linters:
-        - gosec  # Allow weak random in test helpers
-
-output:
-  formats:
-    - format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

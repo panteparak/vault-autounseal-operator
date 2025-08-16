@@ -1,4 +1,4 @@
-package vault
+package client
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/vault/api"
+
+	"github.com/panteparak/vault-autounseal-operator/pkg/core/types"
 )
 
 // Client wraps the HashiCorp Vault client with additional functionality
@@ -17,69 +19,68 @@ type Client struct {
 	client    *api.Client
 	url       string
 	timeout   time.Duration
-	validator KeyValidator
-	strategy  UnsealStrategy
-	metrics   ClientMetrics
+	validator types.KeyValidator
+	strategy  types.UnsealStrategy
+	metrics   types.ClientMetrics
 	mu        sync.RWMutex
 	closed    bool
 }
 
-// ClientConfig holds configuration for creating a vault client
-type ClientConfig struct {
+// Config holds configuration for creating a vault client
+type Config struct {
 	URL           string
 	TLSSkipVerify bool
 	Timeout       time.Duration
-	Validator     KeyValidator
-	Strategy      UnsealStrategy
-	Metrics       ClientMetrics
+	Validator     types.KeyValidator
+	Strategy      types.UnsealStrategy
+	Metrics       types.ClientMetrics
 	MaxRetries    int
 	RetryDelay    time.Duration
 }
 
 // NewClient creates a new Vault client with the given configuration
 func NewClient(url string, tlsSkipVerify bool, timeout time.Duration) (*Client, error) {
-	config := &ClientConfig{
+	config := &Config{
 		URL:           url,
 		TLSSkipVerify: tlsSkipVerify,
 		Timeout:       timeout,
-		Validator:     NewDefaultKeyValidator(),
 		MaxRetries:    3,
 		RetryDelay:    time.Second,
 	}
 	return NewClientWithConfig(config)
 }
 
-// validateClientConfig validates the client configuration
-func validateClientConfig(config *ClientConfig) error {
+// validateConfig validates the client configuration
+func validateConfig(config *Config) error {
 	if config.URL == "" {
-		return NewValidationError("url", config.URL, "URL cannot be empty")
+		return types.NewValidationError("url", config.URL, "URL cannot be empty")
 	}
 
 	// Basic URL validation
 	if !strings.HasPrefix(config.URL, "http://") && !strings.HasPrefix(config.URL, "https://") {
-		return NewValidationError("url", config.URL, "URL must start with http:// or https://")
+		return types.NewValidationError("url", config.URL, "URL must start with http:// or https://")
 	}
 
 	// Reject extremely long URLs
 	if len(config.URL) > 2048 {
-		return NewValidationError("url", config.URL, "URL exceeds maximum length of 2048 characters")
+		return types.NewValidationError("url", config.URL, "URL exceeds maximum length of 2048 characters")
 	}
 
 	// Reject extremely small timeouts
 	if config.Timeout < time.Millisecond {
-		return NewValidationError("timeout", config.Timeout, "Timeout must be at least 1 millisecond")
+		return types.NewValidationError("timeout", config.Timeout, "Timeout must be at least 1 millisecond")
 	}
 
 	if config.MaxRetries < 0 {
-		return NewValidationError("maxRetries", config.MaxRetries, "MaxRetries cannot be negative")
+		return types.NewValidationError("maxRetries", config.MaxRetries, "MaxRetries cannot be negative")
 	}
 
 	return nil
 }
 
 // NewClientWithConfig creates a new Vault client with advanced configuration
-func NewClientWithConfig(config *ClientConfig) (*Client, error) {
-	if err := validateClientConfig(config); err != nil {
+func NewClientWithConfig(config *Config) (*Client, error) {
+	if err := validateConfig(config); err != nil {
 		return nil, err
 	}
 
@@ -96,7 +97,7 @@ func NewClientWithConfig(config *ClientConfig) (*Client, error) {
 			Insecure: true,
 		})
 		if err != nil {
-			return nil, NewVaultError("tls-config", config.URL, err, false)
+			return nil, types.NewVaultError("tls-config", config.URL, err, false)
 		}
 	}
 
@@ -115,7 +116,7 @@ func NewClientWithConfig(config *ClientConfig) (*Client, error) {
 
 	apiClient, err := api.NewClient(vaultConfig)
 	if err != nil {
-		return nil, NewVaultError("client-creation", config.URL, err, false)
+		return nil, types.NewVaultError("client-creation", config.URL, err, false)
 	}
 
 	// Set security headers
@@ -126,35 +127,11 @@ func NewClientWithConfig(config *ClientConfig) (*Client, error) {
 		"X-Request-ID":           {fmt.Sprintf("vault-operator-%d", time.Now().UnixNano())},
 	})
 
-	// Set default validator if not provided
-	validator := config.Validator
-	if validator == nil {
-		validator = NewDefaultKeyValidator()
-	}
-
 	client := &Client{
-		client:    apiClient,
-		url:       config.URL,
-		timeout:   config.Timeout,
-		validator: validator,
-		metrics:   config.Metrics,
-	}
-
-	// Set up default strategy if not provided
-	if config.Strategy != nil {
-		client.strategy = config.Strategy
-	} else {
-		defaultStrategy := NewDefaultUnsealStrategy(client.validator, client.metrics)
-		if config.MaxRetries > 1 {
-			retryPolicy := &DefaultRetryPolicy{
-				maxAttempts: config.MaxRetries,
-				baseDelay:   config.RetryDelay,
-				maxDelay:    10 * time.Second,
-			}
-			client.strategy = NewRetryUnsealStrategy(defaultStrategy, retryPolicy)
-		} else {
-			client.strategy = defaultStrategy
-		}
+		client:  apiClient,
+		url:     config.URL,
+		timeout: config.Timeout,
+		metrics: config.Metrics,
 	}
 
 	return client, nil
@@ -166,7 +143,7 @@ func (c *Client) IsSealed(ctx context.Context) (bool, error) {
 	defer c.mu.RUnlock()
 
 	if c.closed {
-		return true, NewVaultError("is-sealed", c.url, fmt.Errorf("client is closed"), false)
+		return true, types.NewVaultError("is-sealed", c.url, fmt.Errorf("client is closed"), false)
 	}
 
 	start := time.Now()
@@ -177,7 +154,7 @@ func (c *Client) IsSealed(ctx context.Context) (bool, error) {
 	}
 
 	if err != nil {
-		return true, NewVaultError("seal-status", c.url, err, true)
+		return true, types.NewVaultError("seal-status", c.url, err, true)
 	}
 	return status.Sealed, nil
 }
@@ -188,7 +165,7 @@ func (c *Client) GetSealStatus(ctx context.Context) (*api.SealStatusResponse, er
 	defer c.mu.RUnlock()
 
 	if c.closed {
-		return nil, NewVaultError("get-seal-status", c.url, fmt.Errorf("client is closed"), false)
+		return nil, types.NewVaultError("get-seal-status", c.url, fmt.Errorf("client is closed"), false)
 	}
 
 	start := time.Now()
@@ -199,7 +176,7 @@ func (c *Client) GetSealStatus(ctx context.Context) (*api.SealStatusResponse, er
 	}
 
 	if err != nil {
-		return nil, NewVaultError("seal-status", c.url, err, true)
+		return nil, types.NewVaultError("seal-status", c.url, err, true)
 	}
 	return status, nil
 }
@@ -210,11 +187,61 @@ func (c *Client) Unseal(ctx context.Context, keys []string, threshold int) (*api
 	defer c.mu.RUnlock()
 
 	if c.closed {
-		return nil, NewVaultError("unseal", c.url, fmt.Errorf("client is closed"), false)
+		return nil, types.NewVaultError("unseal", c.url, fmt.Errorf("client is closed"), false)
+	}
+
+	// If no strategy is configured, use direct key submission
+	if c.strategy == nil {
+		return c.unsealDirect(ctx, keys, threshold)
 	}
 
 	// Use the configured strategy for unsealing
 	return c.strategy.Unseal(ctx, c, keys, threshold)
+}
+
+// unsealDirect provides direct unsealing without strategy pattern
+func (c *Client) unsealDirect(ctx context.Context, keys []string, threshold int) (*api.SealStatusResponse, error) {
+	// Check if already unsealed
+	status, err := c.GetSealStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if !status.Sealed {
+		return status, nil
+	}
+
+	// Submit keys up to threshold
+	keysToSubmit := keys
+	if len(keys) > threshold {
+		keysToSubmit = keys[:threshold]
+	}
+
+	var lastStatus *api.SealStatusResponse
+	for i, key := range keysToSubmit {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("context canceled during unseal operation: %w", ctx.Err())
+		default:
+		}
+
+		currentStatus, err := c.SubmitSingleKey(ctx, key, i+1)
+		if err != nil {
+			return nil, err
+		}
+
+		lastStatus = currentStatus
+
+		// Stop if unsealed
+		if !currentStatus.Sealed {
+			break
+		}
+
+		// Add small delay between key submissions
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return lastStatus, nil
 }
 
 // SubmitSingleKey submits a single unseal key (used by strategies)
@@ -222,13 +249,13 @@ func (c *Client) SubmitSingleKey(ctx context.Context, encodedKey string, keyInde
 	// Validate that the key is valid base64
 	_, err := base64.StdEncoding.DecodeString(encodedKey)
 	if err != nil {
-		return nil, NewValidationError("key", encodedKey, fmt.Sprintf("invalid base64 encoding in key %d: %v", keyIndex, err))
+		return nil, types.NewValidationError("key", encodedKey, fmt.Sprintf("invalid base64 encoding in key %d: %v", keyIndex, err))
 	}
 
 	// Submit the base64 encoded key directly (Vault API expects base64)
 	status, err := c.client.Sys().UnsealWithContext(ctx, encodedKey)
 	if err != nil {
-		return nil, NewVaultError("unseal-key-submit", c.url, fmt.Errorf("failed to submit unseal key %d: %w", keyIndex, err), true)
+		return nil, types.NewVaultError("unseal-key-submit", c.url, fmt.Errorf("failed to submit unseal key %d: %w", keyIndex, err), true)
 	}
 
 	return status, nil
@@ -240,12 +267,12 @@ func (c *Client) IsInitialized(ctx context.Context) (bool, error) {
 	defer c.mu.RUnlock()
 
 	if c.closed {
-		return false, NewVaultError("is-initialized", c.url, fmt.Errorf("client is closed"), false)
+		return false, types.NewVaultError("is-initialized", c.url, fmt.Errorf("client is closed"), false)
 	}
 
 	initialized, err := c.client.Sys().InitStatusWithContext(ctx)
 	if err != nil {
-		return false, NewVaultError("init-status", c.url, err, true)
+		return false, types.NewVaultError("init-status", c.url, err, true)
 	}
 	return initialized, nil
 }
@@ -256,7 +283,7 @@ func (c *Client) HealthCheck(ctx context.Context) (*api.HealthResponse, error) {
 	defer c.mu.RUnlock()
 
 	if c.closed {
-		return nil, NewVaultError("health-check", c.url, fmt.Errorf("client is closed"), false)
+		return nil, types.NewVaultError("health-check", c.url, fmt.Errorf("client is closed"), false)
 	}
 
 	start := time.Now()
@@ -267,7 +294,7 @@ func (c *Client) HealthCheck(ctx context.Context) (*api.HealthResponse, error) {
 	}
 
 	if err != nil {
-		return nil, NewVaultError("health-check", c.url, err, true)
+		return nil, types.NewVaultError("health-check", c.url, err, true)
 	}
 	return health, nil
 }
@@ -312,10 +339,10 @@ func (c *Client) IsClosed() bool {
 	return c.closed
 }
 
-// DefaultClientFactory implements the ClientFactory interface
-type DefaultClientFactory struct{}
+// DefaultFactory implements the ClientFactory interface
+type DefaultFactory struct{}
 
 // NewClient implements ClientFactory interface
-func (f *DefaultClientFactory) NewClient(endpoint string, tlsSkipVerify bool, timeout time.Duration) (VaultClient, error) {
+func (f *DefaultFactory) NewClient(endpoint string, tlsSkipVerify bool, timeout time.Duration) (types.VaultClient, error) {
 	return NewClient(endpoint, tlsSkipVerify, timeout)
 }

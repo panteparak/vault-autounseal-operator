@@ -38,6 +38,16 @@ vet: ## Run go vet against code.
 test: fmt vet ## Run tests.
 	go test ./... -coverprofile cover.out
 
+.PHONY: test-integration
+test-integration: ## Run integration tests using Testcontainers
+	@echo "🧪 Running integration tests..."
+	./scripts/run-integration-tests.sh
+
+.PHONY: test-integration-verbose
+test-integration-verbose: ## Run integration tests with verbose output
+	@echo "🧪 Running integration tests (verbose)..."
+	./scripts/run-integration-tests.sh -v
+
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
 	$(GOLANGCI_LINT) run

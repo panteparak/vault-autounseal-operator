@@ -1,0 +1,165 @@
+version: '3.8'
+
+# Local development environment for integration testing
+# This compose file is optimized for local development with persistent volumes
+# and easy debugging capabilities
+
+services:
+  # Primary development vault
+  vault-dev:
+    image: hashicorp/vault:1.20.0
+    container_name: vault-dev-local
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "dev-root-token"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      VAULT_LOG_LEVEL: "info"
+    command: ["vault", "server", "-dev"]
+    volumes:
+      - vault-dev-data:/vault/data
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+      start_period: 5s
+    networks:
+      - vault-local
+
+  # Sealed vault for testing unsealing operations
+  vault-sealed:
+    image: hashicorp/vault:1.20.0
+    container_name: vault-sealed-local
+    ports:
+      - "8201:8200"
+    environment:
+      VAULT_LOCAL_CONFIG: |
+        {
+          "backend": {"file": {"path": "/vault/file"}},
+          "listener": {"tcp": {"address": "0.0.0.0:8200", "tls_disable": true}},
+          "disable_mlock": true,
+          "log_level": "info",
+          "ui": true
+        }
+    command: ["vault", "server", "-config=/vault/config"]
+    volumes:
+      - vault-sealed-data:/vault/file
+      - vault-sealed-logs:/vault/logs
+    healthcheck:
+      test: ["CMD-SHELL", "vault status -format=json | jq -r .sealed || true"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+      start_period: 8s
+    networks:
+      - vault-local
+
+  # Vault initialization service
+  vault-init:
+    image: hashicorp/vault:1.20.0
+    container_name: vault-init-local
+    environment:
+      VAULT_ADDR: "http://vault-sealed:8200"
+    volumes:
+      - vault-keys:/vault/keys
+    command: |
+      sh -c '
+        echo "Waiting for vault-sealed to be ready..."
+        until vault status 2>/dev/null; do sleep 1; done
+
+        if vault status -format=json | jq -r .initialized | grep -q false; then
+          echo "Initializing vault with 5 key shares, threshold 3..."
+          vault operator init -key-shares=5 -key-threshold=3 -format=json > /vault/keys/init.json
+
+          echo "Extracting keys for easy access..."
+          jq -r ".unseal_keys_b64[]" /vault/keys/init.json > /vault/keys/unseal_keys.txt
+          jq -r ".root_token" /vault/keys/init.json > /vault/keys/root_token.txt
+
+          echo "Vault initialized successfully!"
+          echo "Keys saved to /vault/keys/ volume"
+          echo "Root token: $(cat /vault/keys/root_token.txt)"
+          echo "Unseal keys available in container at /vault/keys/unseal_keys.txt"
+        else
+          echo "Vault already initialized"
+        fi
+
+        # Keep container running for debugging
+        tail -f /dev/null
+      '
+    depends_on:
+      vault-sealed:
+        condition: service_healthy
+    networks:
+      - vault-local
+    restart: unless-stopped
+
+  # Consul for HA storage backend (optional)
+  consul:
+    image: consul:1.16.0
+    container_name: consul-local
+    ports:
+      - "8500:8500"
+    command: ["consul", "agent", "-dev", "-client=0.0.0.0", "-ui", "-log-level=INFO"]
+    volumes:
+      - consul-data:/consul/data
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - vault-local
+
+  # Vault with Consul backend (for HA testing)
+  vault-ha:
+    image: hashicorp/vault:1.20.0
+    container_name: vault-ha-local
+    ports:
+      - "8202:8200"
+    environment:
+      VAULT_LOCAL_CONFIG: |
+        {
+          "backend": {
+            "consul": {
+              "address": "consul:8500",
+              "path": "vault/"
+            }
+          },
+          "listener": {"tcp": {"address": "0.0.0.0:8200", "tls_disable": true}},
+          "disable_mlock": true,
+          "log_level": "info",
+          "ui": true,
+          "cluster_addr": "http://0.0.0.0:8201",
+          "api_addr": "http://0.0.0.0:8200"
+        }
+    command: ["vault", "server", "-config=/vault/config"]
+    depends_on:
+      consul:
+        condition: service_healthy
+    volumes:
+      - vault-ha-logs:/vault/logs
+    healthcheck:
+      test: ["CMD-SHELL", "vault status || exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    networks:
+      - vault-local
+
+volumes:
+  vault-dev-data:
+  vault-sealed-data:
+  vault-sealed-logs:
+  vault-keys:
+  vault-ha-logs:
+  consul-data:
+
+networks:
+  vault-local:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16

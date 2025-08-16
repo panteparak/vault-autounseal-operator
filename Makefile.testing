@@ -41,7 +41,15 @@ test-unit: ## Run unit tests with race detection and coverage
 
 test-integration: ## Run integration tests
 	@echo "🔗 Running integration tests..."
+	go test -timeout=$(TEST_TIMEOUT) -tags=integration $(PACKAGE) -run="TestVaultIntegrationSuite"
+
+test-integration-legacy: ## Run legacy integration tests
+	@echo "🔗 Running legacy integration tests..."
 	go test -timeout=$(TEST_TIMEOUT) -tags=integration $(PACKAGE) -run="TestExtendedIntegration"
+
+test-integration-testcontainers: ## Run Testcontainers-based integration tests
+	@echo "🐳 Running Testcontainers integration tests..."
+	go test -v -timeout=$(TEST_TIMEOUT) -tags=integration $(PACKAGE) -run="TestVaultIntegrationSuite"
 
 test-extended: ## Run extended integration tests with resource profiling
 	@echo "🚀 Running extended integration tests..."
@@ -223,6 +231,24 @@ test-docker: ## Run tests in Docker container
 	@echo "🐳 Running tests in Docker..."
 	docker run --rm -v $(PWD):/app -w /app golang:$(shell go version | awk '{print $$3}' | sed 's/go//') \
 		make test-all
+
+test-docker-ci: ## Run CI integration tests with Docker Compose
+	@echo "🐳 Running CI integration tests with Docker Compose..."
+	@echo "Using CI environment Docker Compose files..."
+	docker-compose -f test/environments/ci/docker-compose.fast-integration.yml up -d
+	@echo "Waiting for services to be ready..."
+	sleep 10
+	./scripts/run-fast-integration.sh -D
+	docker-compose -f test/environments/ci/docker-compose.fast-integration.yml down -v
+
+test-docker-local: ## Run integration tests with local Docker Compose environment
+	@echo "🏠 Running integration tests with local Docker Compose..."
+	@echo "Using local development environment..."
+	docker-compose -f test/environments/local/docker-compose.yml up -d
+	@echo "Waiting for services to be ready..."
+	sleep 15
+	./scripts/run-fast-integration.sh -D
+	docker-compose -f test/environments/local/docker-compose.yml down -v
 
 # Analysis and optimization
 analyze-profiles: ## Analyze generated profiles

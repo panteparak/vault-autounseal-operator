@@ -1,0 +1,138 @@
+version: '3.8'
+
+services:
+  # Fast development vault (minimal startup time)
+  vault-dev:
+    image: hashicorp/vault:1.20.0
+    container_name: vault-dev-fast
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "root-token"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      VAULT_LOG_LEVEL: "warn"  # Reduce log noise
+    command: ["vault", "server", "-dev"]
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 1s
+      timeout: 1s
+      retries: 3
+      start_period: 2s
+    networks:
+      - vault-fast
+
+  # Fast sealed vault (pre-initialized for speed)
+  vault-sealed:
+    image: hashicorp/vault:1.20.0
+    container_name: vault-sealed-fast
+    ports:
+      - "8201:8200"
+    environment:
+      VAULT_LOCAL_CONFIG: |
+        {
+          "backend": {"file": {"path": "/vault/file"}},
+          "listener": {"tcp": {"address": "0.0.0.0:8200", "tls_disable": true}},
+          "disable_mlock": true,
+          "log_level": "warn"
+        }
+    command: ["vault", "server", "-config=/vault/config"]
+    volumes:
+      - vault-sealed-data:/vault/file
+    healthcheck:
+      test: ["CMD-SHELL", "vault status -format=json | jq -r .sealed || true"]
+      interval: 1s
+      timeout: 1s
+      retries: 3
+      start_period: 3s
+    networks:
+      - vault-fast
+
+  # Vault initialization helper (runs once then exits)
+  vault-init:
+    image: hashicorp/vault:1.20.0
+    container_name: vault-init-fast
+    environment:
+      VAULT_ADDR: "http://vault-sealed:8200"
+    command: |
+      sh -c '
+        echo "Waiting for vault-sealed to be ready..."
+        until vault status 2>/dev/null; do sleep 0.5; done
+
+        if vault status -format=json | jq -r .initialized | grep -q false; then
+          echo "Initializing vault..."
+          vault operator init -key-shares=1 -key-threshold=1 -format=json > /tmp/init.json
+          cat /tmp/init.json | jq -r .unseal_keys_b64[0] > /tmp/unseal_key
+          cat /tmp/init.json | jq -r .root_token > /tmp/root_token
+          echo "Vault initialized. Check logs for keys."
+          echo "Unseal key: $(cat /tmp/unseal_key)"
+          echo "Root token: $(cat /tmp/root_token)"
+        else
+          echo "Vault already initialized"
+        fi
+      '
+    depends_on:
+      vault-sealed:
+        condition: service_healthy
+    networks:
+      - vault-fast
+
+  # Fast unhealthy vault (for testing failure scenarios)
+  vault-unhealthy:
+    image: hashicorp/vault:1.20.0
+    container_name: vault-unhealthy-fast
+    ports:
+      - "8202:8200"
+    environment:
+      VAULT_LOCAL_CONFIG: |
+        {
+          "backend": {"file": {"path": "/vault/file"}},
+          "listener": {"tcp": {"address": "0.0.0.0:8200", "tls_disable": true}},
+          "disable_mlock": true,
+          "log_level": "error"
+        }
+    command: ["sh", "-c", "sleep 2 && exit 1"]  # Starts then fails quickly
+    networks:
+      - vault-fast
+
+  # Integration test runner
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test-runner
+    container_name: integration-test-runner
+    environment:
+      VAULT_DEV_ADDR: "http://vault-dev:8200"
+      VAULT_SEALED_ADDR: "http://vault-sealed:8200"
+      VAULT_UNHEALTHY_ADDR: "http://vault-unhealthy:8200"
+      VAULT_DEV_TOKEN: "root-token"
+      GO_TEST_TIMEOUT: "30s"
+      INTEGRATION_CONFIG: "fast"
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /workspace
+    command: |
+      sh -c '
+        echo "Waiting for vault services..."
+        sleep 3
+
+        echo "Running fast integration tests..."
+        go test -v -tags=integration -timeout=60s ./pkg/vault/fast_integration_test.go ./pkg/vault/integration_framework.go ./pkg/vault/modular_test.go -ginkgo.focus="Fast-Failing"
+      '
+    depends_on:
+      vault-dev:
+        condition: service_healthy
+      vault-sealed:
+        condition: service_healthy
+    networks:
+      - vault-fast
+
+volumes:
+  vault-sealed-data:
+
+networks:
+  vault-fast:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

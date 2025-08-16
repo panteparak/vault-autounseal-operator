@@ -69,7 +69,7 @@ var _ = Describe("Client Configuration Validation", func() {
 				client, err := NewClientWithConfig(config)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(client).ToNot(BeNil())
-				defer client.Close()
+				defer func() { _ = client.Close() }()
 			})
 
 			It("should accept HTTP URLs", func() {
@@ -81,7 +81,7 @@ var _ = Describe("Client Configuration Validation", func() {
 				client, err := NewClientWithConfig(config)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(client).ToNot(BeNil())
-				defer client.Close()
+				defer func() { _ = client.Close() }()
 			})
 		})
 	})
@@ -119,7 +119,7 @@ var _ = Describe("Client Configuration Validation", func() {
 					client, err := NewClientWithConfig(config)
 					Expect(err).ToNot(HaveOccurred(), "Timeout should be accepted: %v", timeout)
 					Expect(client).ToNot(BeNil())
-					client.Close()
+					_ = client.Close()
 				}
 			})
 		})
@@ -152,7 +152,7 @@ var _ = Describe("Client Configuration Validation", func() {
 				client, err := NewClientWithConfig(config)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(client).ToNot(BeNil())
-				defer client.Close()
+				defer func() { _ = client.Close() }()
 			})
 
 			It("should accept reasonable retry counts", func() {
@@ -168,7 +168,7 @@ var _ = Describe("Client Configuration Validation", func() {
 					client, err := NewClientWithConfig(config)
 					Expect(err).ToNot(HaveOccurred(), "Retries should be accepted: %d", retries)
 					Expect(client).ToNot(BeNil())
-					client.Close()
+					_ = client.Close()
 				}
 			})
 		})
@@ -185,7 +185,7 @@ var _ = Describe("Client Configuration Validation", func() {
 			client, err := NewClientWithConfig(config)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(client).ToNot(BeNil())
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			// Verify client is not closed initially
 			Expect(client.IsClosed()).To(BeFalse())

@@ -8,7 +8,7 @@ bin/
 build/
 dist/
 *.out
-
+*.prof
 # Test binary, built with `go test -c`
 *.test
 

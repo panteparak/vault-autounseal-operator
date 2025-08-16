@@ -141,59 +141,9 @@ jobs:
       run: |
         echo "🧪 Running Go-based integration test for scenario: $TEST_SCENARIO"
 
-        cd test/integration
-
-        # Create test configuration
-        cat > test-config.yaml <<EOF
-        vaultVersion: "$VAULT_VERSION"
-        testScenarios: ["$TEST_SCENARIO"]
-        timeouts:
-          vaultStartup: 60s
-          operatorReady: 120s
-          vaultUnseal: 30s
-          statusUpdate: 45s
-          testExecution: 300s
-          cleanupTimeout: 60s
-        vaultConfig:
-          devMode: true
-          initializeVaults: true
-          unsealThreshold: 3
-          secretShares: 3
-          endpoints:
-            basic: "http://localhost:8200"
-            primary: "http://localhost:8200"
-            standby: "http://localhost:8201"
-            finance: "http://localhost:8200"
-            engineering: "http://localhost:8201"
-            operations: "http://localhost:8202"
-          tlsConfig:
-            skipVerify: true
-        operatorConfig:
-          image: "vault-autounseal-operator"
-          tag: "test"
-          logLevel: "debug"
-          resources:
-            cpu: "500m"
-            memory: "256Mi"
-          helmValues:
-            image.pullPolicy: "Never"
-            operator.logLevel: "debug"
-        testSettings:
-          parallel: false
-          maxConcurrency: 1
-          failFast: true
-          verboseLogging: true
-          collectLogs: true
-          generateReports: true
-          keepResourcesOnFail: false
-        EOF
-
-        # Run the test
-        go run main.go \
-          -config=test-config.yaml \
-          -scenario=$TEST_SCENARIO \
-          -timeout=20m \
-          -verbose=true
+        # Run integration tests using our new test suite
+        chmod +x ./scripts/run-integration-tests.sh
+        ./scripts/run-integration-tests.sh -v -t 20m -r "TestVaultIntegrationSuite"
 
         echo "✅ Integration test completed for scenario: $TEST_SCENARIO"
 

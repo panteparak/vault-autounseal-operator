@@ -145,7 +145,12 @@ func (tm *TestMetrics) GetSummary() TestSummary {
 		last := tm.memorySnapshots[len(tm.memorySnapshots)-1]
 
 		if last.Alloc >= first.Alloc {
-			summary.MemoryGrowth = int64(last.Alloc - first.Alloc)
+			diff := last.Alloc - first.Alloc
+			if diff <= uint64(^uint64(0)>>1) { // Check if fits in int64
+				summary.MemoryGrowth = int64(diff)
+			} else {
+				summary.MemoryGrowth = ^int64(0) >> 1 // Max int64 value
+			}
 		} else {
 			// Memory was cleaned up - no growth
 			summary.MemoryGrowth = 0
@@ -264,7 +269,7 @@ func (ltr *LoadTestRunner) worker(ctx context.Context, wg *sync.WaitGroup, worke
 	if err != nil {
 		return
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	mockClient := ltr.factory.GetClient(fmt.Sprintf("http://load-test-%d:8200", workerID))
 
@@ -551,6 +556,7 @@ type PropertyTestGenerator struct {
 
 // NewPropertyTestGenerator creates a new property test generator
 func NewPropertyTestGenerator(seed int64) *PropertyTestGenerator {
+	// Use seed bits directly - int64 to uint64 conversion preserves bit pattern
 	source := math_rand.NewPCG(uint64(seed), 0)
 	return &PropertyTestGenerator{
 		rand: math_rand.New(source),

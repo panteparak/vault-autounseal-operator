@@ -116,7 +116,19 @@ func DefaultTestConfig() *TestConfig {
 
 // LoadFromEnvironment loads configuration from environment variables
 func (tc *TestConfig) LoadFromEnvironment() {
-	// Load Testing
+	tc.loadLoadTestConfig()
+	tc.loadChaosTestConfig()
+	tc.loadSecurityTestConfig()
+	tc.loadPropertyTestConfig()
+	tc.loadMemoryTestConfig()
+	tc.loadPerformanceTestConfig()
+	tc.loadProfilingConfig()
+	tc.loadReportingConfig()
+}
+
+// Helper methods for loading different configuration categories
+
+func (tc *TestConfig) loadLoadTestConfig() {
 	if val := os.Getenv("LOAD_TEST_DURATION"); val != "" {
 		if d, err := time.ParseDuration(val); err == nil {
 			tc.LoadTestDuration = d
@@ -132,8 +144,9 @@ func (tc *TestConfig) LoadFromEnvironment() {
 			tc.LoadTestOperationsPS = i
 		}
 	}
+}
 
-	// Chaos Testing
+func (tc *TestConfig) loadChaosTestConfig() {
 	if val := os.Getenv("CHAOS_TEST_DURATION"); val != "" {
 		if d, err := time.ParseDuration(val); err == nil {
 			tc.ChaosTestDuration = d
@@ -149,8 +162,9 @@ func (tc *TestConfig) LoadFromEnvironment() {
 			tc.ChaosFailureProbability = float32(f)
 		}
 	}
+}
 
-	// Security Testing
+func (tc *TestConfig) loadSecurityTestConfig() {
 	if val := os.Getenv("SECURITY_TEST_ITERATIONS"); val != "" {
 		if i, err := strconv.Atoi(val); err == nil {
 			tc.SecurityTestIterations = i
@@ -164,8 +178,9 @@ func (tc *TestConfig) LoadFromEnvironment() {
 	if val := os.Getenv("SECURITY_MEMORY_PRESSURE"); val != "" {
 		tc.SecurityMemoryPressure = val == trueString
 	}
+}
 
-	// Property Testing
+func (tc *TestConfig) loadPropertyTestConfig() {
 	if val := os.Getenv("PROPERTY_TEST_ITERATIONS"); val != "" {
 		if i, err := strconv.Atoi(val); err == nil {
 			tc.PropertyTestIterations = i
@@ -181,8 +196,9 @@ func (tc *TestConfig) LoadFromEnvironment() {
 			tc.PropertyTestMaxKeySize = i
 		}
 	}
+}
 
-	// Memory Testing
+func (tc *TestConfig) loadMemoryTestConfig() {
 	if val := os.Getenv("MEMORY_TEST_SIZE"); val != "" {
 		if i, err := strconv.Atoi(val); err == nil {
 			tc.MemoryTestSize = i
@@ -198,8 +214,9 @@ func (tc *TestConfig) LoadFromEnvironment() {
 			tc.MemoryLeakThreshold = i
 		}
 	}
+}
 
-	// Performance Testing
+func (tc *TestConfig) loadPerformanceTestConfig() {
 	if val := os.Getenv("PERFORMANCE_ITERATIONS"); val != "" {
 		if i, err := strconv.Atoi(val); err == nil {
 			tc.PerformanceIterations = i
@@ -215,8 +232,9 @@ func (tc *TestConfig) LoadFromEnvironment() {
 			tc.PerformanceThroughputMin = f
 		}
 	}
+}
 
-	// Resource Profiling
+func (tc *TestConfig) loadProfilingConfig() {
 	if val := os.Getenv("PROFILE_CPU"); val != "" {
 		tc.ProfileCPU = val == trueString
 	}
@@ -237,8 +255,9 @@ func (tc *TestConfig) LoadFromEnvironment() {
 			tc.ProfileDuration = d
 		}
 	}
+}
 
-	// Reporting
+func (tc *TestConfig) loadReportingConfig() {
 	if val := os.Getenv("REPORT_VERBOSE"); val != "" {
 		tc.ReportVerbose = val == trueString
 	}
