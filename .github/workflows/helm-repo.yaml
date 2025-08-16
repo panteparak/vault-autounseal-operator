@@ -226,13 +226,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
     - name: Download documentation artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: documentation
         path: site/docs/
 
     - name: Download Helm repository artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: helm-repository
         path: site/
