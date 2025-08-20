@@ -62,7 +62,7 @@ jobs:
       changelog: ${{ steps.changelog.outputs.changelog }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -202,7 +202,7 @@ jobs:
       chart-digest: ${{ steps.package.outputs.digest }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
@@ -290,10 +290,10 @@ jobs:
       upload-url: ${{ steps.release.outputs.upload_url }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: helm-release-${{ needs.validate-release.outputs.version }}
           path: ./release-artifacts/
@@ -390,7 +390,7 @@ jobs:
 
       - name: Create GitHub release
         id: release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.validate-release.outputs.tag }}
           name: Release ${{ needs.validate-release.outputs.tag }}

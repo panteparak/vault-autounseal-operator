@@ -78,7 +78,7 @@ jobs:
       summary: ${{ steps.summary.outputs.report }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup test environment
         uses: ./.github/workflows/reusable-setup.yaml
@@ -260,7 +260,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: inputs.upload-coverage == true && inputs.coverage == true
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: ./coverage/coverage.out
           flags: ${{ inputs.test-type }}tests

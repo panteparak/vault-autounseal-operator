@@ -76,7 +76,7 @@ jobs:
       metadata: ${{ steps.meta.outputs.json }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -141,7 +141,7 @@ jobs:
 
       - name: Build and push Docker image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ${{ inputs.build-context }}
           file: ${{ inputs.dockerfile }}
