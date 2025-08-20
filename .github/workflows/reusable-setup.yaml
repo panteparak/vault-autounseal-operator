@@ -14,7 +14,6 @@ on:
       node-version:
         description: 'Node.js version to use'
         required: false
-        default: '18'
         type: string
       setup-docker:
         description: 'Setup Docker Buildx'
