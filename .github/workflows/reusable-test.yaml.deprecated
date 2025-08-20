@@ -80,12 +80,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup test environment
-        uses: ./.github/workflows/reusable-setup.yaml
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ inputs.go-version }}
-          setup-k8s: ${{ contains(inputs.test-type, 'integration') || contains(inputs.test-type, 'e2e') }}
-          cache-prefix: test-${{ inputs.test-type }}
+          cache: true
 
       - name: Create test directories
         run: |

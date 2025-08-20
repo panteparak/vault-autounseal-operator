@@ -84,43 +84,64 @@ jobs:
   # Unit tests with coverage
   unit-tests:
     name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
     needs: setup
-    uses: ./.github/workflows/reusable-test.yaml
-    with:
-      test-type: unit
-      coverage: true
-      race-detection: true
-      timeout: 10m
-      upload-coverage: true
-      go-version: ${{ needs.setup.outputs.go-version }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run unit tests
+        uses: ./.github/actions/run-tests
+        with:
+          test-type: unit
+          coverage: true
+          race-detection: true
+          timeout: 10m
+          upload-coverage: true
+          go-version: ${{ needs.setup.outputs.go-version }}
 
   # Integration tests (basic scenarios only for speed)
   integration-tests:
     name: 🔧 Integration Tests (Basic)
+    runs-on: ubuntu-latest
     needs: setup
-    uses: ./.github/workflows/reusable-test.yaml
-    with:
-      test-type: integration
-      coverage: false
-      race-detection: true
-      timeout: 15m
-      test-tags: basic
-      go-version: ${{ needs.setup.outputs.go-version }}
-      vault-version: ${{ needs.setup.outputs.vault-version }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run integration tests
+        uses: ./.github/actions/run-tests
+        with:
+          test-type: integration
+          coverage: false
+          race-detection: true
+          timeout: 15m
+          test-tags: basic
+          go-version: ${{ needs.setup.outputs.go-version }}
+          vault-version: ${{ needs.setup.outputs.vault-version }}
 
   # E2E tests (only when requested or on main)
   e2e-tests:
     name: 🌐 E2E Tests
+    runs-on: ubuntu-latest
     needs: setup
     if: github.event.inputs.run_e2e == 'true' || github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/reusable-test.yaml
-    with:
-      test-type: e2e
-      coverage: false
-      timeout: 20m
-      go-version: ${{ needs.setup.outputs.go-version }}
-      vault-version: ${{ needs.setup.outputs.vault-version }}
-      k3s-version: ${{ needs.setup.outputs.k3s-version }}
+    timeout-minutes: 25
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run E2E tests
+        uses: ./.github/actions/run-tests
+        with:
+          test-type: e2e
+          coverage: false
+          timeout: 20m
+          go-version: ${{ needs.setup.outputs.go-version }}
+          vault-version: ${{ needs.setup.outputs.vault-version }}
+          k3s-version: ${{ needs.setup.outputs.k3s-version }}
 
   # Helm chart validation
   helm-validate:
