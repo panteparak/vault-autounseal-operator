@@ -1,0 +1,469 @@
+# Weekly Deep Analysis - Comprehensive system analysis and profiling
+# Runs: Resource profiling, chaos testing, compatibility matrix, security audit
+# Estimated Duration: 45-60 minutes (weekly only)
+
+name: 🧬 Weekly Deep Analysis
+
+on:
+  # Weekly runs on Sunday at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * 0'
+  # Allow manual triggering for urgent analysis
+  workflow_dispatch:
+    inputs:
+      skip_chaos_tests:
+        description: 'Skip chaos engineering tests'
+        required: false
+        default: false
+        type: boolean
+      test_all_vault_versions:
+        description: 'Test all supported Vault versions'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  GO_VERSION: "1.24"
+
+# Only run one deep analysis at a time
+concurrency:
+  group: weekly-analysis
+  cancel-in-progress: false
+
+jobs:
+  # Extended system profiling with memory leak detection
+  resource-profiling:
+    name: 🔬 Resource Profiling
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install profiling tools
+        run: |
+          go install golang.org/x/tools/cmd/pprof@latest
+          go install github.com/google/pprof@latest
+
+      - name: Run extended tests with profiling
+        run: |
+          echo "🔬 Running extended integration tests with system monitoring..."
+          
+          # Run tests with profiling enabled
+          make test-integration-extended ENABLE_PROFILING=true
+          
+          # Run memory leak detection
+          make test-memory-leaks
+          
+          # Run load tests with profiling
+          make test-load-profile
+
+      - name: Generate resource reports
+        run: |
+          echo "📊 Generating comprehensive resource usage reports..."
+          
+          # Generate CPU profile analysis
+          if [[ -f cpu.prof ]]; then
+            go tool pprof -text cpu.prof > cpu-profile-report.txt
+            go tool pprof -svg cpu.prof > cpu-profile-chart.svg
+          fi
+          
+          # Generate memory profile analysis  
+          if [[ -f mem.prof ]]; then
+            go tool pprof -text mem.prof > memory-profile-report.txt
+            go tool pprof -svg mem.prof > memory-profile-chart.svg
+          fi
+          
+          # Generate heap analysis
+          if [[ -f heap.prof ]]; then
+            go tool pprof -text heap.prof > heap-analysis-report.txt
+          fi
+
+      - name: Upload profiling results
+        uses: actions/upload-artifact@v4
+        with:
+          name: resource-profiling-results
+          path: |
+            *.prof
+            *-profile-*.txt
+            *-profile-*.svg
+            heap-analysis-*.txt
+            resource-usage-*.log
+          retention-days: 90
+
+  # Chaos engineering and fault injection testing
+  chaos-testing:
+    name: 🌪️ Chaos Engineering
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: github.event.inputs.skip_chaos_tests != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        chaos_scenario:
+          - name: pod-failures
+            description: "Random pod failures and restarts"
+          - name: network-partitions  
+            description: "Network connectivity issues"
+          - name: resource-exhaustion
+            description: "Memory and CPU pressure"
+          - name: storage-failures
+            description: "Persistent volume issues"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Kubernetes
+        run: |
+          # Install k3d for local Kubernetes
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          k3d cluster create chaos-test --wait
+
+      - name: Deploy chaos testing tools
+        run: |
+          echo "🛠️ Setting up chaos engineering environment..."
+          
+          # Install chaos mesh or similar (simplified for example)
+          kubectl apply -f https://mirrors.chaos-mesh.org/v2.6.2/crd.yaml || true
+          
+          # Deploy test workloads
+          make deploy-chaos-test-environment
+
+      - name: Run chaos tests
+        run: |
+          echo "🌪️ Running chaos scenario: ${{ matrix.chaos_scenario.name }}"
+          
+          # Run specific chaos scenario
+          make test-chaos SCENARIO=${{ matrix.chaos_scenario.name }} \
+            DURATION=15m WORKERS=50
+
+      - name: Collect chaos test results
+        if: always()
+        run: |
+          # Collect logs and metrics
+          kubectl get pods -A > chaos-pods-state.log
+          kubectl get events -A --sort-by='.lastTimestamp' > chaos-events.log
+          
+          # Generate chaos report
+          echo "# Chaos Test Report: ${{ matrix.chaos_scenario.name }}" > chaos-report-${{ matrix.chaos_scenario.name }}.md
+          echo "" >> chaos-report-${{ matrix.chaos_scenario.name }}.md
+          echo "**Scenario**: ${{ matrix.chaos_scenario.description }}" >> chaos-report-${{ matrix.chaos_scenario.name }}.md
+          echo "**Duration**: 15 minutes" >> chaos-report-${{ matrix.chaos_scenario.name }}.md
+          echo "**Workers**: 50" >> chaos-report-${{ matrix.chaos_scenario.name }}.md
+
+      - name: Cleanup chaos environment
+        if: always()
+        run: |
+          k3d cluster delete chaos-test || true
+
+      - name: Upload chaos test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chaos-results-${{ matrix.chaos_scenario.name }}
+          path: |
+            chaos-*.log
+            chaos-report-*.md
+            chaos-metrics-*.json
+          retention-days: 60
+
+  # Comprehensive Vault version compatibility matrix
+  compatibility-matrix:
+    name: 🔄 Vault Compatibility Matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    if: github.event.inputs.test_all_vault_versions == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        vault_version: 
+          - "1.12.0"
+          - "1.13.0" 
+          - "1.14.0"
+          - "1.15.0"
+          - "1.16.0"
+          - "1.17.0"
+          - "1.18.0"
+          - "1.19.0"
+          - "1.20.0"
+        test_type:
+          - basic
+          - advanced
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run compatibility tests
+        run: |
+          echo "🔄 Testing Vault ${{ matrix.vault_version }} with ${{ matrix.test_type }} scenarios"
+          
+          export VAULT_VERSION=${{ matrix.vault_version }}
+          export TEST_TYPE=${{ matrix.test_type }}
+          
+          # Run version-specific compatibility tests
+          make test-vault-compatibility \
+            VAULT_VERSION=${{ matrix.vault_version }} \
+            TEST_TYPE=${{ matrix.test_type }}
+
+      - name: Generate compatibility report
+        if: always()
+        run: |
+          echo "# Vault ${{ matrix.vault_version }} Compatibility Report" > compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}.md
+          echo "" >> compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}.md
+          echo "**Test Type**: ${{ matrix.test_type }}" >> compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}.md
+          echo "**Date**: $(date)" >> compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}.md
+          echo "" >> compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}.md
+          
+          # Include test results if available
+          if [[ -f test-results.json ]]; then
+            echo "## Test Results" >> compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}.md
+            echo '```json' >> compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}.md
+            cat test-results.json >> compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}.md
+            echo '```' >> compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}.md
+          fi
+
+      - name: Upload compatibility results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compatibility-${{ matrix.vault_version }}-${{ matrix.test_type }}
+          path: |
+            compatibility-*.md
+            test-results.json
+            compatibility-*.log
+          retention-days: 90
+
+  # Security audit and vulnerability assessment
+  security-audit:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run comprehensive security scans
+        run: |
+          echo "🔒 Running comprehensive security audit..."
+          
+          # Install security tools
+          go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          
+          # Run multiple security scanners
+          gosec -fmt json -out gosec-report.json -stdout ./...
+          staticcheck -f json ./... > staticcheck-report.json || true
+
+      - name: Run container security scan
+        run: |
+          # Build image for scanning
+          docker build -t security-audit-image:latest .
+          
+          # Install and run trivy
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          
+          # Comprehensive image scan
+          trivy image --format json --output trivy-image-report.json security-audit-image:latest
+          
+          # Filesystem scan for dependencies
+          trivy fs --format json --output trivy-fs-report.json .
+
+      - name: Run dependency audit
+        run: |
+          echo "📦 Auditing dependencies..."
+          
+          # Go module security audit
+          go install github.com/sonatypecommunity/nancy@latest
+          go list -json -deps ./... | nancy sleuth --output-format json > nancy-report.json || true
+          
+          # Check for known vulnerabilities
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck -json ./... > govulncheck-report.json || true
+
+      - name: Generate security summary
+        run: |
+          echo "# 🔒 Weekly Security Audit Report" > security-audit-summary.md
+          echo "" >> security-audit-summary.md
+          echo "**Date**: $(date)" >> security-audit-summary.md
+          echo "**Commit**: ${{ github.sha }}" >> security-audit-summary.md
+          echo "" >> security-audit-summary.md
+          
+          echo "## 🛡️ Scan Results" >> security-audit-summary.md
+          echo "" >> security-audit-summary.md
+          echo "| Tool | Status | Issues Found |" >> security-audit-summary.md
+          echo "|------|--------|--------------|" >> security-audit-summary.md
+          
+          # Process gosec results
+          if [[ -f gosec-report.json ]]; then
+            GOSEC_ISSUES=$(jq '.Issues | length' gosec-report.json 2>/dev/null || echo "0")
+            echo "| Gosec | ✅ | $GOSEC_ISSUES |" >> security-audit-summary.md
+          fi
+          
+          # Process trivy results  
+          if [[ -f trivy-image-report.json ]]; then
+            TRIVY_ISSUES=$(jq '[.Results[]?.Vulnerabilities[]?] | length' trivy-image-report.json 2>/dev/null || echo "0")
+            echo "| Trivy (Image) | ✅ | $TRIVY_ISSUES |" >> security-audit-summary.md
+          fi
+          
+          # Process govulncheck results
+          if [[ -f govulncheck-report.json ]]; then
+            VULN_ISSUES=$(jq '[.Vulns[]?] | length' govulncheck-report.json 2>/dev/null || echo "0")
+            echo "| GovVulnCheck | ✅ | $VULN_ISSUES |" >> security-audit-summary.md
+          fi
+
+      - name: Upload security artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-audit-results
+          path: |
+            *-report.json
+            security-audit-summary.md
+            *.sarif
+          retention-days: 90
+
+  # Comprehensive analysis report generation
+  generate-analysis-report:
+    name: 📊 Generate Analysis Report
+    runs-on: ubuntu-latest
+    needs: [resource-profiling, chaos-testing, compatibility-matrix, security-audit]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate comprehensive report
+        run: |
+          echo "# 🧬 Weekly Deep Analysis Report" > weekly-analysis-report.md
+          echo "" >> weekly-analysis-report.md
+          echo "**Generated**: $(date)" >> weekly-analysis-report.md
+          echo "**Repository**: ${{ github.repository }}" >> weekly-analysis-report.md
+          echo "**Branch**: ${{ github.ref_name }}" >> weekly-analysis-report.md
+          echo "**Commit**: ${{ github.sha }}" >> weekly-analysis-report.md
+          echo "" >> weekly-analysis-report.md
+          
+          echo "## 🎯 Executive Summary" >> weekly-analysis-report.md
+          echo "" >> weekly-analysis-report.md
+          echo "| Analysis Type | Status | Key Findings |" >> weekly-analysis-report.md
+          echo "|---------------|--------|--------------|" >> weekly-analysis-report.md
+          echo "| Resource Profiling | ${{ needs.resource-profiling.result == 'success' && '✅ Completed' || '❌ Failed' }} | Performance metrics analyzed |" >> weekly-analysis-report.md
+          echo "| Chaos Testing | ${{ needs.chaos-testing.result == 'success' && '✅ Completed' || needs.chaos-testing.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | System resilience validated |" >> weekly-analysis-report.md  
+          echo "| Compatibility Matrix | ${{ needs.compatibility-matrix.result == 'success' && '✅ Completed' || '❌ Failed' }} | Multi-version testing |" >> weekly-analysis-report.md
+          echo "| Security Audit | ${{ needs.security-audit.result == 'success' && '✅ Completed' || '❌ Failed' }} | Vulnerability assessment |" >> weekly-analysis-report.md
+          echo "" >> weekly-analysis-report.md
+          
+          echo "## 📈 Detailed Findings" >> weekly-analysis-report.md
+          echo "" >> weekly-analysis-report.md
+          
+          # Include detailed sections if artifact files exist
+          if [[ -f security-audit-summary.md ]]; then
+            echo "### Security Analysis" >> weekly-analysis-report.md
+            cat security-audit-summary.md >> weekly-analysis-report.md
+            echo "" >> weekly-analysis-report.md
+          fi
+          
+          echo "## 🔄 Recommendations" >> weekly-analysis-report.md
+          echo "" >> weekly-analysis-report.md
+          echo "Based on this week's analysis:" >> weekly-analysis-report.md
+          echo "" >> weekly-analysis-report.md
+          echo "- [ ] Review any security vulnerabilities identified" >> weekly-analysis-report.md
+          echo "- [ ] Address performance bottlenecks if found" >> weekly-analysis-report.md
+          echo "- [ ] Update compatibility matrix documentation" >> weekly-analysis-report.md
+          echo "- [ ] Plan chaos engineering improvements" >> weekly-analysis-report.md
+          echo "" >> weekly-analysis-report.md
+          
+          echo "## 📋 Next Week's Focus" >> weekly-analysis-report.md
+          echo "" >> weekly-analysis-report.md
+          echo "- Continue monitoring resource usage trends" >> weekly-analysis-report.md
+          echo "- Implement any recommended security fixes" >> weekly-analysis-report.md
+          echo "- Update testing scenarios based on findings" >> weekly-analysis-report.md
+
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-analysis-report
+          path: |
+            weekly-analysis-report.md
+            */
+          retention-days: 180
+
+      - name: Create issue for follow-up (if problems found)
+        uses: actions/github-script@v7
+        if: needs.security-audit.result == 'failure' || needs.resource-profiling.result == 'failure'
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let issueBody = `# 🧬 Weekly Deep Analysis - Action Required\n\n`;
+            issueBody += `**Analysis Date**: ${new Date().toISOString()}\n`;
+            issueBody += `**Commit**: ${context.sha}\n\n`;
+            
+            if ('${{ needs.security-audit.result }}' === 'failure') {
+              issueBody += `## 🔒 Security Issues Detected\n`;
+              issueBody += `The weekly security audit has identified potential vulnerabilities that require attention.\n\n`;
+              issueBody += `**Action Required**: Review security audit results and address critical/high severity issues.\n\n`;
+            }
+            
+            if ('${{ needs.resource-profiling.result }}' === 'failure') {
+              issueBody += `## ⚡ Performance Issues Detected\n`;
+              issueBody += `Resource profiling has identified potential performance bottlenecks or memory leaks.\n\n`;  
+              issueBody += `**Action Required**: Review profiling results and optimize identified areas.\n\n`;
+            }
+            
+            issueBody += `## 📊 Full Report\n`;
+            issueBody += `Check the workflow artifacts for detailed analysis results.\n\n`;
+            issueBody += `**Workflow**: ${context.workflow}\n`;
+            issueBody += `**Run**: ${context.runNumber}\n`;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🧬 Weekly Analysis Issues - ${new Date().toISOString().split('T')[0]}`,
+              body: issueBody,
+              labels: ['analysis', 'weekly-review', 'priority-high']
+            });
+
+      - name: Update summary
+        run: |
+          echo "## 🧬 Weekly Deep Analysis Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Duration**: ~45-60 minutes" >> $GITHUB_STEP_SUMMARY
+          echo "**Analysis Coverage**: Resource profiling, chaos testing, compatibility matrix, security audit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Results Overview" >> $GITHUB_STEP_SUMMARY
+          echo "- **Resource Profiling**: ${{ needs.resource-profiling.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Chaos Testing**: ${{ needs.chaos-testing.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Compatibility**: ${{ needs.compatibility-matrix.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Security Audit**: ${{ needs.security-audit.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📁 **Artifacts**: Check workflow artifacts for detailed reports" >> $GITHUB_STEP_SUMMARY
