@@ -49,6 +49,13 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   GO_VERSION: "1.24"
 
+# Required permissions for reusable workflows
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+  pull-requests: write
+
 # Only run one extended test at a time
 concurrency:
   group: extended-testing

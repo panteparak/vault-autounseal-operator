@@ -35,6 +35,14 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   GO_VERSION: "1.24"
 
+# Required permissions for reusable workflows
+permissions:
+  actions: read
+  contents: write
+  security-events: write
+  packages: write
+  pull-requests: write
+
 # Only run one release at a time
 concurrency:
   group: release-new
