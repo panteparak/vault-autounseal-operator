@@ -56,7 +56,7 @@ jobs:
       k3s-version: ${{ steps.config.outputs.k3s-version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Load and validate configuration
         id: config
