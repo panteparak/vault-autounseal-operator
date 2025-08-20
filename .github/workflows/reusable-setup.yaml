@@ -103,38 +103,38 @@ jobs:
             go.sum
             tests/go.sum
 
-#      - name: Setup Node.js
-#        if: inputs.node-version != ''
-#        uses: actions/setup-node@v4
-#        with:
-#          node-version: ${{ inputs.node-version }}
-#          cache: 'npm'
-#          cache-dependency-path: '**/package-lock.json'
-#
-#      - name: Setup Docker Buildx
-#        if: inputs.setup-docker == true
-#        uses: docker/setup-buildx-action@v3
-#        with:
-#          driver-opts: network=host
-#
-#      - name: Setup Kubernetes tools
-#        if: inputs.setup-k8s == true
-#        run: |
-#          echo "🔧 Installing Kubernetes tools..."
-#
-#          # Install kubectl
-#          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-#          chmod +x kubectl
-#          sudo mv kubectl /usr/local/bin/
-#
-#          # Install Helm
-#          curl https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz | tar -xz
-#          sudo mv linux-amd64/helm /usr/local/bin/
-#
-#          # Install k3d
-#          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-#
-#          echo "✅ Kubernetes tools installed"
+      #      - name: Setup Node.js
+      #        if: inputs.node-version != ''
+      #        uses: actions/setup-node@v4
+      #        with:
+      #          node-version: ${{ inputs.node-version }}
+      #          cache: 'npm'
+      #          cache-dependency-path: '**/package-lock.json'
+      #
+      #      - name: Setup Docker Buildx
+      #        if: inputs.setup-docker == true
+      #        uses: docker/setup-buildx-action@v3
+      #        with:
+      #          driver-opts: network=host
+      #
+      #      - name: Setup Kubernetes tools
+      #        if: inputs.setup-k8s == true
+      #        run: |
+      #          echo "🔧 Installing Kubernetes tools..."
+      #
+      #          # Install kubectl
+      #          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      #          chmod +x kubectl
+      #          sudo mv kubectl /usr/local/bin/
+      #
+      #          # Install Helm
+      #          curl https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz | tar -xz
+      #          sudo mv linux-amd64/helm /usr/local/bin/
+      #
+      #          # Install k3d
+      #          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      #
+      #          echo "✅ Kubernetes tools installed"
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -142,7 +142,7 @@ jobs:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ inputs.cache-prefix }}-${{ steps.config.outputs.hash }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ inputs.cache-prefix }}-${{ steps.config.outputs.hash }}-${{ hashFiles('go.mod', 'go.sum', 'tests/go.mod', 'tests/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-${{ inputs.cache-prefix }}-${{ steps.config.outputs.hash }}-
             ${{ runner.os }}-go-${{ inputs.cache-prefix }}-
