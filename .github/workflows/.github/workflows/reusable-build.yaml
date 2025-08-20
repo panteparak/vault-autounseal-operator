@@ -120,14 +120,14 @@ jobs:
         id: build-args
         run: |
           echo "🔧 Preparing build arguments..."
-          
+
           # Default build args
           BUILD_ARGS="GO_VERSION=${{ inputs.go-version }}"
           BUILD_ARGS="$BUILD_ARGS,BUILD_VERSION=${{ github.sha }}"
           BUILD_ARGS="$BUILD_ARGS,BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           BUILD_ARGS="$BUILD_ARGS,VCS_REF=${{ github.sha }}"
           BUILD_ARGS="$BUILD_ARGS,VERSION=${{ github.ref_name }}"
-          
+
           # Parse additional build args from input (if provided)
           if [[ "${{ inputs.build-args }}" != "[]" ]]; then
             ADDITIONAL_ARGS=$(echo '${{ inputs.build-args }}' | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
@@ -135,7 +135,7 @@ jobs:
               BUILD_ARGS="$BUILD_ARGS,$ADDITIONAL_ARGS"
             fi
           fi
-          
+
           echo "build-args=$BUILD_ARGS" >> $GITHUB_OUTPUT
           echo "✅ Build arguments prepared: $BUILD_ARGS"
 
@@ -172,16 +172,16 @@ jobs:
         if: inputs.push == true
         run: |
           echo "🧪 Testing built image..."
-          
+
           # Extract first tag for testing
           FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
-          
+
           # Pull and test the image
           docker pull "$FIRST_TAG"
-          
+
           # Basic image inspection
           docker inspect "$FIRST_TAG" > image-inspect.json
-          
+
           # Test image can run (basic smoke test)
           if docker run --rm --entrypoint="" "$FIRST_TAG" which vault-autounseal-operator >/dev/null 2>&1; then
             echo "✅ Image smoke test passed"

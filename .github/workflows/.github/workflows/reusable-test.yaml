@@ -96,7 +96,7 @@ jobs:
         id: packages
         run: |
           echo "🔍 Determining test packages for type: ${{ inputs.test-type }}"
-          
+
           case "${{ inputs.test-type }}" in
             "unit")
               PACKAGES="./pkg/... ./cmd/..."
@@ -119,7 +119,7 @@ jobs:
               exit 1
               ;;
           esac
-          
+
           # Add custom tags if provided
           if [[ -n "${{ inputs.test-tags }}" ]]; then
             if [[ -n "$TEST_ARGS" ]]; then
@@ -128,10 +128,10 @@ jobs:
               TEST_ARGS="-tags=${{ inputs.test-tags }}"
             fi
           fi
-          
+
           echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
           echo "test-args=$TEST_ARGS" >> $GITHUB_OUTPUT
-          
+
           echo "✅ Test configuration:"
           echo "  Packages: $PACKAGES"
           echo "  Args: $TEST_ARGS"
@@ -140,23 +140,23 @@ jobs:
         if: contains(inputs.test-type, 'integration') || contains(inputs.test-type, 'e2e')
         run: |
           echo "🔧 Setting up integration test dependencies..."
-          
+
           # Load versions from config or use provided values
           if [[ -n "${{ inputs.vault-version }}" ]]; then
             VAULT_VERSION="${{ inputs.vault-version }}"
           else
             VAULT_VERSION=$(grep -A5 "vault:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 2>/dev/null || echo "1.19.0")
           fi
-          
+
           if [[ -n "${{ inputs.k3s-version }}" ]]; then
             K3S_VERSION="${{ inputs.k3s-version }}"
           else
             K3S_VERSION=$(grep -A5 "k3s:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 2>/dev/null || echo "v1.30.8-k3s1")
           fi
-          
+
           echo "VAULT_VERSION=$VAULT_VERSION" >> $GITHUB_ENV
           echo "K3S_VERSION=$K3S_VERSION" >> $GITHUB_ENV
-          
+
           echo "✅ Integration test versions:"
           echo "  Vault: $VAULT_VERSION"
           echo "  K3s: $K3S_VERSION"
@@ -165,36 +165,36 @@ jobs:
         id: run-tests
         run: |
           echo "🧪 Running ${{ inputs.test-type }} tests..."
-          
+
           # Build test command
           CMD="go test -v"
-          
+
           # Add parallel execution
           CMD="$CMD -parallel=${{ inputs.parallel }}"
-          
+
           # Add timeout
           CMD="$CMD -timeout=${{ inputs.timeout }}"
-          
+
           # Add race detection
           if [[ "${{ inputs.race-detection }}" == "true" ]]; then
             CMD="$CMD -race"
           fi
-          
+
           # Add coverage
           if [[ "${{ inputs.coverage }}" == "true" ]]; then
             CMD="$CMD -coverprofile=coverage/coverage.out -covermode=atomic"
           fi
-          
+
           # Add test args
           if [[ -n "${{ steps.packages.outputs.test-args }}" ]]; then
             CMD="$CMD ${{ steps.packages.outputs.test-args }}"
           fi
-          
+
           # Add packages
           CMD="$CMD ${{ steps.packages.outputs.packages }}"
-          
+
           echo "Executing: $CMD"
-          
+
           # Run tests with proper error handling
           if $CMD 2>&1 | tee reports/test-output.log; then
             echo "result=success" >> $GITHUB_OUTPUT
@@ -210,26 +210,26 @@ jobs:
         if: always()
         run: |
           echo "📊 Generating test summary..."
-          
+
           # Parse test results
           TOTAL_TESTS=$(grep -c "^=== RUN" reports/test-output.log 2>/dev/null || echo "0")
           PASSED_TESTS=$(grep -c "--- PASS:" reports/test-output.log 2>/dev/null || echo "0")
           FAILED_TESTS=$(grep -c "--- FAIL:" reports/test-output.log 2>/dev/null || echo "0")
           SKIPPED_TESTS=$(grep -c "--- SKIP:" reports/test-output.log 2>/dev/null || echo "0")
-          
+
           # Generate summary
           SUMMARY="## 🧪 Test Results (${{ inputs.test-type }})\n\n"
           SUMMARY="${SUMMARY}| Metric | Count |\n"
-          SUMMARY="${SUMMARY}|--------|-------|\n" 
+          SUMMARY="${SUMMARY}|--------|-------|\n"
           SUMMARY="${SUMMARY}| Total | $TOTAL_TESTS |\n"
           SUMMARY="${SUMMARY}| Passed | $PASSED_TESTS |\n"
           SUMMARY="${SUMMARY}| Failed | $FAILED_TESTS |\n"
           SUMMARY="${SUMMARY}| Skipped | $SKIPPED_TESTS |\n"
-          
+
           echo "report<<EOF" >> $GITHUB_OUTPUT
           echo -e "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
+
           # Add to step summary
           echo -e "$SUMMARY" >> $GITHUB_STEP_SUMMARY
 
@@ -239,17 +239,17 @@ jobs:
         run: |
           if [[ -f "coverage/coverage.out" ]]; then
             echo "📈 Processing coverage data..."
-            
+
             # Generate coverage report
             go tool cover -html=coverage/coverage.out -o coverage/coverage.html
             go tool cover -func=coverage/coverage.out > coverage/coverage.txt
-            
+
             # Extract coverage percentage
             COVERAGE=$(go tool cover -func=coverage/coverage.out | grep "total:" | awk '{print $3}' | sed 's/%//')
             echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
-            
+
             echo "✅ Coverage: $COVERAGE%"
-            
+
             # Add coverage to summary
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 📊 Coverage: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
@@ -271,33 +271,33 @@ jobs:
         if: always()
         run: |
           echo "📋 Generating detailed test report..."
-          
+
           cat > reports/test-report.md << 'EOF'
           # Test Report: ${{ inputs.test-type }}
-          
+
           **Date**: $(date)
           **Type**: ${{ inputs.test-type }}
           **Go Version**: ${{ inputs.go-version }}
           **Timeout**: ${{ inputs.timeout }}
           **Race Detection**: ${{ inputs.race-detection }}
           **Coverage**: ${{ inputs.coverage }}
-          
+
           ## Configuration
           - **Packages**: ${{ steps.packages.outputs.packages }}
           - **Test Args**: ${{ steps.packages.outputs.test-args }}
           - **Parallel**: ${{ inputs.parallel }}
-          
+
           ## Environment
           EOF
-          
+
           if [[ -n "$VAULT_VERSION" ]]; then
             echo "- **Vault Version**: $VAULT_VERSION" >> reports/test-report.md
           fi
-          
+
           if [[ -n "$K3S_VERSION" ]]; then
             echo "- **K3s Version**: $K3S_VERSION" >> reports/test-report.md
           fi
-          
+
           echo "" >> reports/test-report.md
           echo "## Results" >> reports/test-report.md
           echo '${{ steps.summary.outputs.report }}' >> reports/test-report.md
@@ -330,11 +330,11 @@ jobs:
         if: always() && (contains(inputs.test-type, 'integration') || contains(inputs.test-type, 'e2e'))
         run: |
           echo "🧹 Cleaning up test environment..."
-          
+
           # Clean up any remaining containers
           docker system prune -f --volumes --filter "label=org.testcontainers.sessionId" 2>/dev/null || true
-          
+
           # Clean up k3d clusters if any
           k3d cluster delete --all 2>/dev/null || true
-          
+
           echo "✅ Test environment cleaned up"
