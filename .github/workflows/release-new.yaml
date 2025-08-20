@@ -52,7 +52,7 @@ jobs:
   # Setup and version validation
   setup:
     name: 🏷️ Release Setup
-    uses: ./.github/workflows/reusable-setup.yaml
+    uses: ./.github/workflows/reusable-setup.yaml@main
     with:
       go-version: "1.24"
       setup-docker: true
@@ -165,7 +165,7 @@ jobs:
     name: 🔒 Pre-Release Security
     needs: [setup, validate-release]
     if: github.event.inputs.skip_security != 'true'
-    uses: ./.github/workflows/reusable-security.yaml
+    uses: ./.github/workflows/reusable-security.yaml@main
     with:
       scan-type: all
       severity-threshold: MEDIUM
@@ -178,7 +178,7 @@ jobs:
     name: 🏗️ Build Release Images
     needs: [setup, validate-release, security-scan]
     if: always() && needs.validate-release.result == 'success' && (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped')
-    uses: ./.github/workflows/reusable-build.yaml
+    uses: ./.github/workflows/reusable-build.yaml@main
     with:
       registry: ghcr.io
       image-name: ${{ github.repository }}
@@ -191,7 +191,7 @@ jobs:
   release-validation:
     name: ✅ Release Validation
     needs: [setup, build-release, validate-release]
-    uses: ./.github/workflows/reusable-test.yaml
+    uses: ./.github/workflows/reusable-test.yaml@main
     with:
       test-type: integration
       coverage: false

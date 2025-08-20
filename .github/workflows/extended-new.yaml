@@ -65,7 +65,7 @@ jobs:
   # Setup and configuration
   setup:
     name: 🚀 Extended Setup
-    uses: ./.github/workflows/reusable-setup.yaml
+    uses: ./.github/workflows/reusable-setup.yaml@main
     with:
       go-version: "1.24"
       setup-docker: true
@@ -76,7 +76,7 @@ jobs:
   build-test-image:
     name: 🏗️ Build Test Image
     needs: setup
-    uses: ./.github/workflows/reusable-build.yaml
+    uses: ./.github/workflows/reusable-build.yaml@main
     with:
       registry: ghcr.io
       image-name: ${{ github.repository }}
@@ -90,7 +90,7 @@ jobs:
     name: 🧪 Comprehensive Unit Tests
     needs: setup
     if: github.event.inputs.test_scenarios == 'all' || github.event.inputs.test_scenarios == '' || contains(github.event.inputs.test_scenarios, 'unit')
-    uses: ./.github/workflows/reusable-test.yaml
+    uses: ./.github/workflows/reusable-test.yaml@main
     with:
       test-type: unit
       coverage: true
@@ -125,7 +125,7 @@ jobs:
           - name: performance
             tags: "integration,performance"
             timeout: "30m"
-    uses: ./.github/workflows/reusable-test.yaml
+    uses: ./.github/workflows/reusable-test.yaml@main
     with:
       test-type: integration
       coverage: false
@@ -145,7 +145,7 @@ jobs:
       fail-fast: false
       matrix:
         vault_version: ${{ fromJson(format('["{0}"]', join(fromJson(format('["{0}"]', github.event.inputs.vault_versions || '1.17.0,1.18.0,1.19.0,1.20.0')), '","'))) }}
-    uses: ./.github/workflows/reusable-test.yaml
+    uses: ./.github/workflows/reusable-test.yaml@main
     with:
       test-type: integration
       coverage: false
@@ -160,7 +160,7 @@ jobs:
     name: 🔒 Comprehensive Security
     needs: [setup, build-test-image]
     if: github.event.inputs.test_scenarios == 'all' || github.event.inputs.test_scenarios == '' || github.event.inputs.test_scenarios == 'security-only'
-    uses: ./.github/workflows/reusable-security.yaml
+    uses: ./.github/workflows/reusable-security.yaml@main
     with:
       scan-type: all
       severity-threshold: LOW
@@ -440,7 +440,7 @@ jobs:
     name: 🌐 E2E Comprehensive
     needs: [setup, build-test-image]
     if: github.event.inputs.test_scenarios == 'all' || github.event.inputs.test_scenarios == ''
-    uses: ./.github/workflows/reusable-test.yaml
+    uses: ./.github/workflows/reusable-test.yaml@main
     with:
       test-type: e2e
       coverage: true

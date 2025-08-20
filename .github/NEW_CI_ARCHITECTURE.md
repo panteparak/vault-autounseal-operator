@@ -45,7 +45,7 @@ This document describes the new refactored CI/CD architecture built with reusabl
 
 **Usage Example**:
 ```yaml
-uses: ./.github/workflows/reusable-setup.yaml
+uses: ./.github/workflows/reusable-setup.yaml@main
 with:
   go-version: "1.24"
   setup-docker: true
@@ -70,7 +70,7 @@ with:
 
 **Usage Example**:
 ```yaml
-uses: ./.github/workflows/reusable-build.yaml
+uses: ./.github/workflows/reusable-build.yaml@main
 with:
   registry: ghcr.io
   image-name: ${{ github.repository }}
@@ -95,7 +95,7 @@ with:
 
 **Usage Example**:
 ```yaml
-uses: ./.github/workflows/reusable-test.yaml
+uses: ./.github/workflows/reusable-test.yaml@main
 with:
   test-type: integration
   coverage: true
@@ -122,7 +122,7 @@ with:
 
 **Usage Example**:
 ```yaml
-uses: ./.github/workflows/reusable-security.yaml
+uses: ./.github/workflows/reusable-security.yaml@main
 with:
   scan-type: all
   severity-threshold: MEDIUM

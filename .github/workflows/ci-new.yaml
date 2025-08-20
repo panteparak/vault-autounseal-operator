@@ -43,7 +43,7 @@ jobs:
   # Environment setup and validation
   setup:
     name: 🚀 Setup Environment
-    uses: ./.github/workflows/reusable-setup.yaml
+    uses: ./.github/workflows/reusable-setup.yaml@main
     with:
       go-version: "1.24"
       setup-docker: true
@@ -85,7 +85,7 @@ jobs:
   unit-tests:
     name: 🧪 Unit Tests
     needs: setup
-    uses: ./.github/workflows/reusable-test.yaml
+    uses: ./.github/workflows/reusable-test.yaml@main
     with:
       test-type: unit
       coverage: true
@@ -98,7 +98,7 @@ jobs:
   integration-tests:
     name: 🔧 Integration Tests (Basic)
     needs: setup
-    uses: ./.github/workflows/reusable-test.yaml
+    uses: ./.github/workflows/reusable-test.yaml@main
     with:
       test-type: integration
       coverage: false
@@ -113,7 +113,7 @@ jobs:
     name: 🌐 E2E Tests
     needs: setup
     if: github.event.inputs.run_e2e == 'true' || github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/reusable-test.yaml
+    uses: ./.github/workflows/reusable-test.yaml@main
     with:
       test-type: e2e
       coverage: false
@@ -175,7 +175,7 @@ jobs:
     name: 🏗️ Build Image
     needs: [setup, unit-tests, lint]
     if: github.event.inputs.skip_build != 'true'
-    uses: ./.github/workflows/reusable-build.yaml
+    uses: ./.github/workflows/reusable-build.yaml@main
     with:
       registry: ghcr.io
       image-name: ${{ github.repository }}
@@ -188,7 +188,7 @@ jobs:
   security-quick:
     name: 🔒 Security (Quick)
     needs: setup
-    uses: ./.github/workflows/reusable-security.yaml
+    uses: ./.github/workflows/reusable-security.yaml@main
     with:
       scan-type: code
       severity-threshold: HIGH
