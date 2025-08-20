@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/panteparak/vault-autounseal-operator/pkg/unsealing/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -11,14 +12,14 @@ import (
 // ValidationFailTestSuite provides comprehensive failure scenario testing for validation
 type ValidationFailTestSuite struct {
 	suite.Suite
-	validator *DefaultKeyValidator
+	validator *validation.DefaultKeyValidator
 	ctx       context.Context
 }
 
 // SetupSuite initializes the test suite
 func (suite *ValidationFailTestSuite) SetupSuite() {
 	suite.ctx = context.Background()
-	suite.validator = NewDefaultKeyValidator()
+	suite.validator = validation.NewDefaultKeyValidator()
 }
 
 // TestValidationFailures tests comprehensive validation failure scenarios
@@ -96,7 +97,7 @@ func (suite *ValidationFailTestSuite) TestValidationFailures() {
 
 // TestStrictValidationFailures tests strict validation failure scenarios  
 func (suite *ValidationFailTestSuite) TestStrictValidationFailures() {
-	strictValidator := NewDefaultKeyValidator()
+	strictValidator := validation.NewDefaultKeyValidator()
 
 	tests := []struct {
 		name      string

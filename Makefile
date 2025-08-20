@@ -34,19 +34,134 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+##@ Testing (Modular Test Structure)
+
+# New modular test system (tests/ directory)
+.PHONY: test-all-modules test-unit-modules test-integration-modules test-e2e-modules 
+.PHONY: test-performance-modules test-chaos-modules test-boundary-modules
+.PHONY: test-setup-modules test-clean-modules test-coverage-modules
+
+test-all-modules: ## Run all test modules
+	@cd tests && $(MAKE) test-all
+
+test-unit-modules: ## Run unit tests
+	@cd tests && $(MAKE) test-unit
+
+test-integration-modules: ## Run integration tests  
+	@cd tests && $(MAKE) test-integration
+
+test-e2e-modules: ## Run end-to-end tests
+	@cd tests && $(MAKE) test-e2e
+
+test-performance-modules: ## Run performance tests
+	@cd tests && $(MAKE) test-performance
+
+test-chaos-modules: ## Run chaos engineering tests
+	@cd tests && $(MAKE) test-chaos
+
+test-boundary-modules: ## Run boundary condition tests
+	@cd tests && $(MAKE) test-boundary
+
+test-setup-modules: ## Set up test environment
+	@cd tests && $(MAKE) test-setup
+
+test-clean-modules: ## Clean test artifacts
+	@cd tests && $(MAKE) test-clean
+
+test-coverage-modules: ## Generate test coverage report
+	@cd tests && $(MAKE) test-coverage
+
+# Legacy test targets (for backward compatibility)
 .PHONY: test
-test: fmt vet ## Run tests.
+test: fmt vet ## Run legacy tests.
 	go test ./... -coverprofile cover.out
 
-.PHONY: test-integration
-test-integration: ## Run integration tests using Testcontainers
-	@echo "🧪 Running integration tests..."
-	./scripts/run-integration-tests.sh
+# Main test targets that delegate to modular test system
+.PHONY: test-unit test-integration test-e2e test-performance test-chaos test-boundary
+.PHONY: test-integration-verbose test-all
 
-.PHONY: test-integration-verbose
+test-unit: ## Run unit tests
+	@echo "🔬 Running unit tests..."
+	@cd tests && $(MAKE) test-unit
+
+test-integration: ## Run integration tests using modular system
+	@echo "🔗 Running integration tests..."
+	@cd tests && $(MAKE) test-integration
+
+test-e2e: ## Run end-to-end tests
+	@echo "🌐 Running end-to-end tests..."
+	@cd tests && $(MAKE) test-e2e
+
+test-performance: ## Run performance tests
+	@echo "⚡ Running performance tests..."
+	@cd tests && $(MAKE) test-performance
+
+test-chaos: ## Run chaos engineering tests
+	@echo "🌪️ Running chaos tests..."
+	@cd tests && $(MAKE) test-chaos
+
+test-boundary: ## Run boundary condition tests
+	@echo "🏔️ Running boundary tests..."
+	@cd tests && $(MAKE) test-boundary
+
+test-all: ## Run all test categories
+	@echo "🧪 Running all test categories..."
+	@cd tests && $(MAKE) test-all
+
 test-integration-verbose: ## Run integration tests with verbose output
-	@echo "🧪 Running integration tests (verbose)..."
-	./scripts/run-integration-tests.sh -v
+	@echo "🔗 Running integration tests (verbose)..."
+	@cd tests && $(MAKE) test-integration VERBOSE=true
+
+# Convenient short-form targets
+.PHONY: test-unit-quick test-smoke test-quick
+test-unit-quick: ## Run unit tests without coverage
+	@echo "🔬 Running unit tests (quick)..."
+	@cd tests && go test ./unit/...
+
+test-smoke: ## Run quick smoke tests
+	@echo "💨 Running smoke tests..."
+	@cd tests && $(MAKE) test-smoke
+
+test-quick: ## Run basic validation tests only
+	@echo "⚡ Running quick validation tests..."
+	@cd tests && go test ./unit/validation/ -run TestValidationTestSuite/TestDefaultKeyValidatorBasic -v
+
+# Test with different modes
+.PHONY: test-short test-verbose test-race test-coverage
+test-short: ## Run all tests in short mode (skips long-running tests)
+	@echo "⏱️ Running tests in short mode..."
+	@cd tests && go test --short ./...
+
+test-verbose: ## Run tests with verbose output
+	@echo "📝 Running tests with verbose output..."
+	@cd tests && $(MAKE) test-unit VERBOSE=true
+
+test-race: ## Run tests with race detection
+	@echo "🏁 Running tests with race detection..."
+	@cd tests && $(MAKE) test-race
+
+test-coverage: ## Generate test coverage report
+	@echo "📊 Generating test coverage..."
+	@cd tests && $(MAKE) test-coverage
+
+# Test maintenance targets
+.PHONY: test-setup test-clean test-deps
+test-setup: ## Set up test environment
+	@echo "🔧 Setting up test environment..."
+	@cd tests && $(MAKE) test-setup
+
+test-clean: ## Clean test artifacts and cache
+	@echo "🧹 Cleaning test artifacts..."
+	@cd tests && $(MAKE) test-clean
+	@go clean -testcache
+
+test-deps: ## Download test dependencies
+	@echo "📦 Downloading test dependencies..."
+	@cd tests && $(MAKE) test-deps
+
+# Default test target now uses modular system
+.PHONY: test-default
+test-default: test-all ## Run all tests using modular system
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

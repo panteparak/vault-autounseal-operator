@@ -110,8 +110,7 @@ jobs:
     - name: Download dependencies
       run: |
         echo "📦 Installing Go dependencies for test framework..."
-        cd test/integration
-        go mod init github.com/panteparak/vault-autounseal-operator/test/integration
+        cd tests
         go mod tidy
         echo "✅ Dependencies installed"
 
@@ -139,13 +138,35 @@ jobs:
         TEST_SCENARIO: ${{ matrix.scenario }}
         VAULT_VERSION: ${{ env.VAULT_VERSION }}
       run: |
+        set -euo pipefail  # Fail fast on any error
         echo "🧪 Running Go-based integration test for scenario: $TEST_SCENARIO"
 
-        # Run integration tests using our new test suite
-        chmod +x ./scripts/run-integration-tests.sh
-        ./scripts/run-integration-tests.sh -v -t 20m -r "TestVaultIntegrationSuite"
+        # Run integration tests using our new TestContainers-based test suite
+        cd tests
+        
+        # Set test flags for fail-fast behavior
+        TEST_FLAGS="-v -timeout 20m -failfast -count=1"
+        
+        case "$TEST_SCENARIO" in
+          "basic")
+            echo "▶️ Running basic Vault API tests..."
+            go test $TEST_FLAGS -run "TestVaultAPITestSuite" ./integration/ || { echo "❌ Basic tests failed"; exit 1; }
+            ;;
+          "failover")  
+            echo "▶️ Running failover scenario tests..."
+            go test $TEST_FLAGS -run "TestFailoverTestSuite" ./integration/ || { echo "❌ Failover tests failed"; exit 1; }
+            ;;
+          "multi-vault")
+            echo "▶️ Running multi-vault coordination tests..."
+            go test $TEST_FLAGS -run "TestMultiVaultTestSuite" ./integration/ || { echo "❌ Multi-vault tests failed"; exit 1; }
+            ;;
+          *)
+            echo "▶️ Running all integration tests..."
+            go test $TEST_FLAGS ./integration/ || { echo "❌ Integration tests failed"; exit 1; }
+            ;;
+        esac
 
-        echo "✅ Integration test completed for scenario: $TEST_SCENARIO"
+        echo "✅ Integration test completed successfully for scenario: $TEST_SCENARIO"
 
     - name: Upload test reports
       if: always()
