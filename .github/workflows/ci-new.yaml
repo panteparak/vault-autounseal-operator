@@ -56,27 +56,27 @@ jobs:
     needs: setup
     timeout-minutes: 5
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup Go
+      - name: ⚙️ Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ needs.setup.outputs.go-version }}
           cache: true
 
-      - name: Run golangci-lint
+      - name: 🧹 Run golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
-          args: --timeout=5m
+          args: --timeout=5m --out-format=colored-line-number
 
-      - name: Verify go mod tidy
+      - name: 🔎 Verify go.mod and go.sum are tidy
         run: |
           go mod tidy
-          if ! git diff --quiet go.mod go.sum; then
-            echo "❌ go mod tidy made changes - please run 'go mod tidy' and commit"
-            git diff go.mod go.sum
+          if ! git diff --exit-code -- go.mod go.sum; then
+            echo "::error::❌ go.mod/go.sum are not tidy. Please run 'go mod tidy' locally and commit the changes."
+            git --no-pager diff go.mod go.sum
             exit 1
           fi
           echo "✅ go.mod and go.sum are tidy"
