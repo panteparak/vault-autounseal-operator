@@ -1,0 +1,153 @@
+name: 'Setup Environment'
+description: 'Setup Go, Docker, and Kubernetes tools for workflows'
+
+inputs:
+  go-version:
+    description: 'Go version to use'
+    required: false
+    default: '1.24'
+  node-version:
+    description: 'Node.js version to use'
+    required: false
+  setup-docker:
+    description: 'Setup Docker Buildx'
+    required: false
+    default: 'false'
+  setup-k8s:
+    description: 'Setup Kubernetes tools'
+    required: false
+    default: 'false'
+  cache-prefix:
+    description: 'Cache key prefix'
+    required: false
+    default: 'default'
+
+outputs:
+  go-version:
+    description: 'Go version that was set up'
+    value: ${{ inputs.go-version }}
+  config-hash:
+    description: 'Configuration hash for cache keys'
+    value: ${{ steps.config.outputs.hash }}
+  vault-version:
+    description: 'Vault version from config'
+    value: ${{ steps.config.outputs.vault-version }}
+  k3s-version:
+    description: 'K3s version from config'
+    value: ${{ steps.config.outputs.k3s-version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Load and validate configuration
+      id: config
+      shell: bash
+      run: |
+        echo "📋 Loading test configuration..."
+
+        # Load configuration from our config system
+        if [[ -f "tests/config/versions.yaml" ]]; then
+          # Extract versions from YAML (simplified parsing)
+          VAULT_VERSION=$(grep -A5 "vault:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 || echo "1.19.0")
+          K3S_VERSION=$(grep -A5 "k3s:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 || echo "v1.30.8-k3s1")
+        else
+          echo "⚠️ Config file not found, using defaults"
+          VAULT_VERSION="1.19.0"
+          K3S_VERSION="v1.30.8-k3s1"
+        fi
+
+        # Allow environment variable overrides
+        VAULT_VERSION=${VAULT_VERSION:-"1.19.0"}
+        K3S_VERSION=${K3S_VERSION:-"v1.30.8-k3s1"}
+
+        echo "vault-version=$VAULT_VERSION" >> $GITHUB_OUTPUT
+        echo "k3s-version=$K3S_VERSION" >> $GITHUB_OUTPUT
+
+        # Generate config hash for cache keys
+        CONFIG_HASH=$(echo "$VAULT_VERSION-$K3S_VERSION-${{ inputs.go-version }}" | sha256sum | cut -d' ' -f1 | head -c8)
+        echo "hash=$CONFIG_HASH" >> $GITHUB_OUTPUT
+
+        echo "✅ Configuration loaded:"
+        echo "  Vault: $VAULT_VERSION"
+        echo "  K3s: $K3S_VERSION"
+        echo "  Config Hash: $CONFIG_HASH"
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+        cache-dependency-path: |
+          go.sum
+          tests/go.sum
+
+    - name: Setup Node.js
+      if: inputs.node-version != ''
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+
+    - name: Setup Docker Buildx
+      if: inputs.setup-docker == 'true'
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: network=host
+
+    - name: Setup Kubernetes tools
+      if: inputs.setup-k8s == 'true'
+      shell: bash
+      run: |
+        echo "🔧 Installing Kubernetes tools..."
+
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+
+        # Install Helm
+        curl https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz | tar -xz
+        sudo mv linux-amd64/helm /usr/local/bin/
+
+        # Install k3d
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+
+        echo "✅ Kubernetes tools installed"
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ inputs.cache-prefix }}-${{ steps.config.outputs.hash }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ inputs.cache-prefix }}-${{ steps.config.outputs.hash }}-
+          ${{ runner.os }}-go-${{ inputs.cache-prefix }}-
+
+    - name: Download Go dependencies
+      shell: bash
+      run: |
+        echo "📦 Downloading Go dependencies..."
+        go mod download
+        if [[ -f "tests/go.mod" ]]; then
+          cd tests && go mod download
+        fi
+
+    - name: Verify environment
+      shell: bash
+      run: |
+        echo "🔍 Environment verification:"
+        echo "  Go version: $(go version)"
+        if command -v node >/dev/null 2>&1; then
+          echo "  Node version: $(node --version)"
+        fi
+        if command -v docker >/dev/null 2>&1; then
+          echo "  Docker version: $(docker --version)"
+        fi
+        if command -v kubectl >/dev/null 2>&1; then
+          echo "  Kubectl version: $(kubectl version --client --short 2>/dev/null)"
+        fi
+        echo "  Cache prefix: ${{ inputs.cache-prefix }}"
+        echo "  Config hash: ${{ steps.config.outputs.hash }}"

@@ -1,0 +1,265 @@
+name: 'Security Scan'
+description: 'Run security scans on code and container images'
+
+inputs:
+  scan-type:
+    description: 'Type of scan (code, container, deps, all)'
+    required: false
+    default: 'code'
+  go-version:
+    description: 'Go version to use'
+    required: false
+    default: '1.24'
+  severity-threshold:
+    description: 'Minimum severity to report'
+    required: false
+    default: 'MEDIUM'
+  fail-on-severity:
+    description: 'Severity level to fail on'
+    required: false
+    default: 'HIGH'
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Security'
+    required: false
+    default: 'false'
+  image-ref:
+    description: 'Container image reference to scan'
+    required: false
+    default: ''
+
+outputs:
+  result:
+    description: 'Scan result (pass, warning, fail)'
+    value: ${{ steps.evaluate.outputs.result }}
+  critical:
+    description: 'Number of critical vulnerabilities'
+    value: ${{ steps.stats.outputs.critical }}
+  high:
+    description: 'Number of high vulnerabilities'
+    value: ${{ steps.stats.outputs.high }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+
+    - name: Create security directories
+      shell: bash
+      run: |
+        mkdir -p security/{reports,sarif}
+        echo "📁 Security scan directories created"
+
+    - name: Run Gosec (Static Analysis)
+      if: contains(inputs.scan-type, 'code') || inputs.scan-type == 'all'
+      shell: bash
+      run: |
+        echo "🔍 Running Gosec static analysis..."
+
+        # Install gosec
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+
+        # Run gosec with SARIF output
+        gosec -fmt sarif -out security/sarif/gosec.sarif -stdout ./... || true
+
+        # Also generate JSON report for statistics
+        gosec -fmt json -out security/reports/gosec.json ./... || true
+
+        echo "✅ Gosec analysis completed"
+
+    - name: Run Staticcheck
+      if: contains(inputs.scan-type, 'code') || inputs.scan-type == 'all'
+      shell: bash
+      run: |
+        echo "🔍 Running Staticcheck analysis..."
+
+        # Install staticcheck
+        go install honnef.co/go/tools/cmd/staticcheck@latest
+
+        # Run staticcheck
+        staticcheck -f json ./... > security/reports/staticcheck.json || true
+
+        echo "✅ Staticcheck analysis completed"
+
+    - name: Run GovVulnCheck
+      if: contains(inputs.scan-type, 'deps') || inputs.scan-type == 'all'
+      shell: bash
+      run: |
+        echo "🔍 Running Go vulnerability check..."
+
+        # Install govulncheck
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+
+        # Run vulnerability check
+        govulncheck -json ./... > security/reports/govulncheck.json || true
+
+        echo "✅ Go vulnerability check completed"
+
+    - name: Run Trivy container scan
+      if: (contains(inputs.scan-type, 'container') || inputs.scan-type == 'all') && inputs.image-ref != ''
+      shell: bash
+      run: |
+        echo "🔍 Running Trivy container scan on ${{ inputs.image-ref }}"
+
+        # Install Trivy
+        sudo apt-get update && sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        sudo sh -c 'echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" > /etc/apt/sources.list.d/trivy.list'
+        sudo apt-get update && sudo apt-get install -y trivy
+
+        # Run container scan
+        trivy image --format sarif --output security/sarif/trivy-container.sarif ${{ inputs.image-ref }} || true
+        trivy image --format json --output security/reports/trivy-container.json ${{ inputs.image-ref }} || true
+
+        echo "✅ Trivy container scan completed"
+
+    - name: Run Trivy filesystem scan
+      if: contains(inputs.scan-type, 'code') || inputs.scan-type == 'all'
+      shell: bash
+      run: |
+        echo "🔍 Running Trivy filesystem scan..."
+
+        # Install Trivy if not already installed
+        if ! command -v trivy &> /dev/null; then
+          sudo apt-get update && sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          sudo sh -c 'echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" > /etc/apt/sources.list.d/trivy.list'
+          sudo apt-get update && sudo apt-get install -y trivy
+        fi
+
+        # Run filesystem scan
+        trivy fs --format sarif --output security/sarif/trivy-fs.sarif . || true
+        trivy fs --format json --output security/reports/trivy-fs.json . || true
+
+        echo "✅ Trivy filesystem scan completed"
+
+    - name: Process security scan results
+      id: stats
+      if: always()
+      shell: bash
+      run: |
+        echo "📊 Processing security scan results..."
+
+        CRITICAL_COUNT=0
+        HIGH_COUNT=0
+        MEDIUM_COUNT=0
+        LOW_COUNT=0
+        TOTAL_VULNS=0
+
+        # Process Trivy container results
+        if [[ -f "security/reports/trivy-container.json" ]]; then
+          CONTAINER_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' security/reports/trivy-container.json 2>/dev/null || echo "0")
+          CONTAINER_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' security/reports/trivy-container.json 2>/dev/null || echo "0")
+          CONTAINER_MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' security/reports/trivy-container.json 2>/dev/null || echo "0")
+          CONTAINER_LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="LOW")] | length' security/reports/trivy-container.json 2>/dev/null || echo "0")
+
+          CRITICAL_COUNT=$((CRITICAL_COUNT + CONTAINER_CRITICAL))
+          HIGH_COUNT=$((HIGH_COUNT + CONTAINER_HIGH))
+          MEDIUM_COUNT=$((MEDIUM_COUNT + CONTAINER_MEDIUM))
+          LOW_COUNT=$((LOW_COUNT + CONTAINER_LOW))
+        fi
+
+        # Process Trivy filesystem results
+        if [[ -f "security/reports/trivy-fs.json" ]]; then
+          FS_CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' security/reports/trivy-fs.json 2>/dev/null || echo "0")
+          FS_HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' security/reports/trivy-fs.json 2>/dev/null || echo "0")
+          FS_MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' security/reports/trivy-fs.json 2>/dev/null || echo "0")
+          FS_LOW=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="LOW")] | length' security/reports/trivy-fs.json 2>/dev/null || echo "0")
+
+          CRITICAL_COUNT=$((CRITICAL_COUNT + FS_CRITICAL))
+          HIGH_COUNT=$((HIGH_COUNT + FS_HIGH))
+          MEDIUM_COUNT=$((MEDIUM_COUNT + FS_MEDIUM))
+          LOW_COUNT=$((LOW_COUNT + FS_LOW))
+        fi
+
+        # Process Gosec results
+        if [[ -f "security/reports/gosec.json" ]]; then
+          GOSEC_ISSUES=$(jq '.Issues | length' security/reports/gosec.json 2>/dev/null || echo "0")
+          HIGH_COUNT=$((HIGH_COUNT + GOSEC_ISSUES))
+        fi
+
+        # Process GovVulnCheck results
+        if [[ -f "security/reports/govulncheck.json" ]]; then
+          GOVULN_ISSUES=$(jq '[.Vulns[]?] | length' security/reports/govulncheck.json 2>/dev/null || echo "0")
+          HIGH_COUNT=$((HIGH_COUNT + GOVULN_ISSUES))
+        fi
+
+        TOTAL_VULNS=$((CRITICAL_COUNT + HIGH_COUNT + MEDIUM_COUNT + LOW_COUNT))
+
+        echo "critical=$CRITICAL_COUNT" >> $GITHUB_OUTPUT
+        echo "high=$HIGH_COUNT" >> $GITHUB_OUTPUT
+        echo "medium=$MEDIUM_COUNT" >> $GITHUB_OUTPUT
+        echo "low=$LOW_COUNT" >> $GITHUB_OUTPUT
+        echo "total-vulns=$TOTAL_VULNS" >> $GITHUB_OUTPUT
+
+        echo "📊 Security scan statistics:"
+        echo "  Critical: $CRITICAL_COUNT"
+        echo "  High: $HIGH_COUNT"
+        echo "  Medium: $MEDIUM_COUNT"
+        echo "  Low: $LOW_COUNT"
+        echo "  Total: $TOTAL_VULNS"
+
+    - name: Upload SARIF results to GitHub Security
+      if: inputs.upload-sarif == 'true' && always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: security/sarif
+
+    - name: Evaluate security results
+      id: evaluate
+      if: always()
+      shell: bash
+      run: |
+        echo "🔍 Evaluating security scan results..."
+
+        CRITICAL="${{ steps.stats.outputs.critical }}"
+        HIGH="${{ steps.stats.outputs.high }}"
+        FAIL_THRESHOLD="${{ inputs.fail-on-severity }}"
+
+        RESULT="pass"
+
+        if [[ "$FAIL_THRESHOLD" == "CRITICAL" && "$CRITICAL" -gt 0 ]]; then
+          RESULT="fail"
+        elif [[ "$FAIL_THRESHOLD" == "HIGH" && ("$CRITICAL" -gt 0 || "$HIGH" -gt 0) ]]; then
+          RESULT="fail"
+        elif [[ "$CRITICAL" -gt 0 || "$HIGH" -gt 0 ]]; then
+          RESULT="warning"
+        fi
+
+        echo "result=$RESULT" >> $GITHUB_OUTPUT
+
+        echo "🛡️ Security evaluation result: $RESULT"
+
+        case "$RESULT" in
+          "fail")
+            echo "❌ Security scan FAILED - vulnerabilities exceed threshold"
+            ;;
+          "warning")
+            echo "⚠️ Security scan PASSED with warnings - review recommended"
+            ;;
+          "pass")
+            echo "✅ Security scan PASSED - no significant issues found"
+            ;;
+        esac
+
+    - name: Upload security artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-results-${{ github.run_number }}
+        path: |
+          security/
+        retention-days: 30
+
+    - name: Fail workflow if security threshold exceeded
+      if: steps.evaluate.outputs.result == 'fail'
+      shell: bash
+      run: |
+        echo "❌ Security scan failed due to vulnerabilities exceeding threshold"
+        echo "Threshold: ${{ inputs.fail-on-severity }}"
+        echo "Critical: ${{ steps.stats.outputs.critical }}"
+        echo "High: ${{ steps.stats.outputs.high }}"
+        exit 1
