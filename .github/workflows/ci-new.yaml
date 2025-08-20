@@ -25,7 +25,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  GO_VERSION: "1.25"
+  GO_VERSION: "1.24"
 
 # Prevent multiple runs on same PR
 concurrency:
@@ -38,7 +38,7 @@ jobs:
     name: 🚀 Setup Environment
     uses: ./.github/workflows/reusable-setup.yaml
     with:
-      go-version: "1.25"
+      go-version: "1.24"
       setup-docker: true
       cache-prefix: ci-primary
 
