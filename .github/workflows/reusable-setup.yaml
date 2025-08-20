@@ -9,7 +9,7 @@ on:
       go-version:
         description: 'Go version to use'
         required: false
-        default: '1.24'
+        default: '1.25'
         type: string
       node-version:
         description: 'Node.js version to use'
@@ -62,7 +62,7 @@ jobs:
         id: config
         run: |
           echo "📋 Loading test configuration..."
-          
+
           # Load configuration from our config system
           if [[ -f "tests/config/versions.yaml" ]]; then
             # Extract versions from YAML (simplified parsing)
@@ -73,18 +73,18 @@ jobs:
             VAULT_VERSION="1.19.0"
             K3S_VERSION="v1.30.8-k3s1"
           fi
-          
+
           # Allow environment variable overrides
           VAULT_VERSION=${VAULT_VERSION:-"1.19.0"}
           K3S_VERSION=${K3S_VERSION:-"v1.30.8-k3s1"}
-          
+
           echo "vault-version=$VAULT_VERSION" >> $GITHUB_OUTPUT
           echo "k3s-version=$K3S_VERSION" >> $GITHUB_OUTPUT
-          
+
           # Generate config hash for cache keys
           CONFIG_HASH=$(echo "$VAULT_VERSION-$K3S_VERSION-${{ inputs.go-version }}" | sha256sum | cut -d' ' -f1 | head -c8)
           echo "hash=$CONFIG_HASH" >> $GITHUB_OUTPUT
-          
+
           echo "✅ Configuration loaded:"
           echo "  Vault: $VAULT_VERSION"
           echo "  K3s: $K3S_VERSION"
@@ -122,19 +122,19 @@ jobs:
         if: inputs.setup-k8s == true
         run: |
           echo "🔧 Installing Kubernetes tools..."
-          
+
           # Install kubectl
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
-          
+
           # Install Helm
           curl https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz | tar -xz
           sudo mv linux-amd64/helm /usr/local/bin/
-          
+
           # Install k3d
           curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-          
+
           echo "✅ Kubernetes tools installed"
 
       - name: Cache Go modules

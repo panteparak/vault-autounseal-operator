@@ -25,7 +25,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25"
 
 # Prevent multiple runs on same PR
 concurrency:
@@ -38,7 +38,7 @@ jobs:
     name: 🚀 Setup Environment
     uses: ./.github/workflows/reusable-setup.yaml
     with:
-      go-version: "1.24"
+      go-version: "1.25"
       setup-docker: true
       cache-prefix: ci-primary
 
@@ -134,19 +134,19 @@ jobs:
       - name: Lint Helm chart
         run: |
           echo "📋 Validating Helm chart..."
-          
+
           # Update dependencies
           helm dependency update ./helm/vault-autounseal-operator
-          
+
           # Lint chart
           helm lint ./helm/vault-autounseal-operator
-          
+
           # Template chart to validate rendering
           helm template test-release ./helm/vault-autounseal-operator \
             --namespace test-namespace \
             --create-namespace \
             --dry-run > /tmp/helm-output.yaml
-          
+
           echo "✅ Helm chart validation completed"
 
       - name: Package Helm chart
@@ -225,7 +225,7 @@ jobs:
       - name: Test basic connectivity
         run: |
           echo "🧪 Testing basic Vault connectivity..."
-          
+
           # Run basic connectivity tests
           go test -v -timeout=2m ./tests/unit/vault \
             -run=TestBasicConnectivity \
@@ -239,13 +239,13 @@ jobs:
         if: needs.build.outputs.image-digest != ''
         run: |
           echo "🐳 Testing built Docker image..."
-          
+
           # Extract image reference
           IMAGE_TAG=$(echo "${{ needs.build.outputs.image-tags }}" | head -n1)
-          
+
           # Pull the built image
           docker pull "$IMAGE_TAG"
-          
+
           # Basic image smoke test
           docker run --rm --entrypoint="" "$IMAGE_TAG" /manager --version || \
           docker run --rm --entrypoint="" "$IMAGE_TAG" ls -la /manager
@@ -254,7 +254,7 @@ jobs:
   ci-status:
     name: ✅ CI Status
     runs-on: ubuntu-latest
-    needs: 
+    needs:
       - setup
       - lint
       - unit-tests
@@ -272,7 +272,7 @@ jobs:
         id: evaluate
         run: |
           echo "🔍 Evaluating CI pipeline results..."
-          
+
           # Check required jobs
           SETUP_STATUS="${{ needs.setup.result }}"
           LINT_STATUS="${{ needs.lint.result }}"
@@ -280,12 +280,12 @@ jobs:
           INTEGRATION_STATUS="${{ needs.integration-tests.result }}"
           HELM_STATUS="${{ needs.helm-validate.result }}"
           SECURITY_STATUS="${{ needs.security-quick.result }}"
-          
+
           # Optional jobs
           E2E_STATUS="${{ needs.e2e-tests.result }}"
           BUILD_STATUS="${{ needs.build.result }}"
           SMOKE_STATUS="${{ needs.smoke-tests.result }}"
-          
+
           echo "📊 Job Results:"
           echo "  Setup: $SETUP_STATUS"
           echo "  Lint: $LINT_STATUS"
@@ -296,27 +296,27 @@ jobs:
           echo "  E2E Tests: $E2E_STATUS (optional)"
           echo "  Build: $BUILD_STATUS (optional)"
           echo "  Smoke Tests: $SMOKE_STATUS (optional)"
-          
+
           # Determine overall result
           FAILED_JOBS=""
-          
+
           [[ "$SETUP_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS setup"
           [[ "$LINT_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS lint"
           [[ "$UNIT_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS unit-tests"
           [[ "$INTEGRATION_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS integration-tests"
           [[ "$HELM_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS helm-validate"
           [[ "$SECURITY_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS security"
-          
+
           # E2E failure is not blocking if it was optional
           if [[ "$E2E_STATUS" == "failure" && "${{ github.event.inputs.run_e2e }}" == "true" ]]; then
             FAILED_JOBS="$FAILED_JOBS e2e-tests"
           fi
-          
+
           # Build failure is not blocking for PRs
           if [[ "$BUILD_STATUS" == "failure" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             FAILED_JOBS="$FAILED_JOBS build"
           fi
-          
+
           if [[ -n "$FAILED_JOBS" ]]; then
             echo "result=failure" >> $GITHUB_OUTPUT
             echo "❌ CI FAILED - Failed jobs:$FAILED_JOBS"
@@ -350,7 +350,7 @@ jobs:
           echo "| E2E Tests | ${{ needs.e2e-tests.result == 'success' && '✅' || needs.e2e-tests.result == 'skipped' && '⏭️' || '❌' }} | ~15min | Optional/main only |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Tests | ${{ needs.smoke-tests.result == 'success' && '✅' || needs.smoke-tests.result == 'skipped' && '⏭️' || '❌' }} | ~3min | Image validation |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           # Add coverage info if available
           if [[ "${{ needs.unit-tests.outputs.coverage-percentage }}" != "" ]]; then
             echo "### 📊 Test Coverage" >> $GITHUB_STEP_SUMMARY
@@ -358,7 +358,7 @@ jobs:
             echo "**Unit Test Coverage**: ${{ needs.unit-tests.outputs.coverage-percentage }}%" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Add security info if available
           if [[ "${{ needs.security-quick.outputs.vulnerabilities-found }}" != "" ]]; then
             echo "### 🔒 Security Scan" >> $GITHUB_STEP_SUMMARY
@@ -368,7 +368,7 @@ jobs:
             echo "**High**: ${{ needs.security-quick.outputs.high-count }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Add performance metrics
           echo "### ⚡ Performance" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -376,7 +376,7 @@ jobs:
           echo "**Parallel Jobs**: 6-8 concurrent" >> $GITHUB_STEP_SUMMARY
           echo "**Reusable Components**: ✅ Using optimized workflows" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           echo "### 🔗 Artifacts" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Test results and coverage reports" >> $GITHUB_STEP_SUMMARY
@@ -404,56 +404,56 @@ jobs:
             const unitCoverage = '${{ needs.unit-tests.outputs.coverage-percentage }}';
             const securityResult = '${{ needs.security-quick.outputs.scan-result }}';
             const buildResult = '${{ needs.build.result }}';
-            
+
             let message = `## ✨ CI Pipeline Results (New)\n\n`;
-            
+
             if (ciResult === 'success') {
               message += `### ✅ All Checks Passed!\n\n`;
             } else {
               message += `### ❌ Some Checks Failed\n\n`;
             }
-            
+
             message += `| Component | Status | Details |\n`;
             message += `|-----------|--------|----------|\n`;
             message += `| Overall | ${ciResult === 'success' ? '✅' : '❌'} | ${ciResult} |\n`;
             message += `| Setup | ${setupResult === 'success' ? '✅' : '❌'} | Environment prepared |\n`;
-            
+
             if (unitCoverage) {
               message += `| Unit Tests | ✅ | Coverage: ${unitCoverage}% |\n`;
             }
-            
+
             if (securityResult) {
               const secIcon = securityResult === 'pass' ? '✅' : securityResult === 'warning' ? '⚠️' : '❌';
               message += `| Security | ${secIcon} | ${securityResult} |\n`;
             }
-            
+
             if (buildResult === 'success') {
               message += `| Build | ✅ | Multi-platform image built |\n`;
             } else if (buildResult === 'skipped') {
               message += `| Build | ⏭️ | Skipped |\n`;
             }
-            
+
             message += `\n### 🔗 Quick Links\n`;
             message += `- [Workflow Run](${context.payload.pull_request.html_url}/checks)\n`;
             message += `- [Test Results](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n`;
-            
+
             if (unitCoverage) {
               message += `- [Coverage Report](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n`;
             }
-            
+
             message += `\n*This comment was generated by the new optimized CI pipeline ✨*`;
-            
+
             // Find existing comment to update
             const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
-            
-            const existingComment = comments.data.find(comment => 
+
+            const existingComment = comments.data.find(comment =>
               comment.body.includes('CI Pipeline Results (New)')
             );
-            
+
             if (existingComment) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,

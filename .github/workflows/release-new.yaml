@@ -33,7 +33,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25"
 
 # Only run one release at a time
 concurrency:
@@ -46,7 +46,7 @@ jobs:
     name: 🏷️ Release Setup
     uses: ./.github/workflows/reusable-setup.yaml
     with:
-      go-version: "1.24"
+      go-version: "1.25"
       setup-docker: true
       cache-prefix: release
 
@@ -70,7 +70,7 @@ jobs:
         id: version
         run: |
           echo "🏷️ Determining release version..."
-          
+
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             VERSION="${{ github.event.inputs.version }}"
             IS_PRERELEASE="${{ github.event.inputs.prerelease }}"
@@ -83,14 +83,14 @@ jobs:
               IS_PRERELEASE="false"
             fi
           fi
-          
+
           # Validate version format
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.\-]+)?$ ]]; then
             echo "❌ Invalid version format: $VERSION"
             echo "Expected format: vX.Y.Z or vX.Y.Z-prerelease"
             exit 1
           fi
-          
+
           # Check if tag already exists
           if git tag -l | grep -q "^${VERSION}$"; then
             echo "⚠️ Tag $VERSION already exists"
@@ -99,11 +99,11 @@ jobs:
               exit 1
             fi
           fi
-          
+
           echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
           echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
-          
+
           echo "✅ Release validation:"
           echo "  Version: $VERSION"
           echo "  Prerelease: $IS_PRERELEASE"
@@ -113,27 +113,27 @@ jobs:
         id: changelog
         run: |
           echo "📋 Generating changelog..."
-          
+
           # Get the previous tag
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-          
+
           if [[ -n "$PREVIOUS_TAG" ]]; then
             echo "## 🔄 Changes since $PREVIOUS_TAG" > changelog.md
             echo "" >> changelog.md
-            
+
             # Categorize commits
             echo "### ✨ New Features" >> changelog.md
             git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD --grep="^feat" >> changelog.md || true
             echo "" >> changelog.md
-            
+
             echo "### 🐛 Bug Fixes" >> changelog.md
             git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD --grep="^fix" >> changelog.md || true
             echo "" >> changelog.md
-            
+
             echo "### 📚 Documentation" >> changelog.md
             git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD --grep="^docs" >> changelog.md || true
             echo "" >> changelog.md
-            
+
             echo "### 🔧 Other Changes" >> changelog.md
             git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD \
               --grep="^feat" --grep="^fix" --grep="^docs" --invert-grep >> changelog.md || true
@@ -144,12 +144,12 @@ jobs:
             echo "- Kubernetes operator for automatic Vault unsealing" >> changelog.md
             echo "- Multi-vault support with configurable strategies" >> changelog.md
           fi
-          
+
           # Output for GitHub Actions
           echo 'changelog<<EOF' >> $GITHUB_OUTPUT
           cat changelog.md >> $GITHUB_OUTPUT
           echo 'EOF' >> $GITHUB_OUTPUT
-          
+
           echo "✅ Changelog generated"
 
   # Pre-release security scan
@@ -213,55 +213,55 @@ jobs:
         run: |
           VERSION="${{ needs.validate-release.outputs.version }}"
           echo "📦 Updating Helm chart to version $VERSION..."
-          
+
           # Update Chart.yaml
           sed -i "s/^version: .*/version: $VERSION/" ./helm/vault-autounseal-operator/Chart.yaml
           sed -i "s/^appVersion: .*/appVersion: \"$VERSION\"/" ./helm/vault-autounseal-operator/Chart.yaml
-          
+
           # Update values.yaml with release image
           IMAGE_TAG=$(echo "${{ needs.build-release.outputs.image-tags }}" | head -n1)
           REPOSITORY=$(echo "$IMAGE_TAG" | cut -d':' -f1)
           TAG=$(echo "$IMAGE_TAG" | cut -d':' -f2)
-          
+
           sed -i "s|repository: .*|repository: $REPOSITORY|" ./helm/vault-autounseal-operator/values.yaml
           sed -i "s/tag: .*/tag: \"$TAG\"/" ./helm/vault-autounseal-operator/values.yaml
-          
+
           echo "✅ Chart metadata updated"
 
       - name: Package Helm chart
         id: package
         run: |
           echo "📦 Packaging Helm chart..."
-          
+
           # Update dependencies
           helm dependency update ./helm/vault-autounseal-operator
-          
+
           # Package chart
           helm package ./helm/vault-autounseal-operator \
             --destination=./charts/ \
             --version=${{ needs.validate-release.outputs.version }}
-          
+
           # Generate chart digest
           CHART_FILE="charts/vault-autounseal-operator-${{ needs.validate-release.outputs.version }}.tgz"
           CHART_DIGEST=$(sha256sum "$CHART_FILE" | cut -d' ' -f1)
-          
+
           echo "version=${{ needs.validate-release.outputs.version }}" >> $GITHUB_OUTPUT
           echo "digest=$CHART_DIGEST" >> $GITHUB_OUTPUT
-          
+
           echo "✅ Chart packaged: $CHART_FILE"
           echo "✅ Chart digest: $CHART_DIGEST"
 
       - name: Validate packaged chart
         run: |
           echo "🔍 Validating packaged chart..."
-          
+
           CHART_FILE="charts/vault-autounseal-operator-${{ needs.validate-release.outputs.version }}.tgz"
-          
+
           # Test chart installation
           helm template test-release "$CHART_FILE" \
             --namespace vault-operator-system \
             --create-namespace > /tmp/chart-test.yaml
-          
+
           # Basic validation of generated manifests
           if grep -q "kind: Deployment" /tmp/chart-test.yaml && \
              grep -q "kind: ServiceAccount" /tmp/chart-test.yaml && \
@@ -302,62 +302,62 @@ jobs:
         run: |
           cat > release-notes.md << 'EOF'
           # 🚀 Release ${{ needs.validate-release.outputs.tag }}
-          
+
           ## 📋 What's New
-          
+
           ${{ needs.validate-release.outputs.changelog }}
-          
+
           ## 📦 Installation Methods
-          
+
           ### Helm Chart (Recommended)
           ```bash
           # Add the repository
           helm repo add vault-autounseal-operator https://panteparak.github.io/vault-autounseal-operator
           helm repo update
-          
+
           # Install the operator
           helm install vault-operator vault-autounseal-operator/vault-autounseal-operator \
             --version ${{ needs.validate-release.outputs.version }} \
             --namespace vault-operator-system \
             --create-namespace
           ```
-          
+
           ### Docker Image
           ```bash
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate-release.outputs.version }}
           ```
-          
+
           ### Kubernetes Manifest (Direct)
           ```bash
           kubectl apply -f https://github.com/${{ github.repository }}/releases/download/${{ needs.validate-release.outputs.tag }}/install.yaml
           ```
-          
+
           ## 🔍 Verification
-          
+
           **Image Details:**
           - **Registry**: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}`
           - **Version**: `${{ needs.validate-release.outputs.version }}`
           - **Digest**: `${{ needs.build-release.outputs.image-digest }}`
           - **Platforms**: ${{ github.event.inputs.build_platforms || 'linux/amd64, linux/arm64' }}
-          
+
           **Helm Chart:**
           - **Version**: `${{ needs.helm-release.outputs.chart-version }}`
           - **Digest**: `${{ needs.helm-release.outputs.chart-digest }}`
-          
+
           ## 📋 Compatibility Matrix
-          
+
           | Component | Version | Status |
           |-----------|---------|--------|
           | Kubernetes | 1.28+ | ✅ Supported |
           | Helm | 3.8+ | ✅ Supported |
           | Vault | 1.12.0+ | ✅ Tested |
           | Go | ${{ env.GO_VERSION }} | ✅ Built with |
-          
+
           ## 🔐 Security
-          
+
           This release has been scanned for vulnerabilities:
           EOF
-          
+
           if [[ "${{ needs.security-scan.result }}" == "success" ]]; then
             echo "- ✅ **Security Scan**: Passed" >> release-notes.md
             echo "- **Vulnerabilities**: ${{ needs.security-scan.outputs.vulnerabilities-found || '0' }} found" >> release-notes.md
@@ -366,11 +366,11 @@ jobs:
           else
             echo "- ⚠️ **Security Scan**: Skipped" >> release-notes.md
           fi
-          
+
           cat >> release-notes.md << 'EOF'
-          
+
           ## 🔄 Upgrade Instructions
-          
+
           ### From Previous Versions
           ```bash
           # Helm upgrade
@@ -378,10 +378,10 @@ jobs:
             --version ${{ needs.validate-release.outputs.version }} \
             --namespace vault-operator-system
           ```
-          
+
           ### Breaking Changes
           EOF
-          
+
           if [[ "${{ needs.validate-release.outputs.is_prerelease }}" == "true" ]]; then
             echo "⚠️ **This is a pre-release version** - Use with caution in production." >> release-notes.md
           else
@@ -413,23 +413,23 @@ jobs:
       - name: Verify release artifacts
         run: |
           echo "🔍 Verifying release artifacts..."
-          
+
           # Verify Docker image exists and works
           IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate-release.outputs.version }}"
-          
+
           echo "Pulling image: $IMAGE_TAG"
           docker pull "$IMAGE_TAG"
-          
+
           # Basic image verification
           docker inspect "$IMAGE_TAG" > image-info.json
-          
+
           # Test image can run
           if docker run --rm --entrypoint="" "$IMAGE_TAG" /manager --version 2>/dev/null; then
             echo "✅ Image verification passed"
           else
             echo "⚠️ Image runs but version check failed (may be expected)"
           fi
-          
+
           # Verify image platforms
           docker manifest inspect "$IMAGE_TAG" | jq '.manifests[].platform' || true
 
@@ -464,7 +464,7 @@ jobs:
           echo "- **Release URL**: ${{ needs.github-release.outputs.release-url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔄 Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "- [ ] Announce release to stakeholders" >> $GITHUB_STEP_SUMMARY  
+          echo "- [ ] Announce release to stakeholders" >> $GITHUB_STEP_SUMMARY
           echo "- [ ] Update deployment environments" >> $GITHUB_STEP_SUMMARY
           echo "- [ ] Monitor deployment metrics" >> $GITHUB_STEP_SUMMARY
           echo "- [ ] Update documentation if needed" >> $GITHUB_STEP_SUMMARY

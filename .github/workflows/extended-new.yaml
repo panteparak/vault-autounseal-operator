@@ -18,7 +18,7 @@ on:
         type: choice
         options:
           - all
-          - integration-only  
+          - integration-only
           - security-only
           - performance-only
       vault_versions:
@@ -47,7 +47,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25"
 
 # Only run one extended test at a time
 concurrency:
@@ -60,7 +60,7 @@ jobs:
     name: 🚀 Extended Setup
     uses: ./.github/workflows/reusable-setup.yaml
     with:
-      go-version: "1.24"
+      go-version: "1.25"
       setup-docker: true
       setup-k8s: true
       cache-prefix: extended
@@ -187,21 +187,21 @@ jobs:
       - name: Run performance benchmarks
         run: |
           echo "⚡ Running performance benchmarks..."
-          
+
           # Run benchmarks with profiling
           go test -bench=. -benchmem -cpuprofile=cpu.prof -memprofile=mem.prof \
             -benchtime=10s ./pkg/... > benchmark-results.txt
-          
+
           # Run load tests
           make test-load || echo "Load tests not available"
-          
+
           # Run stress tests
           make test-stress || echo "Stress tests not available"
 
       - name: Analyze performance results
         run: |
           echo "📊 Analyzing performance results..."
-          
+
           # Generate performance report
           echo "# Performance Benchmark Results" > performance-report.md
           echo "" >> performance-report.md
@@ -213,7 +213,7 @@ jobs:
           echo '```' >> performance-report.md
           cat benchmark-results.txt >> performance-report.md
           echo '```' >> performance-report.md
-          
+
           # Profile analysis
           if [[ -f cpu.prof ]]; then
             echo "" >> performance-report.md
@@ -222,7 +222,7 @@ jobs:
             go tool pprof -top -cum cpu.prof | head -20 >> performance-report.md
             echo '```' >> performance-report.md
           fi
-          
+
           if [[ -f mem.prof ]]; then
             echo "" >> performance-report.md
             echo "## Memory Profile (Top 10)" >> performance-report.md
@@ -258,7 +258,7 @@ jobs:
             duration: "10m"
             intensity: "medium"
           - name: network-partitions
-            duration: "8m" 
+            duration: "8m"
             intensity: "high"
           - name: resource-exhaustion
             duration: "12m"
@@ -270,10 +270,10 @@ jobs:
       - name: Setup Kubernetes environment
         run: |
           echo "🔧 Setting up Kubernetes for chaos testing..."
-          
+
           # Install k3d
           curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-          
+
           # Create test cluster
           k3d cluster create chaos-${{ matrix.chaos_scenario.name }} \
             --k3s-arg "--disable=traefik@server:*" \
@@ -282,18 +282,18 @@ jobs:
       - name: Deploy test environment
         run: |
           echo "🚀 Deploying test environment..."
-          
+
           # Deploy operator using built image
           IMAGE_REF="${{ needs.build-test-image.outputs.image-tags }}"
-          
+
           # Create test namespace
           kubectl create namespace vault-operator-system
-          
+
           # Deploy operator (simplified for chaos testing)
           kubectl create deployment vault-operator \
             --image="$IMAGE_REF" \
             --namespace=vault-operator-system
-          
+
           # Deploy Vault instances for testing
           kubectl apply -f - <<EOF
           apiVersion: apps/v1
@@ -332,7 +332,7 @@ jobs:
       - name: Run chaos scenario
         run: |
           echo "🌪️ Running chaos scenario: ${{ matrix.chaos_scenario.name }}"
-          
+
           case "${{ matrix.chaos_scenario.name }}" in
             "pod-failures")
               echo "Simulating random pod failures..."
@@ -396,12 +396,12 @@ jobs:
         if: always()
         run: |
           echo "📊 Collecting chaos test results..."
-          
+
           # Get cluster state
           kubectl get pods -A > chaos-pods-${{ matrix.chaos_scenario.name }}.log
           kubectl get events -A --sort-by='.lastTimestamp' > chaos-events-${{ matrix.chaos_scenario.name }}.log
           kubectl top pods -A > chaos-resources-${{ matrix.chaos_scenario.name }}.log || true
-          
+
           # Generate chaos report
           echo "# Chaos Test Report: ${{ matrix.chaos_scenario.name }}" > chaos-report-${{ matrix.chaos_scenario.name }}.md
           echo "" >> chaos-report-${{ matrix.chaos_scenario.name }}.md
@@ -447,7 +447,7 @@ jobs:
   extended-summary:
     name: 📊 Extended Test Summary
     runs-on: ubuntu-latest
-    needs: 
+    needs:
       - setup
       - build-test-image
       - comprehensive-unit-tests
@@ -473,7 +473,7 @@ jobs:
           echo "**Go Version**: ${{ needs.setup.outputs.go-version }}" >> extended-test-report.md
           echo "**Vault Version**: ${{ needs.setup.outputs.vault-version }}" >> extended-test-report.md
           echo "" >> extended-test-report.md
-          
+
           echo "## 🎯 Executive Summary" >> extended-test-report.md
           echo "" >> extended-test-report.md
           echo "| Test Category | Status | Coverage |" >> extended-test-report.md
@@ -488,7 +488,7 @@ jobs:
           echo "| Chaos Engineering | ${{ needs.chaos-tests.result == 'success' && '✅' || needs.chaos-tests.result == 'skipped' && '⏭️' || '❌' }} | Resilience validation |" >> extended-test-report.md
           echo "| E2E Tests | ${{ needs.e2e-comprehensive.result == 'success' && '✅' || needs.e2e-comprehensive.result == 'skipped' && '⏭️' || '❌' }} | End-to-end scenarios |" >> extended-test-report.md
           echo "" >> extended-test-report.md
-          
+
           # Quality assessment
           FAILED_TESTS=""
           [[ "${{ needs.setup.result }}" == "failure" ]] && FAILED_TESTS="$FAILED_TESTS setup"
@@ -498,10 +498,10 @@ jobs:
           [[ "${{ needs.comprehensive-security.result }}" == "failure" ]] && FAILED_TESTS="$FAILED_TESTS security"
           [[ "${{ needs.performance-tests.result }}" == "failure" ]] && FAILED_TESTS="$FAILED_TESTS performance"
           [[ "${{ needs.e2e-comprehensive.result }}" == "failure" ]] && FAILED_TESTS="$FAILED_TESTS e2e"
-          
+
           echo "## 🏆 Quality Assessment" >> extended-test-report.md
           echo "" >> extended-test-report.md
-          
+
           if [[ -n "$FAILED_TESTS" ]]; then
             echo "❌ **QUALITY GATE: FAILED**" >> extended-test-report.md
             echo "" >> extended-test-report.md
@@ -519,7 +519,7 @@ jobs:
             echo "System is ready for production deployment." >> extended-test-report.md
             echo "QUALITY_GATE=PASSED" >> $GITHUB_ENV
           fi
-          
+
           echo "" >> extended-test-report.md
           echo "## 📈 Metrics Summary" >> extended-test-report.md
           echo "" >> extended-test-report.md
@@ -535,7 +535,7 @@ jobs:
           script: |
             const fs = require('fs');
             const report = fs.readFileSync('extended-test-report.md', 'utf8');
-            
+
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
