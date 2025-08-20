@@ -1,8 +1,13 @@
+# golangci-lint configuration
+# See https://golangci-lint.run/usage/configuration/
+
 run:
   timeout: 5m
   tests: true
+  modules-download-mode: readonly
 
 linters:
+  disable-all: true
   enable:
     - gofmt
     - goimports
@@ -10,6 +15,10 @@ linters:
     - ineffassign
     - misspell
     - revive
+    - errcheck
+    - gosimple
+    - staticcheck
+    - unused
 
 linters-settings:
   govet:

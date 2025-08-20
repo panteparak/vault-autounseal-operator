@@ -99,7 +99,7 @@ jobs:
 
           case "${{ inputs.test-type }}" in
             "unit")
-              PACKAGES="./pkg/... ./cmd/..."
+              PACKAGES="./pkg/... ./tests/unit/..."
               TEST_ARGS="-tags=unit"
               ;;
             "integration")
