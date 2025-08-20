@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build stage with optimized caching
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install build dependencies once and cache them
 RUN apk add --no-cache ca-certificates git tzdata && \
@@ -71,7 +71,7 @@ EXPOSE 8080 8081 9443
 ENTRYPOINT ["/manager"]
 
 # Development stage for debugging
-FROM golang:1.24-alpine AS development
+FROM golang:1.25-alpine AS development
 
 RUN apk add --no-cache ca-certificates git tzdata curl vim
 
