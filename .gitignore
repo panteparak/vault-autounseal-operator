@@ -16,6 +16,26 @@ dist/
 *.out
 coverage.out
 cover.out
+coverage.html
+coverage.xml
+coverage.txt
+c.out
+
+# Test artifacts
+*.test
+test.out
+*_test.out
+junit.xml
+test-results.xml
+
+# TestContainers artifacts
+.testcontainers/
+testcontainers-*.log
+
+# Benchmarking results
+*.bench
+benchmark.txt
+bench.out
 
 # Go workspace file
 go.work
@@ -69,3 +89,14 @@ config/
 # Local testing
 vendor/
 .testcache/
+
+# Go module cache and temp files
+go.sum.tmp
+go.mod.tmp
+
+# Race detector output
+race.out
+
+# Development artifacts
+debug
+debug.test
