@@ -1,0 +1,201 @@
+name: 'Run Unit Tests'
+description: 'Run Go unit tests with coverage and race detection'
+
+inputs:
+  go-version:
+    description: 'Go version to use'
+    required: false
+    default: '1.24'
+  coverage:
+    description: 'Enable coverage reporting'
+    required: false
+    default: 'true'
+  race-detection:
+    description: 'Enable race detection'
+    required: false
+    default: 'true'
+  timeout:
+    description: 'Test timeout'
+    required: false
+    default: '10m'
+  parallel:
+    description: 'Number of parallel test processes'
+    required: false
+    default: '4'
+  test-tags:
+    description: 'Additional build tags for tests'
+    required: false
+    default: ''
+  upload-coverage:
+    description: 'Upload coverage to Codecov'
+    required: false
+    default: 'false'
+
+outputs:
+  result:
+    description: 'Test result (success/failure)'
+    value: ${{ steps.test-result.outputs.result }}
+  coverage:
+    description: 'Coverage percentage'
+    value: ${{ steps.coverage.outputs.percentage }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+
+    - name: Create test directories
+      shell: bash
+      run: |
+        mkdir -p coverage reports artifacts
+        echo "📁 Test directories created"
+
+    - name: Determine test packages and tags
+      id: config
+      shell: bash
+      run: |
+        echo "🔍 Configuring unit tests..."
+        
+        PACKAGES="./pkg/... ./tests/unit/..."
+        BASE_TAGS="unit"
+        
+        # Add custom tags if provided
+        if [[ -n "${{ inputs.test-tags }}" ]]; then
+          TAGS="$BASE_TAGS,${{ inputs.test-tags }}"
+        else
+          TAGS="$BASE_TAGS"
+        fi
+        
+        echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+        echo "tags=$TAGS" >> $GITHUB_OUTPUT
+        
+        echo "✅ Unit test configuration:"
+        echo "  Packages: $PACKAGES"
+        echo "  Tags: $TAGS"
+
+    - name: Run unit tests
+      id: run-tests
+      shell: bash
+      run: |
+        echo "🧪 Running unit tests..."
+        
+        # Build test command
+        CMD="go test -v"
+        CMD="$CMD -parallel=${{ inputs.parallel }}"
+        CMD="$CMD -timeout=${{ inputs.timeout }}"
+        
+        # Add race detection
+        if [[ "${{ inputs.race-detection }}" == "true" ]]; then
+          CMD="$CMD -race"
+        fi
+        
+        # Add coverage
+        if [[ "${{ inputs.coverage }}" == "true" ]]; then
+          CMD="$CMD -coverprofile=coverage/coverage.out -covermode=atomic"
+        fi
+        
+        # Add tags and packages
+        CMD="$CMD -tags=${{ steps.config.outputs.tags }} ${{ steps.config.outputs.packages }}"
+        
+        echo "Executing: $CMD"
+        
+        # Run tests with proper error handling
+        if $CMD 2>&1 | tee "reports/unit-test-output.log"; then
+          echo "result=success" >> $GITHUB_OUTPUT
+          echo "✅ Unit tests completed successfully"
+        else
+          echo "result=failure" >> $GITHUB_OUTPUT
+          echo "❌ Unit tests failed"
+          exit 1
+        fi
+
+    - name: Generate test summary
+      id: summary
+      if: always()
+      shell: bash
+      run: |
+        echo "📊 Generating unit test summary..."
+        
+        # Parse test results
+        TOTAL_TESTS=$(grep -c "^=== RUN" reports/unit-test-output.log 2>/dev/null || echo "0")
+        PASSED_TESTS=$(grep -c "--- PASS:" reports/unit-test-output.log 2>/dev/null || echo "0")
+        FAILED_TESTS=$(grep -c "--- FAIL:" reports/unit-test-output.log 2>/dev/null || echo "0")
+        SKIPPED_TESTS=$(grep -c "--- SKIP:" reports/unit-test-output.log 2>/dev/null || echo "0")
+        
+        # Generate summary
+        SUMMARY="## 🧪 Unit Test Results\\n\\n"
+        SUMMARY="${SUMMARY}| Metric | Count |\\n"
+        SUMMARY="${SUMMARY}|--------|-------|\\n"
+        SUMMARY="${SUMMARY}| Total | $TOTAL_TESTS |\\n"
+        SUMMARY="${SUMMARY}| Passed | $PASSED_TESTS |\\n"
+        SUMMARY="${SUMMARY}| Failed | $FAILED_TESTS |\\n"
+        SUMMARY="${SUMMARY}| Skipped | $SKIPPED_TESTS |\\n"
+        
+        echo "report<<EOF" >> $GITHUB_OUTPUT
+        echo -e "$SUMMARY" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Add to step summary
+        echo -e "$SUMMARY" >> $GITHUB_STEP_SUMMARY
+
+    - name: Process coverage
+      id: coverage
+      if: inputs.coverage == 'true' && always()
+      shell: bash
+      run: |
+        if [[ -f "coverage/coverage.out" ]]; then
+          echo "📈 Processing coverage data..."
+          
+          # Generate coverage report
+          go tool cover -html=coverage/coverage.out -o coverage/coverage.html
+          go tool cover -func=coverage/coverage.out > coverage/coverage.txt
+          
+          # Extract coverage percentage
+          COVERAGE=$(go tool cover -func=coverage/coverage.out | grep "total:" | awk '{print $3}' | sed 's/%//')
+          echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+          
+          echo "✅ Coverage: $COVERAGE%"
+          
+          # Add coverage to summary
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Coverage: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ No coverage data found"
+          echo "percentage=0" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload coverage to Codecov
+      if: inputs.upload-coverage == 'true' && inputs.coverage == 'true'
+      uses: codecov/codecov-action@v4
+      with:
+        file: coverage/coverage.out
+        flags: unittests
+        name: unit-test-coverage
+        fail_ci_if_error: false
+
+    - name: Upload test artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-results-${{ github.run_number }}
+        path: |
+          coverage/
+          reports/
+          artifacts/
+          *.log
+        retention-days: 14
+
+    - name: Set test result
+      id: test-result
+      if: always()
+      shell: bash
+      run: |
+        if [[ "${{ steps.run-tests.outputs.result }}" == "success" ]]; then
+          echo "result=success" >> $GITHUB_OUTPUT
+        else
+          echo "result=failure" >> $GITHUB_OUTPUT
+        fi

@@ -46,21 +46,29 @@ This folder contains the new optimized CI/CD system built with reusable componen
 **Triggers**: Dependabot PRs  
 **Status**: Unchanged from original system
 
-## 🔧 Reusable Components (4 total)
+## 🔧 Composite Actions (7 total)
 
-### 1. 🔧 **reusable-setup.yaml**
+### 1. 🔧 **setup**
 **Purpose**: Common environment setup  
 **Features**: Go/Node/Docker/K8s setup, caching, configuration loading
 
-### 2. 🏗️ **reusable-build.yaml**  
+### 2. 🏗️ **build-image**  
 **Purpose**: Multi-platform Docker builds  
 **Features**: amd64/arm64 builds, registry management, validation
 
-### 3. 🧪 **reusable-test.yaml**
-**Purpose**: Comprehensive testing framework  
-**Features**: Unit/integration/e2e tests, coverage, race detection
+### 3. 🧪 **run-unit-tests**
+**Purpose**: Unit testing with coverage  
+**Features**: Go unit tests, race detection, coverage reporting, Codecov upload
 
-### 4. 🔒 **reusable-security.yaml**
+### 4. 🔧 **run-integration-tests**
+**Purpose**: Integration testing with TestContainers  
+**Features**: Integration tests, Vault/K8s versions, proper working directory handling
+
+### 5. 🌐 **run-e2e-tests**
+**Purpose**: End-to-end testing with real K8s  
+**Features**: E2E tests, k3d cluster setup, comprehensive infrastructure testing
+
+### 6. 🔒 **security-scan**
 **Purpose**: Security scanning suite  
 **Features**: Code/container/dependency scans, SARIF reports
 

@@ -1,5 +1,5 @@
-# New Extended Testing Pipeline - Comprehensive testing using reusable components
-# Uses: All reusable workflows for full coverage testing
+# New Extended Testing Pipeline - Comprehensive testing using composite actions
+# Uses: All composite actions for full coverage testing
 # Estimated Duration: 25-35 minutes
 
 name: 🧪 Extended Testing (New)
@@ -65,41 +65,71 @@ jobs:
   # Setup and configuration
   setup:
     name: 🚀 Extended Setup
-    uses: ./.github/workflows/reusable-setup.yaml
-    with:
-      go-version: "1.24"
-      setup-docker: true
-      setup-k8s: true
-      cache-prefix: extended
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      go-version: ${{ steps.setup-env.outputs.go-version }}
+      config-hash: ${{ steps.setup-env.outputs.config-hash }}
+      vault-version: ${{ steps.setup-env.outputs.vault-version }}
+      k3s-version: ${{ steps.setup-env.outputs.k3s-version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup environment
+        id: setup-env
+        uses: ./.github/actions/setup
+        with:
+          go-version: "1.24"
+          setup-docker: true
+          setup-k8s: true
+          cache-prefix: extended
 
   # Build image for testing (always needed for extended tests)
   build-test-image:
     name: 🏗️ Build Test Image
+    runs-on: ubuntu-latest
     needs: setup
-    uses: ./.github/workflows/reusable-build.yaml
-    with:
-      registry: ghcr.io
-      image-name: ${{ github.repository }}
-      platforms: linux/amd64  # Single platform for testing speed
-      push: true
-      go-version: ${{ needs.setup.outputs.go-version }}
-      build-args: '["BUILD_TYPE=testing", "ENABLE_DEBUG=true"]'
+    timeout-minutes: 20
+    outputs:
+      image-tags: ${{ steps.build.outputs.image-tags }}
+      image-digest: ${{ steps.build.outputs.image-digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Build Docker image
+        id: build
+        uses: ./.github/actions/build-image
+        with:
+          registry: ghcr.io
+          image-name: ${{ github.repository }}
+          platforms: linux/amd64  # Single platform for testing speed
+          push: true
+          go-version: ${{ needs.setup.outputs.go-version }}
+          build-args: '["BUILD_TYPE=testing", "ENABLE_DEBUG=true"]'
 
   # Comprehensive unit tests with all tags
   comprehensive-unit-tests:
     name: 🧪 Comprehensive Unit Tests
+    runs-on: ubuntu-latest
     needs: setup
     if: github.event.inputs.test_scenarios == 'all' || github.event.inputs.test_scenarios == '' || contains(github.event.inputs.test_scenarios, 'unit')
-    uses: ./.github/workflows/reusable-test.yaml
-    with:
-      test-type: unit
-      coverage: true
-      race-detection: true
-      timeout: 15m
-      test-tags: "unit,mock,validation,boundary"
-      parallel: ${{ github.event.inputs.parallel_factor || '2' }}
-      upload-coverage: true
-      go-version: ${{ needs.setup.outputs.go-version }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run comprehensive unit tests
+        uses: ./.github/actions/run-unit-tests
+        with:
+          coverage: true
+          race-detection: true
+          timeout: 15m
+          test-tags: "mock,validation,boundary"
+          parallel: ${{ github.event.inputs.parallel_factor || '2' }}
+          upload-coverage: true
+          go-version: ${{ needs.setup.outputs.go-version }}
 
   # Full integration test matrix
   integration-test-matrix:
@@ -125,16 +155,22 @@ jobs:
           - name: performance
             tags: "integration,performance"
             timeout: "30m"
-    uses: ./.github/workflows/reusable-test.yaml
-    with:
-      test-type: integration
-      coverage: false
-      race-detection: true
-      timeout: ${{ matrix.scenario.timeout }}
-      test-tags: ${{ matrix.scenario.tags }}
-      go-version: ${{ needs.setup.outputs.go-version }}
-      vault-version: ${{ needs.setup.outputs.vault-version }}
-      k3s-version: ${{ needs.setup.outputs.k3s-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run integration tests
+        uses: ./.github/actions/run-integration-tests
+        with:
+          coverage: false
+          race-detection: true
+          timeout: ${{ matrix.scenario.timeout }}
+          test-tags: ${{ matrix.scenario.tags }}
+          go-version: ${{ needs.setup.outputs.go-version }}
+          vault-version: ${{ needs.setup.outputs.vault-version }}
+          k3s-version: ${{ needs.setup.outputs.k3s-version }}
 
   # Vault version compatibility matrix
   vault-compatibility:
@@ -145,29 +181,42 @@ jobs:
       fail-fast: false
       matrix:
         vault_version: ${{ fromJson(format('["{0}"]', join(fromJson(format('["{0}"]', github.event.inputs.vault_versions || '1.17.0,1.18.0,1.19.0,1.20.0')), '","'))) }}
-    uses: ./.github/workflows/reusable-test.yaml
-    with:
-      test-type: integration
-      coverage: false
-      timeout: 20m
-      test-tags: "integration,compatibility"
-      go-version: ${{ needs.setup.outputs.go-version }}
-      vault-version: ${{ matrix.vault_version }}
-      k3s-version: ${{ needs.setup.outputs.k3s-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run vault compatibility tests
+        uses: ./.github/actions/run-integration-tests
+        with:
+          coverage: false
+          timeout: 20m
+          test-tags: "compatibility"
+          go-version: ${{ needs.setup.outputs.go-version }}
+          vault-version: ${{ matrix.vault_version }}
+          k3s-version: ${{ needs.setup.outputs.k3s-version }}
 
   # Comprehensive security analysis
   comprehensive-security:
     name: 🔒 Comprehensive Security
+    runs-on: ubuntu-latest
     needs: [setup, build-test-image]
     if: github.event.inputs.test_scenarios == 'all' || github.event.inputs.test_scenarios == '' || github.event.inputs.test_scenarios == 'security-only'
-    uses: ./.github/workflows/reusable-security.yaml
-    with:
-      scan-type: all
-      severity-threshold: LOW
-      fail-on-severity: HIGH
-      upload-sarif: true
-      image-ref: ${{ needs.build-test-image.outputs.image-tags }}
-      go-version: ${{ needs.setup.outputs.go-version }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run comprehensive security scan
+        uses: ./.github/actions/security-scan
+        with:
+          scan-type: all
+          severity-threshold: LOW
+          fail-on-severity: HIGH
+          upload-sarif: true
+          image-ref: ${{ needs.build-test-image.outputs.image-tags }}
+          go-version: ${{ needs.setup.outputs.go-version }}
 
   # Performance benchmarking
   performance-tests:
@@ -181,10 +230,9 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: ./.github/actions/go-setup
         with:
           go-version: ${{ needs.setup.outputs.go-version }}
-          cache: true
 
       - name: Install benchmarking tools
         run: |
@@ -438,17 +486,23 @@ jobs:
   # E2E tests with real infrastructure
   e2e-comprehensive:
     name: 🌐 E2E Comprehensive
+    runs-on: ubuntu-latest
     needs: [setup, build-test-image]
     if: github.event.inputs.test_scenarios == 'all' || github.event.inputs.test_scenarios == ''
-    uses: ./.github/workflows/reusable-test.yaml
-    with:
-      test-type: e2e
-      coverage: true
-      timeout: 30m
-      test-tags: "e2e,comprehensive"
-      go-version: ${{ needs.setup.outputs.go-version }}
-      vault-version: ${{ needs.setup.outputs.vault-version }}
-      k3s-version: ${{ needs.setup.outputs.k3s-version }}
+    timeout-minutes: 35
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run E2E comprehensive tests
+        uses: ./.github/actions/run-e2e-tests
+        with:
+          coverage: true
+          timeout: 30m
+          test-tags: "comprehensive"
+          go-version: ${{ needs.setup.outputs.go-version }}
+          vault-version: ${{ needs.setup.outputs.vault-version }}
+          k3s-version: ${{ needs.setup.outputs.k3s-version }}
 
   # Test summary and quality gates
   extended-summary:

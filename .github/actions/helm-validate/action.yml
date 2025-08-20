@@ -1,0 +1,233 @@
+name: 'Helm Validate'
+description: 'Validate, lint, and package Helm charts'
+
+inputs:
+  chart-path:
+    description: 'Path to the Helm chart'
+    required: false
+    default: './helm/vault-autounseal-operator'
+  version:
+    description: 'Chart version to use'
+    required: false
+    default: '0.0.0-ci'
+  app-version:
+    description: 'App version to use'
+    required: false
+    default: ''
+  package-chart:
+    description: 'Whether to package the chart'
+    required: false
+    default: 'true'
+  upload-artifacts:
+    description: 'Whether to upload chart artifacts'
+    required: false
+    default: 'true'
+
+outputs:
+  chart-version:
+    description: 'Chart version used'
+    value: ${{ steps.package.outputs.version }}
+  chart-file:
+    description: 'Packaged chart file path'
+    value: ${{ steps.package.outputs.chart-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: 'latest'
+
+    - name: Create charts directory
+      shell: bash
+      run: |
+        mkdir -p charts
+        echo "📁 Charts directory created"
+
+    - name: Validate chart structure
+      shell: bash
+      run: |
+        echo "🔍 Validating Helm chart structure..."
+        
+        CHART_PATH="${{ inputs.chart-path }}"
+        
+        # Check if chart directory exists
+        if [[ ! -d "$CHART_PATH" ]]; then
+          echo "❌ Chart directory not found: $CHART_PATH"
+          exit 1
+        fi
+        
+        # Check required files
+        REQUIRED_FILES=("Chart.yaml" "values.yaml" "templates/")
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [[ ! -e "$CHART_PATH/$file" ]]; then
+            echo "❌ Required file/directory missing: $file"
+            exit 1
+          fi
+        done
+        
+        echo "✅ Chart structure validation passed"
+
+    - name: Update chart dependencies
+      shell: bash
+      run: |
+        echo "📦 Updating Helm chart dependencies..."
+        
+        CHART_PATH="${{ inputs.chart-path }}"
+        
+        # Update dependencies if Chart.lock exists or dependencies are defined
+        if [[ -f "$CHART_PATH/Chart.yaml" ]] && grep -q "dependencies:" "$CHART_PATH/Chart.yaml"; then
+          helm dependency update "$CHART_PATH"
+          echo "✅ Dependencies updated"
+        else
+          echo "ℹ️ No dependencies to update"
+        fi
+
+    - name: Lint Helm chart
+      shell: bash
+      run: |
+        echo "🧹 Linting Helm chart..."
+        
+        CHART_PATH="${{ inputs.chart-path }}"
+        
+        # Run helm lint
+        if helm lint "$CHART_PATH"; then
+          echo "✅ Helm lint passed"
+        else
+          echo "❌ Helm lint failed"
+          exit 1
+        fi
+
+    - name: Template and validate rendering
+      shell: bash
+      run: |
+        echo "📋 Validating chart rendering..."
+        
+        CHART_PATH="${{ inputs.chart-path }}"
+        
+        # Template chart to validate rendering
+        helm template test-release "$CHART_PATH" \
+          --namespace test-namespace \
+          --create-namespace \
+          --dry-run > /tmp/helm-output.yaml
+        
+        # Basic validation of generated manifests
+        REQUIRED_KINDS=("Deployment" "ServiceAccount" "ClusterRole")
+        for kind in "${REQUIRED_KINDS[@]}"; do
+          if ! grep -q "kind: $kind" /tmp/helm-output.yaml; then
+            echo "⚠️ Warning: $kind not found in rendered templates"
+          fi
+        done
+        
+        # Check for valid YAML
+        if command -v yq &> /dev/null; then
+          yq eval-all '. | select(. != null)' /tmp/helm-output.yaml > /dev/null
+          echo "✅ Generated YAML is valid"
+        else
+          echo "ℹ️ yq not available, skipping YAML validation"
+        fi
+        
+        echo "✅ Chart rendering validation completed"
+
+    - name: Package Helm chart
+      id: package
+      if: inputs.package-chart == 'true'
+      shell: bash
+      run: |
+        echo "📦 Packaging Helm chart..."
+        
+        CHART_PATH="${{ inputs.chart-path }}"
+        VERSION="${{ inputs.version }}"
+        APP_VERSION="${{ inputs.app-version }}"
+        
+        # Build version string
+        if [[ "$VERSION" == "0.0.0-ci" ]]; then
+          VERSION="0.0.0-ci-${{ github.run_number || '1' }}"
+        fi
+        
+        # Build helm package command
+        CMD="helm package \"$CHART_PATH\" --destination=./charts/ --version=\"$VERSION\""
+        
+        if [[ -n "$APP_VERSION" ]]; then
+          CMD="$CMD --app-version=\"$APP_VERSION\""
+        fi
+        
+        echo "Executing: $CMD"
+        eval $CMD
+        
+        # Set outputs
+        CHART_NAME=$(basename "$CHART_PATH")
+        CHART_FILE="charts/${CHART_NAME}-${VERSION}.tgz"
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "chart-file=$CHART_FILE" >> $GITHUB_OUTPUT
+        
+        echo "✅ Chart packaged: $CHART_FILE"
+
+    - name: Validate packaged chart
+      if: inputs.package-chart == 'true'
+      shell: bash
+      run: |
+        echo "🔍 Validating packaged chart..."
+        
+        CHART_FILE="${{ steps.package.outputs.chart-file }}"
+        
+        if [[ ! -f "$CHART_FILE" ]]; then
+          echo "❌ Packaged chart not found: $CHART_FILE"
+          exit 1
+        fi
+        
+        # Test chart installation from package
+        helm template test-release-pkg "$CHART_FILE" \
+          --namespace vault-operator-system \
+          --create-namespace > /tmp/packaged-chart-test.yaml
+        
+        # Basic validation of generated manifests
+        if grep -q "kind: Deployment" /tmp/packaged-chart-test.yaml && \
+           grep -q "kind: ServiceAccount" /tmp/packaged-chart-test.yaml; then
+          echo "✅ Packaged chart validation passed"
+        else
+          echo "❌ Packaged chart validation failed - missing expected resources"
+          exit 1
+        fi
+
+    - name: Generate chart summary
+      shell: bash
+      run: |
+        echo "📊 Generating Helm chart summary..."
+        
+        CHART_PATH="${{ inputs.chart-path }}"
+        
+        # Parse Chart.yaml
+        if [[ -f "$CHART_PATH/Chart.yaml" ]]; then
+          CHART_NAME=$(grep "^name:" "$CHART_PATH/Chart.yaml" | cut -d' ' -f2)
+          CHART_DESC=$(grep "^description:" "$CHART_PATH/Chart.yaml" | cut -d' ' -f2-)
+          CHART_VER=$(grep "^version:" "$CHART_PATH/Chart.yaml" | cut -d' ' -f2)
+          APP_VER=$(grep "^appVersion:" "$CHART_PATH/Chart.yaml" | cut -d' ' -f2 | tr -d '"')
+        fi
+        
+        # Generate summary
+        SUMMARY="## 📦 Helm Chart Validation\\n\\n"
+        SUMMARY="${SUMMARY}| Property | Value |\\n"
+        SUMMARY="${SUMMARY}|----------|-------|\\n"
+        SUMMARY="${SUMMARY}| Name | ${CHART_NAME:-N/A} |\\n"
+        SUMMARY="${SUMMARY}| Description | ${CHART_DESC:-N/A} |\\n"
+        SUMMARY="${SUMMARY}| Chart Version | ${CHART_VER:-N/A} |\\n"
+        SUMMARY="${SUMMARY}| App Version | ${APP_VER:-N/A} |\\n"
+        
+        if [[ "${{ inputs.package-chart }}" == "true" ]]; then
+          SUMMARY="${SUMMARY}| Package Version | ${{ steps.package.outputs.version }} |\\n"
+          SUMMARY="${SUMMARY}| Package File | ${{ steps.package.outputs.chart-file }} |\\n"
+        fi
+        
+        # Add to step summary
+        echo -e "$SUMMARY" >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload Helm artifacts
+      if: inputs.upload-artifacts == 'true' && inputs.package-chart == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: helm-chart-${{ github.run_number || 'test' }}
+        path: charts/
+        retention-days: 30

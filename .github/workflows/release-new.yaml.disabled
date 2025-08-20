@@ -1,5 +1,5 @@
-# New Release Pipeline - Streamlined release automation using reusable components
-# Uses: reusable-setup, reusable-build, reusable-security for comprehensive releases
+# New Release Pipeline - Streamlined release automation using composite actions
+# Uses: setup, build-image, security-scan composite actions for comprehensive releases
 # Estimated Duration: 12-18 minutes
 
 name: 🚀 Release (New)
@@ -52,11 +52,24 @@ jobs:
   # Setup and version validation
   setup:
     name: 🏷️ Release Setup
-    uses: ./.github/workflows/reusable-setup.yaml
-    with:
-      go-version: "1.24"
-      setup-docker: true
-      cache-prefix: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      go-version: ${{ steps.setup-env.outputs.go-version }}
+      config-hash: ${{ steps.setup-env.outputs.config-hash }}
+      vault-version: ${{ steps.setup-env.outputs.vault-version }}
+      k3s-version: ${{ steps.setup-env.outputs.k3s-version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup environment
+        id: setup-env
+        uses: ./.github/actions/setup
+        with:
+          go-version: "1.24"
+          setup-docker: true
+          cache-prefix: release
 
   # Version determination and validation
   validate-release:
@@ -163,42 +176,66 @@ jobs:
   # Pre-release security scan
   security-scan:
     name: 🔒 Pre-Release Security
+    runs-on: ubuntu-latest
     needs: [setup, validate-release]
     if: github.event.inputs.skip_security != 'true'
-    uses: ./.github/workflows/reusable-security.yaml
-    with:
-      scan-type: all
-      severity-threshold: MEDIUM
-      fail-on-severity: CRITICAL
-      upload-sarif: true
-      go-version: ${{ needs.setup.outputs.go-version }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run pre-release security scan
+        uses: ./.github/actions/security-scan
+        with:
+          scan-type: all
+          severity-threshold: MEDIUM
+          fail-on-severity: CRITICAL
+          upload-sarif: true
+          go-version: ${{ needs.setup.outputs.go-version }}
 
   # Build release images
   build-release:
     name: 🏗️ Build Release Images
+    runs-on: ubuntu-latest
     needs: [setup, validate-release, security-scan]
     if: always() && needs.validate-release.result == 'success' && (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped')
-    uses: ./.github/workflows/reusable-build.yaml
-    with:
-      registry: ghcr.io
-      image-name: ${{ github.repository }}
-      platforms: ${{ github.event.inputs.build_platforms || 'linux/amd64,linux/arm64' }}
-      push: true
-      go-version: ${{ needs.setup.outputs.go-version }}
-      build-args: '["BUILD_VERSION=${{ needs.validate-release.outputs.version }}", "RELEASE_BUILD=true", "BUILD_DATE=${{ github.run_number }}"]'
+    timeout-minutes: 25
+    outputs:
+      image-tags: ${{ steps.build.outputs.image-tags }}
+      image-digest: ${{ steps.build.outputs.image-digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Build release Docker images
+        id: build
+        uses: ./.github/actions/build-image
+        with:
+          registry: ghcr.io
+          image-name: ${{ github.repository }}
+          platforms: ${{ github.event.inputs.build_platforms || 'linux/amd64,linux/arm64' }}
+          push: true
+          go-version: ${{ needs.setup.outputs.go-version }}
+          build-args: '["BUILD_VERSION=${{ needs.validate-release.outputs.version }}", "RELEASE_BUILD=true", "BUILD_DATE=${{ github.run_number }}"]'
 
   # Release validation tests
   release-validation:
     name: ✅ Release Validation
+    runs-on: ubuntu-latest
     needs: [setup, build-release, validate-release]
-    uses: ./.github/workflows/reusable-test.yaml
-    with:
-      test-type: integration
-      coverage: false
-      timeout: 15m
-      test-tags: "integration,release,smoke"
-      go-version: ${{ needs.setup.outputs.go-version }}
-      vault-version: ${{ needs.setup.outputs.vault-version }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run release validation tests
+        uses: ./.github/actions/run-integration-tests
+        with:
+          coverage: false
+          timeout: 15m
+          test-tags: "release,smoke"
+          go-version: ${{ needs.setup.outputs.go-version }}
+          vault-version: ${{ needs.setup.outputs.vault-version }}
 
   # Helm chart packaging and release
   helm-release:
