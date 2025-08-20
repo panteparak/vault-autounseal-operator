@@ -47,7 +47,7 @@ type E2EWorkflowTestSuite struct {
 // SetupSuite initializes the complete testing environment
 func (suite *E2EWorkflowTestSuite) SetupSuite() {
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 20*time.Minute)
-	
+
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	// Set up complete environment
@@ -176,7 +176,7 @@ subjects:
 	suite.scheme = runtime.NewScheme()
 	err = clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err, "Failed to add client-go scheme")
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err, "Failed to add vault v1 scheme")
 
@@ -210,7 +210,7 @@ func (suite *E2EWorkflowTestSuite) waitForCRDsReady() {
 				},
 			},
 		}
-		
+
 		err := suite.k8sClient.Create(suite.ctx, testConfig)
 		if err == nil {
 			suite.k8sClient.Delete(suite.ctx, testConfig)
@@ -223,7 +223,7 @@ func (suite *E2EWorkflowTestSuite) waitForCRDsReady() {
 // createTestNamespaces creates namespaces for testing
 func (suite *E2EWorkflowTestSuite) createTestNamespaces() {
 	namespaces := []string{"vault-system", "test-env", "production"}
-	
+
 	for _, ns := range namespaces {
 		namespace := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{Name: ns},
@@ -309,7 +309,7 @@ func (suite *E2EWorkflowTestSuite) TearDownSuite() {
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}
-	
+
 	if suite.vaultContainer != nil {
 		suite.vaultContainer.Terminate(context.Background())
 	}
@@ -364,7 +364,7 @@ func (suite *E2EWorkflowTestSuite) TestCompleteOperatorWorkflow() {
 	// Step 4: Perform periodic reconciliations (simulating operator behavior)
 	for i := 0; i < 3; i++ {
 		time.Sleep(100 * time.Millisecond) // Brief pause
-		
+
 		result, err = suite.reconciler.Reconcile(suite.ctx, req)
 		require.NoError(suite.T(), err, "Step 4.%d: Periodic reconciliation should succeed", i+1)
 		assert.NotZero(suite.T(), result.RequeueAfter, "Should continue scheduling reconciliations")
@@ -374,7 +374,7 @@ func (suite *E2EWorkflowTestSuite) TestCompleteOperatorWorkflow() {
 	var finalState vaultv1.VaultUnsealConfig
 	err = suite.k8sClient.Get(suite.ctx, req.NamespacedName, &finalState)
 	require.NoError(suite.T(), err, "Step 5: Should get final state")
-	
+
 	assert.Equal(suite.T(), "workflow-vault", finalState.Status.VaultStatuses[0].Name)
 	assert.NotNil(suite.T(), finalState.Status.VaultStatuses[0].LastUnsealed)
 
@@ -497,7 +497,7 @@ func (suite *E2EWorkflowTestSuite) TestErrorRecoveryWorkflow() {
 	err = suite.k8sClient.Get(suite.ctx, req.NamespacedName, &recoveredState)
 	require.NoError(suite.T(), err, "Should get recovered state")
 	// Error should be cleared or vault should be functional
-	suite.T().Logf("Recovered state: sealed=%v, error=%s", 
+	suite.T().Logf("Recovered state: sealed=%v, error=%s",
 		recoveredState.Status.VaultStatuses[0].Sealed,
 		recoveredState.Status.VaultStatuses[0].Error)
 }
@@ -630,7 +630,7 @@ func (suite *E2EWorkflowTestSuite) TestLongRunningWorkflow() {
 		var currentState vaultv1.VaultUnsealConfig
 		err = suite.k8sClient.Get(suite.ctx, req.NamespacedName, &currentState)
 		require.NoError(suite.T(), err, "Should get state at reconciliation %d", i+1)
-		
+
 		assert.Len(suite.T(), currentState.Status.VaultStatuses, 1, "Should consistently have 1 vault status")
 		assert.Equal(suite.T(), "persistent-vault", currentState.Status.VaultStatuses[0].Name, "Vault name should be consistent")
 		assert.NotEmpty(suite.T(), currentState.Status.Conditions, "Should have conditions")
@@ -654,7 +654,7 @@ func (suite *E2EWorkflowTestSuite) TestLongRunningWorkflow() {
 	}
 
 	// Should have relatively few unique transition times (state should be stable)
-	assert.LessOrEqual(suite.T(), len(uniqueTransitionTimes), 3, 
+	assert.LessOrEqual(suite.T(), len(uniqueTransitionTimes), 3,
 		"Should have stable state with few condition transitions")
 }
 
@@ -712,7 +712,7 @@ func (suite *E2EWorkflowTestSuite) TestVaultConnectivityWorkflow() {
 	require.NoError(suite.T(), err, "Should get operator state")
 
 	assert.NotEmpty(suite.T(), operatorState.Status.VaultStatuses, "Operator should have vault status")
-	suite.T().Logf("Operator vault status: sealed=%v, error=%s", 
+	suite.T().Logf("Operator vault status: sealed=%v, error=%s",
 		operatorState.Status.VaultStatuses[0].Sealed,
 		operatorState.Status.VaultStatuses[0].Error)
 }

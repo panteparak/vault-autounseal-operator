@@ -22,7 +22,7 @@ type SampleIntegrationTestSuite struct {
 func (suite *SampleIntegrationTestSuite) SetupSuite() {
 	suite.config = common.DefaultTestConfig()
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), suite.config.Timeout)
-	
+
 	// Use common container manager
 	suite.containerManager = common.NewContainerManager(suite.ctx)
 }
@@ -32,7 +32,7 @@ func (suite *SampleIntegrationTestSuite) TearDownSuite() {
 	if suite.containerManager != nil {
 		suite.containerManager.Cleanup()
 	}
-	
+
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}

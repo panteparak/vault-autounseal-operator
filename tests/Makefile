@@ -23,7 +23,7 @@ TEST_CPU_LIMIT ?= 2
 TEST_SCENARIO ?= basic
 ENABLE_COMPATIBILITY_TESTING ?= false
 
-# Test module directories  
+# Test module directories
 UNIT_DIR := unit
 INTEGRATION_DIR := integration
 E2E_DIR := e2e
@@ -87,7 +87,7 @@ help: ## Show this help
 test-all: test-deps ## Run all test categories
 	@echo "🧪 Running all test categories..."
 	@$(MAKE) test-unit || echo "❌ Unit tests failed"
-	@$(MAKE) test-integration || echo "❌ Integration tests failed" 
+	@$(MAKE) test-integration || echo "❌ Integration tests failed"
 	@$(MAKE) test-e2e || echo "❌ E2E tests failed"
 	@$(MAKE) test-performance || echo "❌ Performance tests failed"
 	@$(MAKE) test-chaos || echo "❌ Chaos tests failed"
@@ -122,7 +122,7 @@ test-integration-scenarios: test-deps ## Run specific integration test scenarios
 	done
 	@echo "✅ Integration tests completed"
 
-test-e2e: test-deps ## Run end-to-end tests  
+test-e2e: test-deps ## Run end-to-end tests
 	@echo "🌐 Running end-to-end tests..."
 	@go test $(GO_TEST_FLAGS) ./$(E2E_DIR)/...
 	@echo "✅ E2E tests completed"
@@ -152,7 +152,7 @@ run-integration:
 run-e2e:
 	@go test $(GO_TEST_FLAGS) ./$(E2E_DIR)/...
 
-run-performance: 
+run-performance:
 	@go test $(GO_TEST_FLAGS) ./$(PERFORMANCE_DIR)/...
 
 run-chaos:
@@ -211,7 +211,7 @@ test-report: ## Generate comprehensive test report
 	@echo "Generated: $$(date)" >> reports/test-report.md
 	@echo "" >> reports/test-report.md
 	@echo "## Test Categories" >> reports/test-report.md
-	@echo "- Unit Tests: Fast, isolated component tests" >> reports/test-report.md  
+	@echo "- Unit Tests: Fast, isolated component tests" >> reports/test-report.md
 	@echo "- Integration Tests: TestContainer-based integration testing" >> reports/test-report.md
 	@echo "- E2E Tests: Complete workflow and scenario testing" >> reports/test-report.md
 	@echo "- Performance Tests: Load and benchmark testing" >> reports/test-report.md
@@ -271,7 +271,7 @@ test-compatibility: test-deps ## Run compatibility tests across multiple version
 test-versions: ## Show current configured versions
 	@echo "📋 Current Version Configuration:"
 	@echo "  Vault:         $(VAULT_VERSION)"
-	@echo "  K3s:           $(K3S_VERSION)" 
+	@echo "  K3s:           $(K3S_VERSION)"
 	@echo "  Go:            $(GO_VERSION)"
 	@echo "  TestContainers: $(TESTCONTAINERS_VERSION)"
 	@echo "  Test Scenario: $(TEST_SCENARIO)"

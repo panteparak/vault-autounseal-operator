@@ -232,7 +232,7 @@ func (g *CRDGenerator) GenerateTestVaultUnsealConfig(name, namespace string, vau
     threshold: %d
     tlsSkipVerify: %t
     unsealKeys:`, instance.Name, instance.Endpoint, instance.Threshold, instance.TLSSkipVerify))
-		
+
 		for _, key := range instance.UnsealKeys {
 			instancesYAML.WriteString(fmt.Sprintf("\n    - \"%s\"", key))
 		}

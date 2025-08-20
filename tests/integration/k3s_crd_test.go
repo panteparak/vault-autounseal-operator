@@ -37,7 +37,7 @@ func (suite *K3sCRDTestSuite) SetupSuite() {
 
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 20*time.Minute)
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	
+
 	suite.vaultManager = shared.NewVaultManager(suite.ctx, suite.Suite)
 	suite.k3sManager = shared.NewK3sManager(suite.ctx, suite.Suite)
 	suite.crdGenerator = shared.NewCRDGenerator()
@@ -61,7 +61,7 @@ func (suite *K3sCRDTestSuite) TestK3sSetupAndCRDInstallation() {
 	suite.Run("k3s_cluster_creation", func() {
 		// Generate CRD manifest
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
-		
+
 		// Create K3s cluster with CRD
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("test-cluster", crdManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster with CRDs")
@@ -118,7 +118,7 @@ func (suite *K3sCRDTestSuite) TestControllerIntegration() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("controller-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -170,7 +170,7 @@ func (suite *K3sCRDTestSuite) TestControllerIntegration() {
 
 		result, err := reconciler.Reconcile(suite.ctx, req)
 		assert.NoError(suite.T(), err, "Reconciliation should not error")
-		
+
 		suite.T().Logf("✅ Controller reconciliation completed: %+v", result)
 
 		// Verify Vault was unsealed
@@ -187,7 +187,7 @@ func (suite *K3sCRDTestSuite) TestComplexWorkflows() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("multi-vault", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -267,7 +267,7 @@ func (suite *K3sCRDTestSuite) TestComplexWorkflows() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("config-update", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -369,7 +369,7 @@ func (suite *K3sCRDTestSuite) TestErrorScenarios() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("error-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -418,14 +418,14 @@ func (suite *K3sCRDTestSuite) TestErrorScenarios() {
 		result, err := reconciler.Reconcile(suite.ctx, req)
 		// Controller should handle errors gracefully, not crash
 		assert.NoError(suite.T(), err, "Controller should handle invalid endpoints gracefully")
-		
+
 		suite.T().Logf("✅ Invalid endpoint handled gracefully: %+v", result)
 	})
 
 	suite.Run("insufficient_rbac_permissions", func() {
 		// Create cluster without RBAC manifests
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("rbac-test", crdManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster without RBAC")
 
@@ -443,7 +443,7 @@ func (suite *K3sCRDTestSuite) TestResourceLifecycle() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("lifecycle-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 

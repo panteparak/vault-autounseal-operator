@@ -43,7 +43,7 @@ type StressTestSuite struct {
 // SetupSuite initializes the stress test environment
 func (suite *StressTestSuite) SetupSuite() {
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 45*time.Minute)
-	
+
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	// Set up infrastructure for stress testing
@@ -54,10 +54,10 @@ func (suite *StressTestSuite) SetupSuite() {
 func (suite *StressTestSuite) setupInfrastructure() {
 	// Create K3s cluster
 	suite.setupK3s()
-	
+
 	// Create Vault
 	suite.setupVault()
-	
+
 	// Set up controller
 	suite.setupController()
 }
@@ -135,7 +135,7 @@ spec:
 	suite.scheme = runtime.NewScheme()
 	err = clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
 
@@ -191,7 +191,7 @@ func (suite *StressTestSuite) TearDownSuite() {
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}
-	
+
 	if suite.vaultContainer != nil {
 		suite.vaultContainer.Terminate(context.Background())
 	}
@@ -216,7 +216,7 @@ func (suite *StressTestSuite) TearDownTest() {
 func (suite *StressTestSuite) TestHighVolumeReconciliation() {
 	configCount := 50
 	reconciliationsPerConfig := 20
-	
+
 	// Create many VaultUnsealConfigs
 	configs := make([]*vaultv1.VaultUnsealConfig, configCount)
 	for i := 0; i < configCount; i++ {
@@ -235,7 +235,7 @@ func (suite *StressTestSuite) TestHighVolumeReconciliation() {
 				},
 			},
 		}
-		
+
 		err := suite.k8sClient.Create(suite.ctx, config)
 		require.NoError(suite.T(), err)
 		configs[i] = config
@@ -253,7 +253,7 @@ func (suite *StressTestSuite) TestHighVolumeReconciliation() {
 			wg.Add(1)
 			go func(configIndex, reconcileIndex int) {
 				defer wg.Done()
-				
+
 				req := ctrl.Request{
 					NamespacedName: types.NamespacedName{
 						Name:      fmt.Sprintf("stress-config-%d", configIndex),
@@ -273,7 +273,7 @@ func (suite *StressTestSuite) TestHighVolumeReconciliation() {
 
 	wg.Wait()
 	duration := time.Since(start)
-	
+
 	close(errors)
 	close(successes)
 
@@ -283,7 +283,7 @@ func (suite *StressTestSuite) TestHighVolumeReconciliation() {
 
 	suite.T().Logf("High volume reconciliation: %d operations in %v", totalOps, duration)
 	suite.T().Logf("Success rate: %d/%d (%.2f%%)", successCount, totalOps, float64(successCount)/float64(totalOps)*100)
-	
+
 	// Allow some failures but expect majority to succeed
 	assert.Greater(suite.T(), successCount, totalOps/2, "At least half of reconciliations should succeed")
 	assert.Less(suite.T(), duration, 5*time.Minute, "High volume reconciliation should complete in reasonable time")
@@ -378,24 +378,24 @@ func (suite *StressTestSuite) TestResourceExhaustionScenarios() {
 		// Test many connections to overwhelm connection pools
 		connectionCount := 200
 		var wg sync.WaitGroup
-		
+
 		for i := 0; i < connectionCount; i++ {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
-				
+
 				client, err := vaultpkg.NewClient(suite.vaultAddr, false, 5*time.Second)
 				if err != nil {
 					return // Expected to fail under load
 				}
 				defer client.Close()
-				
+
 				// Hold connection briefly
 				time.Sleep(100 * time.Millisecond)
 				client.HealthCheck(suite.ctx)
 			}(i)
 		}
-		
+
 		wg.Wait()
 		suite.T().Log("Connection exhaustion test completed")
 	})
@@ -432,26 +432,26 @@ func (suite *StressTestSuite) TestLongRunningOperations() {
 	// Perform reconciliations over an extended period
 	reconciliationCount := 100
 	interval := 2 * time.Second
-	
+
 	start := time.Now()
 	successCount := 0
-	
+
 	for i := 0; i < reconciliationCount; i++ {
 		_, err := suite.reconciler.Reconcile(suite.ctx, req)
 		if err == nil {
 			successCount++
 		}
-		
+
 		if i < reconciliationCount-1 {
 			time.Sleep(interval)
 		}
 	}
-	
+
 	duration := time.Since(start)
-	
+
 	suite.T().Logf("Long running operations: %d reconciliations over %v", reconciliationCount, duration)
 	suite.T().Logf("Success rate: %d/%d", successCount, reconciliationCount)
-	
+
 	assert.Greater(suite.T(), successCount, reconciliationCount*3/4, "Most long-running operations should succeed")
 }
 
@@ -488,10 +488,10 @@ func (suite *StressTestSuite) TestRapidConfigurationChanges() {
 
 		// Update endpoint
 		currentConfig.Spec.VaultInstances[0].Endpoint = fmt.Sprintf("%s?version=%d", suite.vaultAddr, i)
-		
+
 		err = suite.k8sClient.Update(suite.ctx, &currentConfig)
 		assert.NoError(suite.T(), err, "Rapid update %d should succeed", i)
-		
+
 		// Brief pause to allow processing
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -504,7 +504,7 @@ func (suite *StressTestSuite) TestCascadingFailureRecovery() {
 	// Create multiple configs that depend on the same vault
 	configCount := 20
 	configs := make([]*vaultv1.VaultUnsealConfig, configCount)
-	
+
 	for i := 0; i < configCount; i++ {
 		config := &vaultv1.VaultUnsealConfig{
 			ObjectMeta: metav1.ObjectMeta{
@@ -521,7 +521,7 @@ func (suite *StressTestSuite) TestCascadingFailureRecovery() {
 				},
 			},
 		}
-		
+
 		err := suite.k8sClient.Create(suite.ctx, config)
 		require.NoError(suite.T(), err)
 		configs[i] = config
@@ -533,20 +533,20 @@ func (suite *StressTestSuite) TestCascadingFailureRecovery() {
 		wg.Add(1)
 		go func(configIndex int) {
 			defer wg.Done()
-			
+
 			req := ctrl.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      fmt.Sprintf("cascade-config-%d", configIndex),
 					Namespace: "default",
 				},
 			}
-			
+
 			suite.reconciler.Reconcile(suite.ctx, req)
 		}(i)
 	}
-	
+
 	wg.Wait()
-	
+
 	// Now update all configs to point to invalid endpoint (simulate vault failure)
 	for i := 0; i < configCount; i++ {
 		configs[i].Spec.VaultInstances[0].Endpoint = "http://invalid-vault.local:8200"
@@ -563,7 +563,7 @@ func (suite *StressTestSuite) TestCascadingFailureRecovery() {
 				Namespace: "default",
 			},
 		}
-		
+
 		_, err := suite.reconciler.Reconcile(suite.ctx, req)
 		if err == nil {
 			failureReconciliations++
@@ -571,7 +571,7 @@ func (suite *StressTestSuite) TestCascadingFailureRecovery() {
 	}
 
 	suite.T().Logf("Cascading failure handled: %d/%d reconciliations succeeded", failureReconciliations, configCount)
-	
+
 	// Recovery - fix endpoints
 	for i := 0; i < configCount; i++ {
 		configs[i].Spec.VaultInstances[0].Endpoint = suite.vaultAddr
@@ -588,7 +588,7 @@ func (suite *StressTestSuite) TestCascadingFailureRecovery() {
 				Namespace: "default",
 			},
 		}
-		
+
 		_, err := suite.reconciler.Reconcile(suite.ctx, req)
 		if err == nil {
 			recoveryReconciliations++

@@ -38,7 +38,7 @@ func (suite *ControllerTestSuite) SetupSuite() {
 	suite.scheme = runtime.NewScheme()
 	err := clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
 
@@ -119,7 +119,7 @@ func (suite *ControllerTestSuite) TestReconcileBasicVaultConfig() {
 	// Note: This might fail with connection errors since vault is not running,
 	// but the reconciler should handle it gracefully
 	assert.NoError(suite.T(), err, "Reconcile should not return error for basic config")
-	
+
 	// The result might indicate a requeue due to vault connection issues
 	suite.T().Logf("Reconcile result: %+v", result)
 }

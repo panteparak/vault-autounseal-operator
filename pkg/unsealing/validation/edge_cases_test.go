@@ -286,10 +286,10 @@ func (suite *EdgeCaseTestSuite) TestConcurrentEdgeCases() {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			
+
 			// Select edge case based on goroutine ID
 			testCase := edgeCases[id%len(edgeCases)]
-			
+
 			err := suite.validator.ValidateKeys(testCase.keys, testCase.threshold)
 			if err != nil {
 				errors <- err
@@ -305,7 +305,7 @@ func (suite *EdgeCaseTestSuite) TestConcurrentEdgeCases() {
 
 	errorCount := len(errors)
 	successCount := len(successes)
-	
+
 	suite.T().Logf("Concurrent edge cases: %d errors, %d successes", errorCount, successCount)
 	assert.Equal(suite.T(), concurrency, errorCount+successCount, "All goroutines should complete")
 }
@@ -314,16 +314,16 @@ func (suite *EdgeCaseTestSuite) TestConcurrentEdgeCases() {
 func (suite *EdgeCaseTestSuite) TestMemoryExhaustion() {
 	// Test with extremely large keys (within reasonable limits)
 	largeKey := base64.StdEncoding.EncodeToString(make([]byte, 10*1024)) // 10KB key
-	
+
 	err := suite.validator.ValidateBase64Key(largeKey)
 	assert.Error(suite.T(), err, "Extremely large keys should fail validation")
-	
+
 	// Test with many keys
 	manyKeys := make([]string, 1000)
 	for i := range manyKeys {
 		manyKeys[i] = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("key-%d-1234567890", i)))
 	}
-	
+
 	err = suite.validator.ValidateKeys(manyKeys, 500)
 	assert.NoError(suite.T(), err, "Many unique keys should be valid")
 }
@@ -331,14 +331,14 @@ func (suite *EdgeCaseTestSuite) TestMemoryExhaustion() {
 // TestTimeBasedEdgeCases tests validation under time pressure
 func (suite *EdgeCaseTestSuite) TestTimeBasedEdgeCases() {
 	start := time.Now()
-	
+
 	// Perform many validations quickly
 	for i := 0; i < 1000; i++ {
 		key := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("test-key-%d", i)))
 		err := suite.validator.ValidateBase64Key(key)
 		require.NoError(suite.T(), err)
 	}
-	
+
 	duration := time.Since(start)
 	suite.T().Logf("1000 validations completed in %v", duration)
 	assert.Less(suite.T(), duration, 5*time.Second, "Validation should be fast")

@@ -34,7 +34,7 @@ func (suite *CRDTestSuite) SetupSuite() {
 
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 20*time.Minute)
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	
+
 	suite.vaultManager = shared.NewVaultManager(suite.ctx, suite.Suite)
 	suite.k3sManager = shared.NewK3sManager(suite.ctx, suite.Suite)
 	suite.crdGenerator = shared.NewCRDGenerator()
@@ -63,7 +63,7 @@ func (suite *CRDTestSuite) TestCRDInstallation() {
 		// Generate CRD and RBAC manifests
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		// Create K3s cluster with CRDs
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("crd-install-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
@@ -82,7 +82,7 @@ func (suite *CRDTestSuite) TestCRDFieldValidation() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("crd-validation-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -124,7 +124,7 @@ func (suite *CRDTestSuite) TestCRDFieldValidation() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("crd-invalid-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -152,7 +152,7 @@ func (suite *CRDTestSuite) TestCRDFieldValidation() {
 		// This might not always fail due to CRD validation being optional
 		// So we just log the result rather than asserting
 		suite.T().Logf("Invalid config result: %v", err)
-		
+
 		suite.T().Logf("✅ Invalid config validation completed")
 	})
 }
@@ -163,7 +163,7 @@ func (suite *CRDTestSuite) TestCRDResourceLifecycle() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("crd-lifecycle-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 

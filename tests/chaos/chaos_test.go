@@ -49,7 +49,7 @@ type ChaosTestSuite struct {
 // SetupSuite initializes chaos testing environment with multiple containers
 func (suite *ChaosTestSuite) SetupSuite() {
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 60*time.Minute)
-	
+
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 	rand.Seed(time.Now().UnixNano())
 
@@ -61,10 +61,10 @@ func (suite *ChaosTestSuite) SetupSuite() {
 func (suite *ChaosTestSuite) setupChaosInfrastructure() {
 	// Create K3s cluster
 	suite.setupK3sCluster()
-	
+
 	// Create multiple Vault instances for failover testing
 	suite.setupVaultClusters()
-	
+
 	// Set up controller
 	suite.setupController()
 }
@@ -92,7 +92,7 @@ func (suite *ChaosTestSuite) setupK3sCluster() {
 	suite.scheme = runtime.NewScheme()
 	err = clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
 
@@ -166,7 +166,7 @@ func (suite *ChaosTestSuite) waitForK8sAPI() {
 func (suite *ChaosTestSuite) TearDownSuite() {
 	suite.mu.Lock()
 	defer suite.mu.Unlock()
-	
+
 	// Close all vault clients
 	for _, client := range suite.vaultClients {
 		if client != nil {
@@ -174,15 +174,15 @@ func (suite *ChaosTestSuite) TearDownSuite() {
 			// This is just for our custom client wrapper
 		}
 	}
-	
+
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}
-	
+
 	if suite.secondaryVault != nil {
 		suite.secondaryVault.Terminate(context.Background())
 	}
-	
+
 	if suite.primaryVault != nil {
 		suite.primaryVault.Terminate(context.Background())
 	}
@@ -245,16 +245,16 @@ func (suite *ChaosTestSuite) TestContainerTerminationChaos() {
 	chaosRounds := 5
 	for round := 0; round < chaosRounds; round++ {
 		suite.T().Logf("Chaos round %d: Terminating random container", round+1)
-		
+
 		// Randomly choose which container to terminate
 		if rand.Float32() < 0.5 {
 			// Terminate primary vault
 			suite.T().Log("Terminating primary vault")
 			suite.primaryVault.Terminate(suite.ctx)
-			
+
 			// Wait a bit
 			time.Sleep(2 * time.Second)
-			
+
 			// Recreate primary vault
 			newPrimaryVault, err := vault.Run(suite.ctx,
 				"hashicorp/vault:1.19.0",
@@ -271,7 +271,7 @@ func (suite *ChaosTestSuite) TestContainerTerminationChaos() {
 				suite.primaryVault = newPrimaryVault
 				newPrimaryAddr, _ := newPrimaryVault.HttpHostAddress(suite.ctx)
 				suite.primaryVaultAddr = newPrimaryAddr
-				
+
 				// Update config with new address
 				var currentConfig vaultv1.VaultUnsealConfig
 				suite.k8sClient.Get(suite.ctx, req.NamespacedName, &currentConfig)
@@ -282,9 +282,9 @@ func (suite *ChaosTestSuite) TestContainerTerminationChaos() {
 			// Terminate secondary vault
 			suite.T().Log("Terminating secondary vault")
 			suite.secondaryVault.Terminate(suite.ctx)
-			
+
 			time.Sleep(2 * time.Second)
-			
+
 			// Recreate secondary vault
 			newSecondaryVault, err := vault.Run(suite.ctx,
 				"hashicorp/vault:1.19.0",
@@ -301,7 +301,7 @@ func (suite *ChaosTestSuite) TestContainerTerminationChaos() {
 				suite.secondaryVault = newSecondaryVault
 				newSecondaryAddr, _ := newSecondaryVault.HttpHostAddress(suite.ctx)
 				suite.secondaryVaultAddr = newSecondaryAddr
-				
+
 				// Update config with new address
 				var currentConfig vaultv1.VaultUnsealConfig
 				suite.k8sClient.Get(suite.ctx, req.NamespacedName, &currentConfig)
@@ -350,10 +350,10 @@ func (suite *ChaosTestSuite) TestNetworkPartitionSimulation() {
 	partitionRounds := 3
 	for round := 0; round < partitionRounds; round++ {
 		suite.T().Logf("Network partition round %d", round+1)
-		
+
 		// Randomly partition some configs
 		partitionedConfigs := rand.Intn(configCount/2) + 1
-		
+
 		for i := 0; i < partitionedConfigs; i++ {
 			configIndex := rand.Intn(len(configs))
 			configs[configIndex].Spec.VaultInstances[0].Endpoint = "http://10.255.255.255:8200" // Unreachable
@@ -369,7 +369,7 @@ func (suite *ChaosTestSuite) TestNetworkPartitionSimulation() {
 			wg.Add(1)
 			go func(configIndex int, cfg *vaultv1.VaultUnsealConfig) {
 				defer wg.Done()
-				
+
 				req := ctrl.Request{
 					NamespacedName: types.NamespacedName{
 						Name:      cfg.Name,
@@ -571,7 +571,7 @@ func (suite *ChaosTestSuite) TestConcurrentChaosOperations() {
 			for j := 0; j < 10; j++ {
 				// Random chaos
 				chaosType := rand.Intn(4)
-				
+
 				switch chaosType {
 				case 0:
 					// Reconciliation attempt
@@ -635,9 +635,9 @@ func (suite *ChaosTestSuite) TestConcurrentChaosOperations() {
 		}
 	}
 
-	suite.T().Logf("Concurrent chaos operations: %d/%d succeeded (%.2f%%)", 
+	suite.T().Logf("Concurrent chaos operations: %d/%d succeeded (%.2f%%)",
 		successCount, totalOps, float64(successCount)/float64(totalOps)*100)
-	
+
 	assert.Greater(suite.T(), successCount, totalOps/4, "At least 25% of concurrent chaotic operations should succeed")
 }
 

@@ -44,7 +44,7 @@ type BoundaryTestSuite struct {
 // SetupSuite initializes boundary testing environment
 func (suite *BoundaryTestSuite) SetupSuite() {
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 30*time.Minute)
-	
+
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	// Set up infrastructure using TestContainers
@@ -55,10 +55,10 @@ func (suite *BoundaryTestSuite) SetupSuite() {
 func (suite *BoundaryTestSuite) setupBoundaryInfrastructure() {
 	// Create K3s cluster
 	suite.setupK3s()
-	
+
 	// Create Vault container
 	suite.setupVault()
-	
+
 	// Set up controller
 	suite.setupController()
 }
@@ -86,7 +86,7 @@ func (suite *BoundaryTestSuite) setupK3s() {
 	suite.scheme = runtime.NewScheme()
 	err = clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
 
@@ -141,7 +141,7 @@ func (suite *BoundaryTestSuite) TearDownSuite() {
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}
-	
+
 	if suite.vaultContainer != nil {
 		suite.vaultContainer.Terminate(context.Background())
 	}
@@ -366,7 +366,7 @@ func (suite *BoundaryTestSuite) TestExtremeTimeout() {
 	duration := time.Since(start)
 
 	suite.T().Logf("Timeout test: Reconciliation took %v", duration)
-	
+
 	// Should complete in reasonable time even with unreachable endpoint
 	assert.Less(suite.T(), duration, 60*time.Second, "Reconciliation should timeout gracefully")
 	assert.NoError(suite.T(), err, "Should handle unreachable endpoints gracefully")
@@ -429,11 +429,11 @@ func (suite *BoundaryTestSuite) TestVaultClientBoundaryConditions() {
 			// If client creation succeeded, try operations
 			if err == nil {
 				defer client.Close()
-				
+
 				// Try health check with timeout context
 				ctx, cancel := context.WithTimeout(suite.ctx, tt.timeout+time.Second)
 				defer cancel()
-				
+
 				_, healthErr := client.HealthCheck(ctx)
 				suite.T().Logf("%s: Health check result: %v", tt.description, healthErr)
 				// Don't assert on health check as it depends on actual connectivity
@@ -448,7 +448,7 @@ func (suite *BoundaryTestSuite) TestResourceExhaustionBoundaries() {
 		// Test creating many vault clients concurrently
 		clientCount := 1000
 		clients := make([]*vaultpkg.Client, 0, clientCount)
-		
+
 		for i := 0; i < clientCount; i++ {
 			client, err := vaultpkg.NewClient(suite.vaultAddr, false, 30*time.Second)
 			if err != nil {
@@ -459,7 +459,7 @@ func (suite *BoundaryTestSuite) TestResourceExhaustionBoundaries() {
 		}
 
 		suite.T().Logf("Successfully created %d vault clients", len(clients))
-		
+
 		// Cleanup
 		for _, client := range clients {
 			if client != nil {

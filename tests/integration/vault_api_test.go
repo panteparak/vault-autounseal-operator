@@ -32,10 +32,10 @@ func (suite *VaultAPITestSuite) SetupSuite() {
 
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 15*time.Minute)
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	
+
 	// Create vault manager - will fail fast if Docker is not available
 	suite.vaultManager = shared.NewVaultManager(suite.ctx, suite.Suite)
-	
+
 	// Verify manager was created successfully
 	require.NotNil(suite.T(), suite.vaultManager, "VaultManager should be created successfully")
 }

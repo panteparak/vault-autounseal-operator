@@ -41,7 +41,7 @@ func NewK3sManager(ctx context.Context, testSuite suite.Suite) *K3sManager {
 	if err != nil {
 		testSuite.FailNow("Failed to load configuration", "Error: %v", err)
 	}
-	
+
 	return &K3sManager{
 		ctx:       ctx,
 		instances: make(map[string]*K3sInstance),
@@ -203,7 +203,7 @@ func (km *K3sManager) WaitForCRDReady(instance *K3sInstance, crdName string, tim
 					return nil
 				}
 			}
-			
+
 			// Wait with exponential backoff
 			time.Sleep(backoff)
 			if backoff < maxBackoff {

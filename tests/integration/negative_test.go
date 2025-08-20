@@ -43,7 +43,7 @@ type NegativeIntegrationTestSuite struct {
 // SetupSuite initializes the test environment
 func (suite *NegativeIntegrationTestSuite) SetupSuite() {
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 30*time.Minute)
-	
+
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	// Set up K3s and Vault for negative testing
@@ -54,10 +54,10 @@ func (suite *NegativeIntegrationTestSuite) SetupSuite() {
 func (suite *NegativeIntegrationTestSuite) setupEnvironment() {
 	// Create K3s cluster
 	suite.setupK3s()
-	
+
 	// Create a working Vault for comparison tests
 	suite.setupVault()
-	
+
 	// Set up controller
 	suite.setupController()
 }
@@ -137,7 +137,7 @@ spec:
 	suite.scheme = runtime.NewScheme()
 	err = clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
 
@@ -192,7 +192,7 @@ func (suite *NegativeIntegrationTestSuite) waitForCRDs() {
 				},
 			},
 		}
-		
+
 		err := suite.k8sClient.Create(suite.ctx, testConfig)
 		if err == nil {
 			suite.k8sClient.Delete(suite.ctx, testConfig)
@@ -207,7 +207,7 @@ func (suite *NegativeIntegrationTestSuite) TearDownSuite() {
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}
-	
+
 	if suite.vaultContainer != nil {
 		suite.vaultContainer.Terminate(context.Background())
 	}
@@ -302,7 +302,7 @@ func (suite *NegativeIntegrationTestSuite) TestInvalidVaultEndpoints() {
 			assert.NotEmpty(suite.T(), updatedConfig.Status.VaultStatuses)
 			assert.True(suite.T(), updatedConfig.Status.VaultStatuses[0].Sealed)
 			assert.NotEmpty(suite.T(), updatedConfig.Status.VaultStatuses[0].Error)
-			
+
 			suite.T().Logf("%s: Error recorded: %s", tt.description, updatedConfig.Status.VaultStatuses[0].Error)
 		})
 	}

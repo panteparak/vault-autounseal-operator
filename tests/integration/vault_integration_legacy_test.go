@@ -38,13 +38,13 @@ type VaultIntegrationLegacyTestSuite struct {
 // SetupSuite initializes the test suite with shared utilities
 func (suite *VaultIntegrationLegacyTestSuite) SetupSuite() {
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	
+
 	// Set up logging for tests
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	// Use shared VaultManager for standardized Vault setup
 	suite.vaultManager = shared.NewVaultManager(suite.ctx, suite.Suite)
-	
+
 	// Create a development mode Vault instance
 	var err error
 	suite.vaultInstance, err = suite.vaultManager.CreateDevVault("test-vault")
@@ -61,7 +61,7 @@ func (suite *VaultIntegrationLegacyTestSuite) setupKubernetesClient() {
 	suite.scheme = runtime.NewScheme()
 	err := clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err, "Failed to add client-go scheme")
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err, "Failed to add vault scheme")
 
@@ -83,7 +83,7 @@ func (suite *VaultIntegrationLegacyTestSuite) TearDownSuite() {
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}
-	
+
 	if suite.vaultManager != nil {
 		suite.vaultManager.Cleanup()
 	}
@@ -133,7 +133,7 @@ func (suite *VaultIntegrationLegacyTestSuite) TestVaultUnsealing() {
 	// This tests our client's unsealing workflow even though the vault doesn't actually get sealed
 	testKeys := []string{
 		"dGVzdC1rZXktMQ==", // test-key-1 in base64
-		"dGVzdC1rZXktMg==", // test-key-2 in base64  
+		"dGVzdC1rZXktMg==", // test-key-2 in base64
 		"dGVzdC1rZXktMw==", // test-key-3 in base64
 	}
 
@@ -156,7 +156,7 @@ func (suite *VaultIntegrationLegacyTestSuite) TestVaultUnsealing() {
 func (suite *VaultIntegrationLegacyTestSuite) TestVaultUnsealingWithInvalidKeys() {
 	invalidKeys := []string{
 		"invalid-key-1",
-		"invalid-key-2", 
+		"invalid-key-2",
 		"invalid-key-3",
 	}
 
@@ -235,7 +235,7 @@ func (suite *VaultIntegrationLegacyTestSuite) TestControllerReconciliationWithMu
 					Threshold:  &threshold,
 				},
 				{
-					Name:       "vault-2", 
+					Name:       "vault-2",
 					Endpoint:   vaultInstance2.Address,
 					UnsealKeys: []string{"dGVzdC1rZXktMQ==", "dGVzdC1rZXktMg=="},
 					Threshold:  &threshold,

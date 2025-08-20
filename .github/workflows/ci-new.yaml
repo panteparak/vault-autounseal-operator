@@ -1,0 +1,471 @@
+# New Primary CI Pipeline - Fast feedback using reusable components
+# Uses: reusable-setup, reusable-test, reusable-build workflows
+# Estimated Duration: 12-18 minutes (optimized with reusable components)
+
+name: ✨ CI (New)
+
+on:
+  push:
+    branches: [ main, develop, 'feat/*', 'fix/*', 'chore/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      skip_build:
+        description: 'Skip Docker build step'
+        required: false
+        default: false
+        type: boolean
+      run_e2e:
+        description: 'Run E2E tests'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  GO_VERSION: "1.24"
+
+# Prevent multiple runs on same PR
+concurrency:
+  group: ci-new-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Environment setup and validation
+  setup:
+    name: 🚀 Setup Environment
+    uses: ./.github/workflows/reusable-setup.yaml
+    with:
+      go-version: "1.24"
+      setup-docker: true
+      cache-prefix: ci-primary
+
+  # Code quality checks
+  lint:
+    name: 🔍 Code Quality
+    runs-on: ubuntu-latest
+    needs: setup
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ needs.setup.outputs.go-version }}
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          timeout: 5m
+          args: --timeout=5m --config=.golangci.yml
+
+      - name: Verify go mod tidy
+        run: |
+          go mod tidy
+          if ! git diff --quiet go.mod go.sum; then
+            echo "❌ go mod tidy made changes - please run 'go mod tidy' and commit"
+            git diff go.mod go.sum
+            exit 1
+          fi
+          echo "✅ go.mod and go.sum are tidy"
+
+  # Unit tests with coverage
+  unit-tests:
+    name: 🧪 Unit Tests
+    needs: setup
+    uses: ./.github/workflows/reusable-test.yaml
+    with:
+      test-type: unit
+      coverage: true
+      race-detection: true
+      timeout: 10m
+      upload-coverage: true
+      go-version: ${{ needs.setup.outputs.go-version }}
+
+  # Integration tests (basic scenarios only for speed)
+  integration-tests:
+    name: 🔧 Integration Tests (Basic)
+    needs: setup
+    uses: ./.github/workflows/reusable-test.yaml
+    with:
+      test-type: integration
+      coverage: false
+      race-detection: true
+      timeout: 15m
+      test-tags: basic
+      go-version: ${{ needs.setup.outputs.go-version }}
+      vault-version: ${{ needs.setup.outputs.vault-version }}
+
+  # E2E tests (only when requested or on main)
+  e2e-tests:
+    name: 🌐 E2E Tests
+    needs: setup
+    if: github.event.inputs.run_e2e == 'true' || github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reusable-test.yaml
+    with:
+      test-type: e2e
+      coverage: false
+      timeout: 20m
+      go-version: ${{ needs.setup.outputs.go-version }}
+      vault-version: ${{ needs.setup.outputs.vault-version }}
+      k3s-version: ${{ needs.setup.outputs.k3s-version }}
+
+  # Helm chart validation
+  helm-validate:
+    name: 📦 Helm Validation
+    runs-on: ubuntu-latest
+    needs: setup
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      - name: Lint Helm chart
+        run: |
+          echo "📋 Validating Helm chart..."
+          
+          # Update dependencies
+          helm dependency update ./helm/vault-autounseal-operator
+          
+          # Lint chart
+          helm lint ./helm/vault-autounseal-operator
+          
+          # Template chart to validate rendering
+          helm template test-release ./helm/vault-autounseal-operator \
+            --namespace test-namespace \
+            --create-namespace \
+            --dry-run > /tmp/helm-output.yaml
+          
+          echo "✅ Helm chart validation completed"
+
+      - name: Package Helm chart
+        run: |
+          # Package chart for artifact upload
+          helm package ./helm/vault-autounseal-operator \
+            --version=0.0.0-ci-${{ github.run_number }} \
+            --app-version=${{ github.sha }} \
+            --destination=./charts/
+
+      - name: Upload Helm artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart-ci-${{ github.run_number }}
+          path: charts/
+          retention-days: 7
+
+  # Docker build (conditional)
+  build:
+    name: 🏗️ Build Image
+    needs: [setup, unit-tests, lint]
+    if: github.event.inputs.skip_build != 'true'
+    uses: ./.github/workflows/reusable-build.yaml
+    with:
+      registry: ghcr.io
+      image-name: ${{ github.repository }}
+      platforms: linux/amd64,linux/arm64
+      push: true
+      go-version: ${{ needs.setup.outputs.go-version }}
+      build-args: '["VAULT_VERSION=${{ needs.setup.outputs.vault-version }}"]'
+
+  # Basic security scanning (quick checks only)
+  security-quick:
+    name: 🔒 Security (Quick)
+    needs: setup
+    uses: ./.github/workflows/reusable-security.yaml
+    with:
+      scan-type: code
+      severity-threshold: HIGH
+      fail-on-severity: CRITICAL
+      upload-sarif: true
+      go-version: ${{ needs.setup.outputs.go-version }}
+
+  # Smoke tests against built image
+  smoke-tests:
+    name: 💨 Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [build, setup]
+    if: needs.build.result == 'success'
+    timeout-minutes: 5
+    services:
+      vault:
+        image: hashicorp/vault:${{ needs.setup.outputs.vault-version }}
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: ci-test-token
+          VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+        ports:
+          - 8200:8200
+        options: --cap-add=IPC_LOCK
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ needs.setup.outputs.go-version }}
+          cache: true
+
+      - name: Wait for Vault readiness
+        run: |
+          echo "⏳ Waiting for Vault to be ready..."
+          timeout 60s bash -c 'until curl -sf http://localhost:8200/v1/sys/health; do sleep 2; done'
+          echo "✅ Vault is ready"
+
+      - name: Test basic connectivity
+        run: |
+          echo "🧪 Testing basic Vault connectivity..."
+          
+          # Run basic connectivity tests
+          go test -v -timeout=2m ./tests/unit/vault \
+            -run=TestBasicConnectivity \
+            -tags=smoke
+        env:
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: ci-test-token
+          CI: true
+
+      - name: Test built image (if available)
+        if: needs.build.outputs.image-digest != ''
+        run: |
+          echo "🐳 Testing built Docker image..."
+          
+          # Extract image reference
+          IMAGE_TAG=$(echo "${{ needs.build.outputs.image-tags }}" | head -n1)
+          
+          # Pull the built image
+          docker pull "$IMAGE_TAG"
+          
+          # Basic image smoke test
+          docker run --rm --entrypoint="" "$IMAGE_TAG" /manager --version || \
+          docker run --rm --entrypoint="" "$IMAGE_TAG" ls -la /manager
+
+  # Status aggregation and quality gates
+  ci-status:
+    name: ✅ CI Status
+    runs-on: ubuntu-latest
+    needs: 
+      - setup
+      - lint
+      - unit-tests
+      - integration-tests
+      - e2e-tests
+      - helm-validate
+      - build
+      - security-quick
+      - smoke-tests
+    if: always()
+    outputs:
+      overall-result: ${{ steps.evaluate.outputs.result }}
+    steps:
+      - name: Evaluate CI results
+        id: evaluate
+        run: |
+          echo "🔍 Evaluating CI pipeline results..."
+          
+          # Check required jobs
+          SETUP_STATUS="${{ needs.setup.result }}"
+          LINT_STATUS="${{ needs.lint.result }}"
+          UNIT_STATUS="${{ needs.unit-tests.result }}"
+          INTEGRATION_STATUS="${{ needs.integration-tests.result }}"
+          HELM_STATUS="${{ needs.helm-validate.result }}"
+          SECURITY_STATUS="${{ needs.security-quick.result }}"
+          
+          # Optional jobs
+          E2E_STATUS="${{ needs.e2e-tests.result }}"
+          BUILD_STATUS="${{ needs.build.result }}"
+          SMOKE_STATUS="${{ needs.smoke-tests.result }}"
+          
+          echo "📊 Job Results:"
+          echo "  Setup: $SETUP_STATUS"
+          echo "  Lint: $LINT_STATUS"
+          echo "  Unit Tests: $UNIT_STATUS"
+          echo "  Integration Tests: $INTEGRATION_STATUS"
+          echo "  Helm Validate: $HELM_STATUS"
+          echo "  Security Quick: $SECURITY_STATUS"
+          echo "  E2E Tests: $E2E_STATUS (optional)"
+          echo "  Build: $BUILD_STATUS (optional)"
+          echo "  Smoke Tests: $SMOKE_STATUS (optional)"
+          
+          # Determine overall result
+          FAILED_JOBS=""
+          
+          [[ "$SETUP_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS setup"
+          [[ "$LINT_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS lint"
+          [[ "$UNIT_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS unit-tests"
+          [[ "$INTEGRATION_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS integration-tests"
+          [[ "$HELM_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS helm-validate"
+          [[ "$SECURITY_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS security"
+          
+          # E2E failure is not blocking if it was optional
+          if [[ "$E2E_STATUS" == "failure" && "${{ github.event.inputs.run_e2e }}" == "true" ]]; then
+            FAILED_JOBS="$FAILED_JOBS e2e-tests"
+          fi
+          
+          # Build failure is not blocking for PRs
+          if [[ "$BUILD_STATUS" == "failure" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            FAILED_JOBS="$FAILED_JOBS build"
+          fi
+          
+          if [[ -n "$FAILED_JOBS" ]]; then
+            echo "result=failure" >> $GITHUB_OUTPUT
+            echo "❌ CI FAILED - Failed jobs:$FAILED_JOBS"
+            exit 1
+          else
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "✅ CI PASSED - All required jobs successful"
+          fi
+
+      - name: Generate CI summary
+        if: always()
+        run: |
+          echo "## ✨ CI Pipeline Summary (New)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Go Version**: ${{ needs.setup.outputs.go-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Vault Version**: ${{ needs.setup.outputs.vault-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Job Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status | Duration | Notes |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Setup | ${{ needs.setup.result == 'success' && '✅' || '❌' }} | ~2min | Environment preparation |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ needs.lint.result == 'success' && '✅' || '❌' }} | ~3min | Code quality checks |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} | ~5min | With coverage |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration | ${{ needs.integration-tests.result == 'success' && '✅' || '❌' }} | ~8min | Basic scenarios |" >> $GITHUB_STEP_SUMMARY
+          echo "| Helm Validate | ${{ needs.helm-validate.result == 'success' && '✅' || '❌' }} | ~2min | Chart validation |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security | ${{ needs.security-quick.result == 'success' && '✅' || needs.security-quick.result == 'skipped' && '⏭️' || '❌' }} | ~5min | Quick security scan |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build.result == 'success' && '✅' || needs.build.result == 'skipped' && '⏭️' || '❌' }} | ~8min | Multi-platform Docker |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Tests | ${{ needs.e2e-tests.result == 'success' && '✅' || needs.e2e-tests.result == 'skipped' && '⏭️' || '❌' }} | ~15min | Optional/main only |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke Tests | ${{ needs.smoke-tests.result == 'success' && '✅' || needs.smoke-tests.result == 'skipped' && '⏭️' || '❌' }} | ~3min | Image validation |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Add coverage info if available
+          if [[ "${{ needs.unit-tests.outputs.coverage-percentage }}" != "" ]]; then
+            echo "### 📊 Test Coverage" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Unit Test Coverage**: ${{ needs.unit-tests.outputs.coverage-percentage }}%" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Add security info if available
+          if [[ "${{ needs.security-quick.outputs.vulnerabilities-found }}" != "" ]]; then
+            echo "### 🔒 Security Scan" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Vulnerabilities Found**: ${{ needs.security-quick.outputs.vulnerabilities-found }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Critical**: ${{ needs.security-quick.outputs.critical-count }}" >> $GITHUB_STEP_SUMMARY
+            echo "**High**: ${{ needs.security-quick.outputs.high-count }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Add performance metrics
+          echo "### ⚡ Performance" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Estimated Total Duration**: 12-18 minutes" >> $GITHUB_STEP_SUMMARY
+          echo "**Parallel Jobs**: 6-8 concurrent" >> $GITHUB_STEP_SUMMARY
+          echo "**Reusable Components**: ✅ Using optimized workflows" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 🔗 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Test results and coverage reports" >> $GITHUB_STEP_SUMMARY
+          echo "- Security scan results and SARIF files" >> $GITHUB_STEP_SUMMARY
+          echo "- Helm chart package" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.build.result }}" == "success" ]]; then
+            echo "- Docker image: \`${{ needs.build.outputs.image-tags }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Comment on PR with results (if this is a PR)
+  pr-comment:
+    name: 💬 PR Comment
+    runs-on: ubuntu-latest
+    needs: [ci-status, setup, unit-tests, security-quick, build]
+    if: github.event_name == 'pull_request' && always()
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Comment PR with CI results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ciResult = '${{ needs.ci-status.outputs.overall-result }}';
+            const setupResult = '${{ needs.setup.result }}';
+            const unitCoverage = '${{ needs.unit-tests.outputs.coverage-percentage }}';
+            const securityResult = '${{ needs.security-quick.outputs.scan-result }}';
+            const buildResult = '${{ needs.build.result }}';
+            
+            let message = `## ✨ CI Pipeline Results (New)\n\n`;
+            
+            if (ciResult === 'success') {
+              message += `### ✅ All Checks Passed!\n\n`;
+            } else {
+              message += `### ❌ Some Checks Failed\n\n`;
+            }
+            
+            message += `| Component | Status | Details |\n`;
+            message += `|-----------|--------|----------|\n`;
+            message += `| Overall | ${ciResult === 'success' ? '✅' : '❌'} | ${ciResult} |\n`;
+            message += `| Setup | ${setupResult === 'success' ? '✅' : '❌'} | Environment prepared |\n`;
+            
+            if (unitCoverage) {
+              message += `| Unit Tests | ✅ | Coverage: ${unitCoverage}% |\n`;
+            }
+            
+            if (securityResult) {
+              const secIcon = securityResult === 'pass' ? '✅' : securityResult === 'warning' ? '⚠️' : '❌';
+              message += `| Security | ${secIcon} | ${securityResult} |\n`;
+            }
+            
+            if (buildResult === 'success') {
+              message += `| Build | ✅ | Multi-platform image built |\n`;
+            } else if (buildResult === 'skipped') {
+              message += `| Build | ⏭️ | Skipped |\n`;
+            }
+            
+            message += `\n### 🔗 Quick Links\n`;
+            message += `- [Workflow Run](${context.payload.pull_request.html_url}/checks)\n`;
+            message += `- [Test Results](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n`;
+            
+            if (unitCoverage) {
+              message += `- [Coverage Report](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n`;
+            }
+            
+            message += `\n*This comment was generated by the new optimized CI pipeline ✨*`;
+            
+            // Find existing comment to update
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const existingComment = comments.data.find(comment => 
+              comment.body.includes('CI Pipeline Results (New)')
+            );
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: message
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: message
+              });
+            }

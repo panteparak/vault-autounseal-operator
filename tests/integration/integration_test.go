@@ -45,7 +45,7 @@ type VaultIntegrationTestSuite struct {
 // SetupSuite initializes the test suite with TestContainers Vault instance
 func (suite *VaultIntegrationTestSuite) SetupSuite() {
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 5*time.Minute)
-	
+
 	// Set up logging for tests
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
@@ -107,7 +107,7 @@ func (suite *VaultIntegrationTestSuite) setupTestKeys() {
 	// These keys will be used in tests but won't actually unseal the dev vault
 	suite.unsealKeys = []string{
 		"dGVzdC1rZXktMQ==", // test-key-1 in base64
-		"dGVzdC1rZXktMg==", // test-key-2 in base64  
+		"dGVzdC1rZXktMg==", // test-key-2 in base64
 		"dGVzdC1rZXktMw==", // test-key-3 in base64
 		"dGVzdC1rZXktNA==", // test-key-4 in base64
 		"dGVzdC1rZXktNQ==", // test-key-5 in base64
@@ -119,7 +119,7 @@ func (suite *VaultIntegrationTestSuite) setupKubernetesClient() {
 	suite.scheme = runtime.NewScheme()
 	err := clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err, "Failed to add client-go scheme")
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err, "Failed to add vault v1 scheme")
 
@@ -140,7 +140,7 @@ func (suite *VaultIntegrationTestSuite) TearDownSuite() {
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}
-	
+
 	if suite.vaultContainer != nil {
 		err := suite.vaultContainer.Terminate(context.Background())
 		if err != nil {

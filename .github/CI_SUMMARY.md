@@ -1,7 +1,23 @@
+# New Workflow Plans
+
+## Branch 
+### feat/* (push)
+Run: lint, test, helm-package
+
+### feat/* (merge request)
+Run: lint, test, helm-package, (modern-integration-test)
+
+### main
+Run: lint, test, build with tag main and commit, security-scan, helm-package, (modern-integration-test), Security Scanning, Performance Benchmarking, Resource Profiling
+
+### release to tag
+Run: image promote from main with versioning, build and publish docs, build and publish helm chart
+
+
 # GitHub Actions CI/CD Workflow Comprehensive Summary
 
-**Last Updated:** August 20, 2025  
-**Total Workflows:** 11  
+**Last Updated:** August 20, 2025
+**Total Workflows:** 11
 **Analysis Status:** Complete - All workflows analyzed
 
 ---
@@ -16,7 +32,7 @@ The CI/CD pipeline consists of 11 separate workflows with significant overlap an
 - **Purpose**: Primary build, test, and deployment workflow
 - **Triggers**: Push to main/develop, PRs to main
 - **Concurrency**: Grouped by workflow and ref with cancel-in-progress
-- **Jobs**: 
+- **Jobs**:
   - `lint`: golangci-lint code analysis
   - `test`: Go unit tests with race detection
   - `integration-tests`: Docker Compose-based integration tests ⚠️ *Legacy*
@@ -27,9 +43,9 @@ The CI/CD pipeline consists of 11 separate workflows with significant overlap an
 - **Issues**: Contains legacy integration tests and duplicated security scanning
 - **Estimated Duration**: ~25-30 minutes
 
-### 2. **Dedicated Test Workflow** (`test.yml`) 
+### 2. **Dedicated Test Workflow** (`test.yml`)
 - **Purpose**: Focused testing execution with coverage
-- **Triggers**: Push to main/develop, PRs to main/develop  
+- **Triggers**: Push to main/develop, PRs to main/develop
 - **Go Version**: 1.24 (newer than other workflows)
 - **Jobs**:
   - `lint`: golangci-lint with 5m timeout ⚠️ *Duplicated*
@@ -55,7 +71,7 @@ The CI/CD pipeline consists of 11 separate workflows with significant overlap an
 ### 4. **Legacy Integration Tests** (`integration-tests.yml`)
 - **Purpose**: Docker Compose-based integration tests (comprehensive but legacy)
 - **Triggers**: Push/PR events, weekly schedule
-- **Features**: 
+- **Features**:
   - Matrix strategy with Vault versions (1.20.0)
   - Multi-scenario testing (basic, failover, multi-vault)
   - K3d cluster deployment
@@ -82,7 +98,7 @@ The CI/CD pipeline consists of 11 separate workflows with significant overlap an
 - **Jobs**:
   - `benchmark`: Comprehensive performance testing
     - Memory profiling (benchmem)
-    - CPU profiling 
+    - CPU profiling
     - Race condition testing
     - Performance regression checks
 - **Artifacts**: Benchmark results, CPU/memory profiles (*.prof)
@@ -96,7 +112,7 @@ The CI/CD pipeline consists of 11 separate workflows with significant overlap an
   - **Chaos engineering tests** (50 workers, memory pressure)
   - **Load testing** with profiling
   - **Property-based testing** with memory tracking
-  - **Security-focused testing** 
+  - **Security-focused testing**
   - **Memory leak detection**
   - **Vault compatibility testing** (multiple versions)
 - **Matrix Strategy**: Vault versions (1.12.0, 1.13.0, 1.14.0, 1.15.0)
@@ -106,7 +122,7 @@ The CI/CD pipeline consists of 11 separate workflows with significant overlap an
 
 ### 8. **Documentation Generation** (`docs.yml`)
 - **Purpose**: Automated documentation building and GitHub Pages deployment
-- **Triggers**: 
+- **Triggers**:
   - Push to main (docs/, *.md, pkg/**/*.go, helm/**)
   - PRs to main (docs/, *.md)
 - **Features**:
@@ -257,7 +273,7 @@ The CI/CD pipeline consists of 11 separate workflows with significant overlap an
 - **Multiple integration test approaches** - Risk of test gaps during migration
 - **Go version inconsistencies** - Potential compatibility issues
 
-### Medium Risk  
+### Medium Risk
 - **Overlapping security scans** - Potential security blind spots during consolidation
 - **Release workflow complexity** - Risk of breaking release automation
 
@@ -270,7 +286,7 @@ The CI/CD pipeline consists of 11 separate workflows with significant overlap an
 ## Success Metrics
 
 ### Performance Targets (Post-Consolidation)
-- **PR Duration**: 25-30 minutes (was 45-60 minutes) 
+- **PR Duration**: 25-30 minutes (was 45-60 minutes)
 - **Workflow Count**: 6-7 (from 11)
 - **Duplicate Jobs**: 0 (from 4-5)
 - **CI Resource Usage**: 40-50% reduction

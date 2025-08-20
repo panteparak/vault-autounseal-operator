@@ -46,13 +46,13 @@ func NewVaultManager(ctx context.Context, testSuite suite.Suite) *VaultManager {
 	if err := verifyDockerAvailability(); err != nil {
 		testSuite.FailNow("Docker not available for TestContainers", "Error: %v", err)
 	}
-	
+
 	// Load configuration
 	cfg, err := config.GetGlobalConfig()
 	if err != nil {
 		testSuite.FailNow("Failed to load configuration", "Error: %v", err)
 	}
-	
+
 	return &VaultManager{
 		ctx:       ctx,
 		instances: make(map[string]*VaultInstance),
@@ -120,7 +120,7 @@ func (vm *VaultManager) CreateDevVault(name string) (*VaultInstance, error) {
 	return instance, nil
 }
 
-// CreateProdVault creates a production mode Vault (sealed by default)  
+// CreateProdVault creates a production mode Vault (sealed by default)
 func (vm *VaultManager) CreateProdVault(name string) (*VaultInstance, error) {
 	// For testing purposes, create a dev vault but then seal it to simulate production
 	// This avoids TestContainers production mode complexities
@@ -162,7 +162,7 @@ func (vm *VaultManager) CreateProdVault(name string) (*VaultInstance, error) {
 	// In a real scenario, these would come from vault initialization
 	unsealKeys := []string{
 		"ZGVmYXVsdC11bnNlYWwta2V5LTEtZm9yLXRlc3Rpbmc=", // base64: default-unseal-key-1-for-testing
-		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=", // base64: default-unseal-key-2-for-testing  
+		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=", // base64: default-unseal-key-2-for-testing
 		"ZGVmYXVsdC11bnNlYWwta2V5LTMtZm9yLXRlc3Rpbmc=", // base64: default-unseal-key-3-for-testing
 		"ZGVmYXVsdC11bnNlYWwta2V5LTQtZm9yLXRlc3Rpbmc=", // base64: default-unseal-key-4-for-testing
 		"ZGVmYXVsdC11bnNlYWwta2V5LTUtZm9yLXRlc3Rpbmc=", // base64: default-unseal-key-5-for-testing
@@ -186,7 +186,7 @@ func (vm *VaultManager) CreateProdVault(name string) (*VaultInstance, error) {
 // CreateVaultWithVersion creates a Vault instance with a specific version
 func (vm *VaultManager) CreateVaultWithVersion(name, version string, mode VaultMode) (*VaultInstance, error) {
 	image := vm.config.GetVaultImageForVersion(version)
-	
+
 	devContainer, err := vault.Run(vm.ctx,
 		image,
 		vault.WithToken("custom-"+name+"-token"),

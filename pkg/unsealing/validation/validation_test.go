@@ -179,7 +179,7 @@ func (suite *ValidationTestSuite) TestStrictKeyValidator() {
 		{
 			name: "keys with forbidden patterns",
 			keys: []string{
-				"dGVzdC1rZXktd2l0aC1wcm9wZXItbGVuZ3Ro", 
+				"dGVzdC1rZXktd2l0aC1wcm9wZXItbGVuZ3Ro",
 				"cGFzc3dvcmQxMjM=", // "password123" - forbidden
 			},
 			threshold:   1,
@@ -317,7 +317,7 @@ func (suite *ValidationTestSuite) TestValidationErrorTypes() {
 		suite.Run(tt.name, func() {
 			err := suite.validator.ValidateKeys(tt.keys, tt.threshold)
 			require.Error(suite.T(), err)
-			
+
 			// Check that the error message contains information about the error type
 			errMsg := err.Error()
 			assert.Contains(suite.T(), errMsg, tt.expectedType)

@@ -95,7 +95,7 @@ func (suite *ValidationFailTestSuite) TestValidationFailures() {
 	}
 }
 
-// TestStrictValidationFailures tests strict validation failure scenarios  
+// TestStrictValidationFailures tests strict validation failure scenarios
 func (suite *ValidationFailTestSuite) TestStrictValidationFailures() {
 	strictValidator := validation.NewDefaultKeyValidator()
 

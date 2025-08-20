@@ -35,7 +35,7 @@ func (suite *MultiVaultTestSuite) SetupSuite() {
 
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 30*time.Minute)
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	
+
 	suite.vaultManager = shared.NewVaultManager(suite.ctx, suite.Suite)
 	suite.k3sManager = shared.NewK3sManager(suite.ctx, suite.Suite)
 	suite.crdGenerator = shared.NewCRDGenerator()
@@ -60,7 +60,7 @@ func (suite *MultiVaultTestSuite) TestMultiVaultCoordination() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("multi-vault", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -157,7 +157,7 @@ func (suite *MultiVaultTestSuite) TestSelectiveVaultOperations() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("selective-vault", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -285,7 +285,7 @@ func (suite *MultiVaultTestSuite) TestMultiVaultErrorHandling() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("error-handling", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 

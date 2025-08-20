@@ -38,7 +38,7 @@ func (suite *ControllerTestSuite) SetupSuite() {
 	suite.scheme = runtime.NewScheme()
 	err := clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
 
@@ -266,7 +266,7 @@ func (suite *ControllerTestSuite) TestUpdateVaultConfigStatus() {
 	// Verify status
 	assert.Len(suite.T(), vaultConfig.Status.VaultStatuses, 2)
 	assert.Len(suite.T(), vaultConfig.Status.Conditions, 1)
-	
+
 	condition := vaultConfig.Status.Conditions[0]
 	assert.Equal(suite.T(), "Ready", condition.Type)
 	assert.Equal(suite.T(), metav1.ConditionTrue, condition.Status)

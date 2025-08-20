@@ -1,0 +1,336 @@
+# Extended CI/CD Pipeline - Comprehensive testing and security
+# Runs: Full integration tests, security scans, performance benchmarks
+# Estimated Duration: 30-35 minutes
+
+name: 🧪 Extended CI/CD
+
+on:
+  # Run on main branch pushes and scheduled
+  push:
+    branches: [ main, develop ]
+  # Allow manual triggering for PRs when needed
+  workflow_dispatch:
+    inputs:
+      run_performance_tests:
+        description: 'Run performance benchmarks'
+        required: false
+        default: 'false'
+        type: boolean
+  # Daily at 2 AM UTC to catch issues early
+  schedule:
+    - cron: '0 2 * * *'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  GO_VERSION: "1.24"
+  VAULT_VERSION: "1.19.0"
+  K3S_VERSION: "v1.30.8-k3s1"
+
+# Only run one extended workflow at a time
+concurrency:
+  group: ${{ github.workflow }}-extended
+  cancel-in-progress: true
+
+jobs:
+  # Comprehensive integration tests using TestContainers
+  integration-tests:
+    name: 🔧 Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - name: basic-unsealing
+            description: "Basic Vault unsealing workflow"
+          - name: failover-scenario  
+            description: "Multi-vault failover testing"
+          - name: multi-vault-cluster
+            description: "Large cluster unsealing"
+          - name: edge-cases
+            description: "Error handling and edge cases"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Load test configuration
+        run: |
+          echo "Loading test configuration for scenario: ${{ matrix.scenario.name }}"
+          # Use our configuration system
+          export TEST_SCENARIO="${{ matrix.scenario.name }}"
+          export VAULT_VERSION="${{ env.VAULT_VERSION }}"
+          export K3S_VERSION="${{ env.K3S_VERSION }}"
+
+      - name: Run integration tests
+        run: |
+          make test-integration SCENARIO=${{ matrix.scenario.name }}
+        env:
+          VAULT_VERSION: ${{ env.VAULT_VERSION }}
+          K3S_VERSION: ${{ env.K3S_VERSION }}
+          CI: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-results-${{ matrix.scenario.name }}
+          path: |
+            reports/
+            coverage/
+            *.log
+          retention-days: 7
+
+  # Comprehensive security scanning
+  security-scan:
+    name: 🔒 Security Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # Vulnerability scanning of dependencies
+      - name: Run Trivy vulnerability scanner (Filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      # Docker image security scanning
+      - name: Build image for security scan
+        run: |
+          docker build -t test-security-image:latest \
+            --build-arg GO_VERSION=${{ env.GO_VERSION }} .
+
+      - name: Run Trivy vulnerability scanner (Docker)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          image-ref: 'test-security-image:latest'
+          format: 'sarif'
+          output: 'trivy-docker.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      # Go security analysis
+      - name: Run gosec Security Scanner
+        uses: securecodewarrior/github-action-gosec@master
+        with:
+          args: '-fmt sarif -out gosec.sarif ./...'
+
+      # Upload security scan results
+      - name: Upload Trivy FS results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-fs.sarif'
+          category: 'trivy-fs'
+
+      - name: Upload Trivy Docker results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-docker.sarif'
+          category: 'trivy-docker'
+
+      - name: Upload Gosec results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'gosec.sarif'
+          category: 'gosec'
+
+      - name: Upload security artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-results
+          path: |
+            *.sarif
+            security-report.json
+          retention-days: 30
+
+  # Performance benchmarking
+  performance-tests:
+    name: ⚡ Performance Benchmarks  
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'schedule' || github.event.inputs.run_performance_tests == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run benchmarks
+        run: |
+          make test-benchmark
+          go test -bench=. -benchmem -cpuprofile=cpu.prof \
+            -memprofile=mem.prof ./pkg/... > benchmark-results.txt
+
+      - name: Generate performance report
+        run: |
+          echo "## Performance Benchmark Results" > performance-report.md
+          echo "" >> performance-report.md
+          echo "### Benchmark Summary" >> performance-report.md
+          echo '```' >> performance-report.md
+          cat benchmark-results.txt >> performance-report.md
+          echo '```' >> performance-report.md
+          
+          # Check for performance regressions (simple baseline)
+          if [ -f baseline-benchmark.txt ]; then
+            echo "" >> performance-report.md
+            echo "### Performance Comparison" >> performance-report.md
+            echo "Comparing against baseline..." >> performance-report.md
+          fi
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: |
+            *.prof
+            benchmark-results.txt
+            performance-report.md
+          retention-days: 30
+
+  # Compatibility testing across Vault versions
+  compatibility-tests:
+    name: 🔄 Vault Compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'schedule'
+    strategy:
+      fail-fast: false
+      matrix:
+        vault_version: ["1.17.0", "1.18.0", "1.19.0", "1.20.0"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run compatibility tests
+        run: |
+          make test-compatibility VAULT_VERSION=${{ matrix.vault_version }}
+        env:
+          VAULT_VERSION: ${{ matrix.vault_version }}
+          CI: true
+
+      - name: Upload compatibility results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compatibility-results-${{ matrix.vault_version }}
+          path: |
+            compatibility-*.log
+            compatibility-report.json
+          retention-days: 14
+
+  # Test result aggregation and quality gates
+  test-summary:
+    name: 📊 Test Summary & Quality Gates
+    runs-on: ubuntu-latest
+    needs: [integration-tests, security-scan, performance-tests, compatibility-tests]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate comprehensive report
+        run: |
+          echo "# 🧪 Extended CI/CD Test Summary" > extended-report.md
+          echo "" >> extended-report.md
+          echo "**Date**: $(date)" >> extended-report.md
+          echo "**Branch**: ${{ github.ref_name }}" >> extended-report.md
+          echo "**Commit**: ${{ github.sha }}" >> extended-report.md
+          echo "" >> extended-report.md
+          
+          echo "## Job Results" >> extended-report.md
+          echo "" >> extended-report.md
+          echo "| Component | Status | Notes |" >> extended-report.md
+          echo "|-----------|--------|-------|" >> extended-report.md
+          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} | TestContainers scenarios |" >> extended-report.md  
+          echo "| Security Scanning | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} | Trivy + Gosec analysis |" >> extended-report.md
+          echo "| Performance Tests | ${{ needs.performance-tests.result == 'success' && '✅ Passed' || needs.performance-tests.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Benchmark analysis |" >> extended-report.md
+          echo "| Compatibility | ${{ needs.compatibility-tests.result == 'success' && '✅ Passed' || needs.compatibility-tests.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Multi-version Vault |" >> extended-report.md
+          echo "" >> extended-report.md
+
+          # Quality gate checks
+          echo "## Quality Gates" >> extended-report.md
+          echo "" >> extended-report.md
+          
+          # Check critical failures
+          INTEGRATION_FAILED="${{ needs.integration-tests.result == 'failure' }}"
+          SECURITY_FAILED="${{ needs.security-scan.result == 'failure' }}"
+          
+          if [[ "$INTEGRATION_FAILED" == "true" ]]; then
+            echo "❌ **CRITICAL**: Integration tests failed - blocking deployment" >> extended-report.md
+            echo "QUALITY_GATE=FAILED" >> $GITHUB_ENV
+          elif [[ "$SECURITY_FAILED" == "true" ]]; then
+            echo "⚠️ **WARNING**: Security issues detected - review required" >> extended-report.md
+            echo "QUALITY_GATE=WARNING" >> $GITHUB_ENV
+          else
+            echo "✅ **PASSED**: All quality gates satisfied" >> extended-report.md
+            echo "QUALITY_GATE=PASSED" >> $GITHUB_ENV
+          fi
+
+      - name: Comment PR with results (if applicable)
+        uses: actions/github-script@v7
+        if: github.event_name == 'workflow_dispatch' && github.event.pull_request
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('extended-report.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+      - name: Upload comprehensive results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: extended-ci-report
+          path: |
+            extended-report.md
+          retention-days: 30
+
+      - name: Fail if quality gates not met
+        if: env.QUALITY_GATE == 'FAILED'
+        run: |
+          echo "❌ Quality gates failed - check the extended report for details"
+          exit 1

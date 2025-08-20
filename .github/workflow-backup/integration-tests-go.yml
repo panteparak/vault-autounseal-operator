@@ -143,16 +143,16 @@ jobs:
 
         # Run integration tests using our new TestContainers-based test suite
         cd tests
-        
+
         # Set test flags for fail-fast behavior
         TEST_FLAGS="-v -timeout 20m -failfast -count=1"
-        
+
         case "$TEST_SCENARIO" in
           "basic")
             echo "▶️ Running basic Vault API tests..."
             go test $TEST_FLAGS -run "TestVaultAPITestSuite" ./integration/ || { echo "❌ Basic tests failed"; exit 1; }
             ;;
-          "failover")  
+          "failover")
             echo "▶️ Running failover scenario tests..."
             go test $TEST_FLAGS -run "TestFailoverTestSuite" ./integration/ || { echo "❌ Failover tests failed"; exit 1; }
             ;;

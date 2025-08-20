@@ -35,7 +35,7 @@ func (suite *OperatorStatusTestSuite) SetupSuite() {
 
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 20*time.Minute)
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	
+
 	suite.vaultManager = shared.NewVaultManager(suite.ctx, suite.Suite)
 	suite.k3sManager = shared.NewK3sManager(suite.ctx, suite.Suite)
 	suite.crdGenerator = shared.NewCRDGenerator()
@@ -60,7 +60,7 @@ func (suite *OperatorStatusTestSuite) TestOperatorBasicStatus() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("status-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -135,7 +135,7 @@ func (suite *OperatorStatusTestSuite) TestOperatorHealthChecks() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("health-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -221,7 +221,7 @@ func (suite *OperatorStatusTestSuite) TestOperatorErrorReporting() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("error-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -289,7 +289,7 @@ func (suite *OperatorStatusTestSuite) TestOperatorReconciliationLoop() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("loop-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -341,17 +341,17 @@ func (suite *OperatorStatusTestSuite) TestOperatorReconciliationLoop() {
 		// Perform multiple reconciliation cycles
 		for i := 0; i < 3; i++ {
 			suite.T().Logf("🔄 Reconciliation cycle %d", i+1)
-			
+
 			result, err := reconciler.Reconcile(suite.ctx, req)
 			assert.NoError(suite.T(), err, "Reconciliation cycle %d should succeed", i+1)
-			
+
 			// Log result details
 			suite.T().Logf("   Result: Requeue=%t, RequeueAfter=%v", result.Requeue, result.RequeueAfter)
-			
+
 			// Verify vault remains healthy
 			err = suite.vaultManager.VerifyVaultHealth(vaultInstance, false)
 			assert.NoError(suite.T(), err, "Vault should remain healthy in cycle %d", i+1)
-			
+
 			// Small delay between cycles
 			time.Sleep(100 * time.Millisecond)
 		}

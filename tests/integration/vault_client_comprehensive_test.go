@@ -35,12 +35,12 @@ type VaultClientComprehensiveTestSuite struct {
 // SetupSuite initializes both dev and production mode Vault containers
 func (suite *VaultClientComprehensiveTestSuite) SetupSuite() {
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 10*time.Minute)
-	
+
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	// Set up dev mode Vault (for basic connectivity tests)
 	suite.setupDevVault()
-	
+
 	// Set up production mode Vault (for unsealing tests)
 	suite.setupProdVault()
 }
@@ -161,11 +161,11 @@ func (suite *VaultClientComprehensiveTestSuite) TearDownSuite() {
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}
-	
+
 	if suite.devVaultContainer != nil {
 		suite.devVaultContainer.Terminate(context.Background())
 	}
-	
+
 	if suite.prodVaultContainer != nil {
 		suite.prodVaultContainer.Terminate(context.Background())
 	}
@@ -369,7 +369,7 @@ func (suite *VaultClientComprehensiveTestSuite) TestVaultClientConcurrentAccess(
 	}
 
 	// Most operations should succeed (allow some failures due to timing)
-	assert.Greater(suite.T(), successCount, concurrency/2, 
+	assert.Greater(suite.T(), successCount, concurrency/2,
 		"At least half of concurrent operations should succeed")
 }
 

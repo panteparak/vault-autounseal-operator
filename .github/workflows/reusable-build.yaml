@@ -1,0 +1,201 @@
+# Reusable Build Workflow - Docker image building with multi-platform support
+# Provides: Optimized Docker builds, registry management, metadata extraction
+
+name: 🏗️ Reusable Build
+
+on:
+  workflow_call:
+    inputs:
+      registry:
+        description: 'Container registry'
+        required: false
+        default: 'ghcr.io'
+        type: string
+      image-name:
+        description: 'Image name'
+        required: true
+        type: string
+      build-context:
+        description: 'Build context path'
+        required: false
+        default: '.'
+        type: string
+      dockerfile:
+        description: 'Dockerfile path'
+        required: false
+        default: 'Dockerfile'
+        type: string
+      platforms:
+        description: 'Target platforms'
+        required: false
+        default: 'linux/amd64,linux/arm64'
+        type: string
+      push:
+        description: 'Push images to registry'
+        required: false
+        default: true
+        type: boolean
+      cache-from:
+        description: 'Cache source'
+        required: false
+        default: 'type=gha'
+        type: string
+      cache-to:
+        description: 'Cache destination'
+        required: false
+        default: 'type=gha,mode=max'
+        type: string
+      build-args:
+        description: 'Build arguments (JSON array)'
+        required: false
+        default: '[]'
+        type: string
+      go-version:
+        description: 'Go version for build'
+        required: false
+        default: '1.24'
+        type: string
+    outputs:
+      image-digest:
+        description: 'Image digest'
+        value: ${{ jobs.build.outputs.digest }}
+      image-tags:
+        description: 'Image tags'
+        value: ${{ jobs.build.outputs.tags }}
+      image-metadata:
+        description: 'Image metadata'
+        value: ${{ jobs.build.outputs.metadata }}
+
+jobs:
+  build:
+    name: 🔨 Multi-Platform Build
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
+      metadata: ${{ steps.meta.outputs.json }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
+      - name: Log in to Container Registry
+        if: inputs.push == true
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.registry }}/${{ inputs.image-name }}
+          tags: |
+            # Branch-based tags
+            type=ref,event=branch
+            type=ref,event=pr
+            # Semantic versioning tags
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable={{is_default_branch}}
+            # Special tags
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=edge,enable={{branch `main`}}
+          labels: |
+            org.opencontainers.image.title=Vault Auto-Unseal Operator
+            org.opencontainers.image.description=Kubernetes operator for automatically unsealing Vault instances
+            org.opencontainers.image.vendor=TeparakDev
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}/blob/main/README.md
+
+      - name: Prepare build arguments
+        id: build-args
+        run: |
+          echo "🔧 Preparing build arguments..."
+          
+          # Default build args
+          BUILD_ARGS="GO_VERSION=${{ inputs.go-version }}"
+          BUILD_ARGS="$BUILD_ARGS,BUILD_VERSION=${{ github.sha }}"
+          BUILD_ARGS="$BUILD_ARGS,BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          BUILD_ARGS="$BUILD_ARGS,VCS_REF=${{ github.sha }}"
+          BUILD_ARGS="$BUILD_ARGS,VERSION=${{ github.ref_name }}"
+          
+          # Parse additional build args from input (if provided)
+          if [[ "${{ inputs.build-args }}" != "[]" ]]; then
+            ADDITIONAL_ARGS=$(echo '${{ inputs.build-args }}' | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
+            if [[ -n "$ADDITIONAL_ARGS" ]]; then
+              BUILD_ARGS="$BUILD_ARGS,$ADDITIONAL_ARGS"
+            fi
+          fi
+          
+          echo "build-args=$BUILD_ARGS" >> $GITHUB_OUTPUT
+          echo "✅ Build arguments prepared: $BUILD_ARGS"
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.build-context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: ${{ inputs.cache-from }}
+          cache-to: ${{ inputs.cache-to }}
+          build-args: ${{ steps.build-args.outputs.build-args }}
+          outputs: type=image,name=${{ inputs.registry }}/${{ inputs.image-name }},push=${{ inputs.push }}
+
+      - name: Generate build report
+        run: |
+          echo "## 🏗️ Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: \`${{ inputs.registry }}/${{ inputs.image-name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Platforms**: ${{ inputs.platforms }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Digest**: \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Push**: ${{ inputs.push }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🏷️ Tags" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Test built image (if pushed)
+        if: inputs.push == true
+        run: |
+          echo "🧪 Testing built image..."
+          
+          # Extract first tag for testing
+          FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          
+          # Pull and test the image
+          docker pull "$FIRST_TAG"
+          
+          # Basic image inspection
+          docker inspect "$FIRST_TAG" > image-inspect.json
+          
+          # Test image can run (basic smoke test)
+          if docker run --rm --entrypoint="" "$FIRST_TAG" which vault-autounseal-operator >/dev/null 2>&1; then
+            echo "✅ Image smoke test passed"
+          else
+            echo "⚠️ Image smoke test failed - binary not found"
+            exit 1
+          fi
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ github.run_number }}
+          path: |
+            image-inspect.json
+            build-*.log
+          retention-days: 7

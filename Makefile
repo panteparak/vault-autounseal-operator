@@ -37,7 +37,7 @@ vet: ## Run go vet against code.
 ##@ Testing (Modular Test Structure)
 
 # New modular test system (tests/ directory)
-.PHONY: test-all-modules test-unit-modules test-integration-modules test-e2e-modules 
+.PHONY: test-all-modules test-unit-modules test-integration-modules test-e2e-modules
 .PHONY: test-performance-modules test-chaos-modules test-boundary-modules
 .PHONY: test-setup-modules test-clean-modules test-coverage-modules
 
@@ -47,7 +47,7 @@ test-all-modules: ## Run all test modules
 test-unit-modules: ## Run unit tests
 	@cd tests && $(MAKE) test-unit
 
-test-integration-modules: ## Run integration tests  
+test-integration-modules: ## Run integration tests
 	@cd tests && $(MAKE) test-integration
 
 test-e2e-modules: ## Run end-to-end tests

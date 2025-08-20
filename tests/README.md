@@ -58,7 +58,7 @@ make test-all
 ### By Category
 ```bash
 make test-unit          # Unit tests only
-make test-integration   # Integration tests only  
+make test-integration   # Integration tests only
 make test-e2e          # E2E tests only
 make test-performance  # Performance tests only
 make test-chaos        # Chaos tests only
@@ -76,7 +76,7 @@ go test -v ./controller/...
 
 Each test module can be configured via environment variables:
 - `TEST_TIMEOUT`: Test timeout (default: 30m)
-- `TEST_CONTAINERS`: Enable TestContainers (default: true)  
+- `TEST_CONTAINERS`: Enable TestContainers (default: true)
 - `TEST_PARALLELISM`: Number of parallel tests (default: 4)
 - `TEST_VERBOSE`: Verbose output (default: false)
 

@@ -107,7 +107,7 @@ func (suite *ClientMockTestSuite) TestMockClientUnsealingSequence() {
 	threshold := 3
 	keys := []string{
 		"ZGVmYXVsdC11bnNlYWwta2V5LTEtZm9yLXRlc3Rpbmc=",
-		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=", 
+		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=",
 		"ZGVmYXVsdC11bnNlYWwta2V5LTMtZm9yLXRlc3Rpbmc=",
 	}
 
@@ -147,7 +147,7 @@ func (suite *ClientMockTestSuite) TestMockClientUnsealWithMultipleKeys() {
 	threshold := 3
 	keys := []string{
 		"ZGVmYXVsdC11bnNlYWwta2V5LTEtZm9yLXRlc3Rpbmc=",
-		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=", 
+		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=",
 		"ZGVmYXVsdC11bnNlYWwta2V5LTMtZm9yLXRlc3Rpbmc=",
 	}
 
@@ -166,7 +166,7 @@ func (suite *ClientMockTestSuite) TestMockClientUnsealWithMultipleKeys() {
 // TestMockClientWithCustomFactory tests custom factory behavior
 func (suite *ClientMockTestSuite) TestMockClientWithCustomFactory() {
 	mockFactory := new(mocks.MockClientFactory)
-	
+
 	// Setup factory to return our mock client
 	mockFactory.On("NewClient", "http://vault.test:8200", false, 30*time.Second).
 		Return(suite.mockClient, nil).Once()
@@ -195,7 +195,7 @@ func (suite *ClientMockTestSuite) TestMockValidatorSuccess() {
 	mockValidator := new(mocks.MockKeyValidator)
 	keys := []string{
 		"ZGVmYXVsdC11bnNlYWwta2V5LTEtZm9yLXRlc3Rpbmc=",
-		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=", 
+		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=",
 		"ZGVmYXVsdC11bnNlYWwta2V5LTMtZm9yLXRlc3Rpbmc=",
 	}
 
@@ -229,7 +229,7 @@ func (suite *ClientMockTestSuite) TestMockValidatorFailure() {
 	// Mock validation failures
 	validationError := fmt.Errorf("validation error: invalid base64 encoding")
 	mockValidator.On("ValidateKeys", invalidKeys, 3).Return(validationError).Once()
-	
+
 	for _, key := range invalidKeys {
 		mockValidator.On("ValidateBase64Key", key).Return(validationError).Once()
 	}
@@ -253,7 +253,7 @@ func (suite *ClientMockTestSuite) TestMockUnsealStrategy() {
 	mockStrategy := new(mocks.MockUnsealStrategy)
 	keys := []string{
 		"ZGVmYXVsdC11bnNlYWwta2V5LTEtZm9yLXRlc3Rpbmc=",
-		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=", 
+		"ZGVmYXVsdC11bnNlYWwta2V5LTItZm9yLXRlc3Rpbmc=",
 		"ZGVmYXVsdC11bnNlYWwta2V5LTMtZm9yLXRlc3Rpbmc=",
 	}
 
@@ -294,7 +294,7 @@ func (suite *ClientMockTestSuite) TestMockErrorScenarios() {
 			expectedError: "operation timed out",
 		},
 		{
-			name: "unauthorized error", 
+			name: "unauthorized error",
 			setupMock: func(client *mocks.MockVaultClient) {
 				client.On("HealthCheck", mock.Anything).
 					Return(nil, fmt.Errorf("permission denied"))

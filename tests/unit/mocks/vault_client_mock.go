@@ -181,7 +181,7 @@ func SetupHealthyVault(mockClient *MockVaultClient) {
 	mockClient.On("Timeout").Return(30 * time.Second)
 	mockClient.On("IsClosed").Return(false)
 	mockClient.On("Close").Return(nil)
-	
+
 	mockClient.On("IsSealed", mock.Anything).Return(false, nil)
 	mockClient.On("IsInitialized", mock.Anything).Return(true, nil)
 	mockClient.On("HealthCheck", mock.Anything).Return(NewMockHealthResponse(false, true), nil)
@@ -194,7 +194,7 @@ func SetupSealedVault(mockClient *MockVaultClient) {
 	mockClient.On("Timeout").Return(30 * time.Second)
 	mockClient.On("IsClosed").Return(false)
 	mockClient.On("Close").Return(nil)
-	
+
 	mockClient.On("IsSealed", mock.Anything).Return(true, nil)
 	mockClient.On("IsInitialized", mock.Anything).Return(true, nil)
 	mockClient.On("HealthCheck", mock.Anything).Return(NewMockHealthResponse(true, true), nil)
@@ -207,7 +207,7 @@ func SetupFailingVault(mockClient *MockVaultClient, errorMsg string) {
 	mockClient.On("Timeout").Return(30 * time.Second)
 	mockClient.On("IsClosed").Return(false)
 	mockClient.On("Close").Return(nil)
-	
+
 	// Create a simple error since VaultError constructor requires more parameters
 	err := fmt.Errorf("vault error: %s", errorMsg)
 	mockClient.On("IsSealed", mock.Anything).Return(false, err)
@@ -222,22 +222,22 @@ func SetupUnsealingSequence(mockClient *MockVaultClient, threshold int) {
 	mockClient.On("Timeout").Return(30 * time.Second)
 	mockClient.On("IsClosed").Return(false)
 	mockClient.On("Close").Return(nil)
-	
+
 	// Initial state: sealed, initialized
 	mockClient.On("IsSealed", mock.Anything).Return(true, nil).Once()
 	mockClient.On("IsInitialized", mock.Anything).Return(true, nil)
 	mockClient.On("GetSealStatus", mock.Anything).Return(NewMockSealStatusResponse(true, threshold, 0), nil)
-	
+
 	// During unsealing: progress increases
 	for i := 1; i < threshold; i++ {
 		mockClient.On("SubmitSingleKey", mock.Anything, mock.Anything, mock.Anything).
 			Return(NewMockSealStatusResponse(true, threshold, i), nil).Once()
 	}
-	
+
 	// Final key: unsealed
 	mockClient.On("SubmitSingleKey", mock.Anything, mock.Anything, mock.Anything).
 		Return(NewMockSealStatusResponse(false, threshold, threshold), nil).Once()
-	
+
 	// After unsealing: vault is unsealed
 	mockClient.On("IsSealed", mock.Anything).Return(false, nil)
 	mockClient.On("GetSealStatus", mock.Anything).Return(NewMockSealStatusResponse(false, threshold, threshold), nil)

@@ -79,18 +79,18 @@ func (m *PerformanceMetrics) AddFailure() {
 func (m *PerformanceMetrics) GetStats() (avgReconciliation time.Duration, p95Reconciliation time.Duration, successRate float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if len(m.ReconciliationTimes) == 0 {
 		return 0, 0, 0
 	}
-	
+
 	// Calculate average
 	var total time.Duration
 	for _, d := range m.ReconciliationTimes {
 		total += d
 	}
 	avgReconciliation = total / time.Duration(len(m.ReconciliationTimes))
-	
+
 	// Calculate P95 (simplified - just 95th percentile position)
 	if len(m.ReconciliationTimes) > 0 {
 		p95Index := int(float64(len(m.ReconciliationTimes)) * 0.95)
@@ -99,19 +99,19 @@ func (m *PerformanceMetrics) GetStats() (avgReconciliation time.Duration, p95Rec
 		}
 		p95Reconciliation = m.ReconciliationTimes[p95Index]
 	}
-	
+
 	// Calculate success rate
 	if m.TotalOperations > 0 {
 		successRate = float64(m.SuccessfulOperations) / float64(m.TotalOperations) * 100
 	}
-	
+
 	return
 }
 
 // SetupSuite initializes performance testing environment
 func (suite *PerformanceTestSuite) SetupSuite() {
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 45*time.Minute)
-	
+
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 	suite.metrics = &PerformanceMetrics{}
 
@@ -123,10 +123,10 @@ func (suite *PerformanceTestSuite) SetupSuite() {
 func (suite *PerformanceTestSuite) setupPerformanceInfrastructure() {
 	// Create K3s cluster with performance optimizations
 	suite.setupOptimizedK3s()
-	
+
 	// Create optimized Vault container
 	suite.setupOptimizedVault()
-	
+
 	// Set up controller
 	suite.setupController()
 }
@@ -165,7 +165,7 @@ func (suite *PerformanceTestSuite) setupOptimizedK3s() {
 	suite.scheme = runtime.NewScheme()
 	err = clientgoscheme.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
-	
+
 	err = vaultv1.AddToScheme(suite.scheme)
 	require.NoError(suite.T(), err)
 
@@ -227,7 +227,7 @@ func (suite *PerformanceTestSuite) TearDownSuite() {
 	if suite.ctxCancel != nil {
 		suite.ctxCancel()
 	}
-	
+
 	if suite.vaultContainer != nil {
 		suite.vaultContainer.Terminate(context.Background())
 	}
@@ -291,7 +291,7 @@ func (suite *PerformanceTestSuite) TestReconciliationPerformance() {
 		reconcileStart := time.Now()
 		_, err := suite.reconciler.Reconcile(suite.ctx, req)
 		reconcileDuration := time.Since(reconcileStart)
-		
+
 		suite.metrics.AddReconciliationTime(reconcileDuration)
 		if err == nil {
 			suite.metrics.AddSuccess()
@@ -359,7 +359,7 @@ func (suite *PerformanceTestSuite) TestConcurrentReconciliationPerformance() {
 			wg.Add(1)
 			go func(configIndex, opIndex int, cfg *vaultv1.VaultUnsealConfig) {
 				defer wg.Done()
-				
+
 				// Acquire semaphore
 				semaphore <- struct{}{}
 				defer func() { <-semaphore }()
@@ -402,7 +402,7 @@ func (suite *PerformanceTestSuite) TestConcurrentReconciliationPerformance() {
 	// Performance assertions for concurrent operations
 	assert.Less(suite.T(), avgReconciliation, 2*time.Second, "Average concurrent reconciliation should be reasonable")
 	assert.Greater(suite.T(), successRate, 90.0, "Concurrent success rate should be above 90%")
-	
+
 	// Throughput should be reasonable
 	opsPerSecond := float64(totalOps) / totalDuration.Seconds()
 	assert.Greater(suite.T(), opsPerSecond, 5.0, "Should achieve at least 5 operations per second")
@@ -412,7 +412,7 @@ func (suite *PerformanceTestSuite) TestConcurrentReconciliationPerformance() {
 func (suite *PerformanceTestSuite) TestVaultClientPerformance() {
 	operationCount := 200
 	concurrency := 20
-	
+
 	semaphore := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
 	results := make(chan time.Duration, operationCount)
@@ -424,13 +424,13 @@ func (suite *PerformanceTestSuite) TestVaultClientPerformance() {
 		wg.Add(1)
 		go func(opIndex int) {
 			defer wg.Done()
-			
+
 			// Acquire semaphore
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
 			opStart := time.Now()
-			
+
 			client, err := vaultpkg.NewClient(suite.vaultAddr, false, 10*time.Second)
 			if err != nil {
 				errors <- err
@@ -451,7 +451,7 @@ func (suite *PerformanceTestSuite) TestVaultClientPerformance() {
 
 	wg.Wait()
 	totalDuration := time.Since(start)
-	
+
 	close(results)
 	close(errors)
 
@@ -490,13 +490,13 @@ func (suite *PerformanceTestSuite) TestVaultClientPerformance() {
 func (suite *PerformanceTestSuite) TestMemoryAndResourceUsage() {
 	// Create a large number of configurations to test resource usage
 	configCount := 100
-	
+
 	// Measure initial state
 	suite.T().Log("Starting resource usage test with large configuration set")
-	
+
 	var configs []*vaultv1.VaultUnsealConfig
 	creationStart := time.Now()
-	
+
 	for i := 0; i < configCount; i++ {
 		config := &vaultv1.VaultUnsealConfig{
 			ObjectMeta: metav1.ObjectMeta{
@@ -523,14 +523,14 @@ func (suite *PerformanceTestSuite) TestMemoryAndResourceUsage() {
 		require.NoError(suite.T(), err)
 		configs = append(configs, config)
 	}
-	
+
 	creationDuration := time.Since(creationStart)
 	suite.T().Logf("Created %d configurations in %v", configCount, creationDuration)
 
 	// Perform reconciliations and measure performance degradation
 	reconcileStart := time.Now()
 	successfulReconciliations := 0
-	
+
 	for i, config := range configs {
 		req := ctrl.Request{
 			NamespacedName: types.NamespacedName{
@@ -543,7 +543,7 @@ func (suite *PerformanceTestSuite) TestMemoryAndResourceUsage() {
 		if err == nil {
 			successfulReconciliations++
 		}
-		
+
 		// Log progress every 25 configs
 		if (i+1)%25 == 0 {
 			elapsed := time.Since(reconcileStart)
@@ -551,7 +551,7 @@ func (suite *PerformanceTestSuite) TestMemoryAndResourceUsage() {
 			suite.T().Logf("Progress: %d/%d configs reconciled, avg time per config: %v", i+1, configCount, avgTime)
 		}
 	}
-	
+
 	reconcileDuration := time.Since(reconcileStart)
 	avgReconcileTime := reconcileDuration / time.Duration(configCount)
 

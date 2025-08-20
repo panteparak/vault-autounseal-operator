@@ -36,7 +36,7 @@ func (suite *ControllerReconciliationTestSuite) SetupSuite() {
 
 	suite.ctx, suite.ctxCancel = context.WithTimeout(context.Background(), 20*time.Minute)
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	
+
 	suite.vaultManager = shared.NewVaultManager(suite.ctx, suite.Suite)
 	suite.k3sManager = shared.NewK3sManager(suite.ctx, suite.Suite)
 	suite.crdGenerator = shared.NewCRDGenerator()
@@ -61,7 +61,7 @@ func (suite *ControllerReconciliationTestSuite) TestBasicReconciliation() {
 		// Set up infrastructure with CRD
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("reconcile-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -132,7 +132,7 @@ func (suite *ControllerReconciliationTestSuite) TestMultipleVaultInstances() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("multi-vault-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
@@ -214,7 +214,7 @@ func (suite *ControllerReconciliationTestSuite) TestReconciliationWithErrors() {
 		// Set up infrastructure
 		crdManifest := suite.crdGenerator.GenerateVaultUnsealConfigCRD()
 		rbacManifest := suite.crdGenerator.GenerateRBACManifests("default")
-		
+
 		k3sInstance, err := suite.k3sManager.CreateK3sCluster("error-test", crdManifest, rbacManifest)
 		require.NoError(suite.T(), err, "Should create K3s cluster")
 
