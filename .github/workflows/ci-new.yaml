@@ -1,6 +1,6 @@
-# New Primary CI Pipeline - Fast feedback using reusable components
-# Uses: reusable-setup, reusable-test, reusable-build workflows
-# Estimated Duration: 12-18 minutes (optimized with reusable components)
+# Primary CI Pipeline - Fast feedback using composite actions
+# Uses: setup, run-tests, build-image, security-scan composite actions
+# Estimated Duration: 12-18 minutes (optimized with composite actions)
 
 name: ✨ CI (New)
 
