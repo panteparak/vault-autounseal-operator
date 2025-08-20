@@ -69,7 +69,6 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
-          timeout: 5m
           args: --timeout=5m --config=.golangci.yml
 
       - name: Verify go mod tidy
