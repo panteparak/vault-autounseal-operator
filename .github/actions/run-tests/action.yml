@@ -75,18 +75,22 @@ runs:
           "unit")
             PACKAGES="./pkg/... ./tests/unit/..."
             TEST_ARGS="-tags=unit"
+            WORKING_DIR="."
             ;;
           "integration")
-            PACKAGES="./tests/integration/..."
+            PACKAGES="./integration/..."
             TEST_ARGS="-tags=integration"
+            WORKING_DIR="tests"
             ;;
           "e2e")
-            PACKAGES="./tests/e2e/..."
+            PACKAGES="./e2e/..."
             TEST_ARGS="-tags=e2e"
+            WORKING_DIR="tests"
             ;;
           "all")
             PACKAGES="./..."
             TEST_ARGS=""
+            WORKING_DIR="."
             ;;
           *)
             echo "❌ Unknown test type: ${{ inputs.test-type }}"
@@ -105,10 +109,12 @@ runs:
 
         echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
         echo "test-args=$TEST_ARGS" >> $GITHUB_OUTPUT
+        echo "working-dir=$WORKING_DIR" >> $GITHUB_OUTPUT
 
         echo "✅ Test configuration:"
         echo "  Packages: $PACKAGES"
         echo "  Args: $TEST_ARGS"
+        echo "  Working Dir: $WORKING_DIR"
 
     - name: Setup integration test dependencies
       if: contains(inputs.test-type, 'integration') || contains(inputs.test-type, 'e2e')
@@ -142,6 +148,13 @@ runs:
       run: |
         echo "🧪 Running ${{ inputs.test-type }} tests..."
 
+        # Change to the appropriate working directory
+        WORKING_DIR="${{ steps.packages.outputs.working-dir }}"
+        if [[ "$WORKING_DIR" != "." ]]; then
+          echo "📁 Changing to working directory: $WORKING_DIR"
+          cd "$WORKING_DIR"
+        fi
+
         # Build test command
         CMD="go test -v"
 
@@ -156,9 +169,13 @@ runs:
           CMD="$CMD -race"
         fi
 
-        # Add coverage
+        # Add coverage (adjust path for working directory)
         if [[ "${{ inputs.coverage }}" == "true" ]]; then
-          CMD="$CMD -coverprofile=coverage/coverage.out -covermode=atomic"
+          if [[ "$WORKING_DIR" != "." ]]; then
+            CMD="$CMD -coverprofile=../coverage/coverage.out -covermode=atomic"
+          else
+            CMD="$CMD -coverprofile=coverage/coverage.out -covermode=atomic"
+          fi
         fi
 
         # Add test args
@@ -169,10 +186,18 @@ runs:
         # Add packages
         CMD="$CMD ${{ steps.packages.outputs.packages }}"
 
-        echo "Executing: $CMD"
+        echo "Executing in $(pwd): $CMD"
+
+        # Create reports directory in the correct location
+        if [[ "$WORKING_DIR" != "." ]]; then
+          mkdir -p ../reports
+          REPORT_FILE="../reports/test-output.log"
+        else
+          REPORT_FILE="reports/test-output.log"
+        fi
 
         # Run tests with proper error handling
-        if $CMD 2>&1 | tee reports/test-output.log; then
+        if $CMD 2>&1 | tee "$REPORT_FILE"; then
           echo "result=success" >> $GITHUB_OUTPUT
           echo "✅ Tests completed successfully"
         else
