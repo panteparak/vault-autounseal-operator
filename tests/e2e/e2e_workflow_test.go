@@ -506,7 +506,7 @@ func (suite *E2EWorkflowTestSuite) TestErrorRecoveryWorkflow() {
 			VaultInstances: []vaultv1.VaultInstance{
 				{
 					Name:       "unreachable-vault",
-					Endpoint:   "http://nonexistent.vault.local:8200",
+					Endpoint:   "http://192.0.2.1:8200", // RFC 3330 TEST-NET-1 - guaranteed unreachable
 					UnsealKeys: suite.unsealKeys,
 				},
 			},
