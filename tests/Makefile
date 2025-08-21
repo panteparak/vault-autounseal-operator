@@ -184,7 +184,11 @@ test-setup: ## Set up test environment
 test-deps: ## Download test dependencies
 	@echo "📦 Downloading test dependencies..."
 	@go mod download
-	@go mod tidy
+	@if [ "$(CI)" = "true" ]; then \
+		echo "ℹ️ Skipping go mod tidy in CI environment"; \
+	else \
+		go mod tidy; \
+	fi
 
 test-clean: ## Clean test artifacts
 	@echo "🧹 Cleaning test artifacts..."
