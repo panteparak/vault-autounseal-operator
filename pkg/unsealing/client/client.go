@@ -16,14 +16,13 @@ import (
 
 // Client wraps the HashiCorp Vault client with additional functionality
 type Client struct {
-	client    *api.Client
-	url       string
-	timeout   time.Duration
-	validator types.KeyValidator
-	strategy  types.UnsealStrategy
-	metrics   types.ClientMetrics
-	mu        sync.RWMutex
-	closed    bool
+	client   *api.Client
+	url      string
+	timeout  time.Duration
+	strategy types.UnsealStrategy
+	metrics  types.ClientMetrics
+	mu       sync.RWMutex
+	closed   bool
 }
 
 // Config holds configuration for creating a vault client

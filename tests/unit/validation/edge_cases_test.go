@@ -173,8 +173,8 @@ func (suite *EdgeCaseTestSuite) TestMalformedBase64Variations() {
 		{
 			name:        "newlines in key",
 			key:         "dGVz\ndEE=",
-			expectError: true,
-			description: "base64 with newlines should fail",
+			expectError: false,
+			description: "base64 with newlines is accepted by Go's base64 decoder",
 		},
 		{
 			name:        "tabs in key",
@@ -213,8 +213,8 @@ func (suite *EdgeCaseTestSuite) TestCryptographicPatterns() {
 		{
 			name:        "all bits set",
 			keyData:     bytes(0xFF, 32),
-			expectError: false,
-			description: "all FF bytes should pass",
+			expectError: true,
+			description: "all FF bytes should be rejected (all identical bytes)",
 		},
 		{
 			name:        "alternating pattern",

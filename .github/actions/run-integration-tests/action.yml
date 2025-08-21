@@ -62,23 +62,23 @@ runs:
       shell: bash
       run: |
         echo "🔧 Setting up integration test dependencies..."
-        
+
         # Load versions from config or use provided values
         if [[ -n "${{ inputs.vault-version }}" ]]; then
           VAULT_VERSION="${{ inputs.vault-version }}"
         else
           VAULT_VERSION=$(grep -A5 "vault:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 2>/dev/null || echo "1.19.0")
         fi
-        
+
         if [[ -n "${{ inputs.k3s-version }}" ]]; then
           K3S_VERSION="${{ inputs.k3s-version }}"
         else
           K3S_VERSION=$(grep -A5 "k3s:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 2>/dev/null || echo "v1.30.8-k3s1")
         fi
-        
+
         echo "VAULT_VERSION=$VAULT_VERSION" >> $GITHUB_ENV
         echo "K3S_VERSION=$K3S_VERSION" >> $GITHUB_ENV
-        
+
         echo "✅ Integration test versions:"
         echo "  Vault: $VAULT_VERSION"
         echo "  K3s: $K3S_VERSION"
@@ -88,20 +88,20 @@ runs:
       shell: bash
       run: |
         echo "🔍 Configuring integration tests..."
-        
+
         PACKAGES="./integration/..."
         BASE_TAGS="integration"
-        
+
         # Add custom tags if provided
         if [[ -n "${{ inputs.test-tags }}" ]]; then
           TAGS="$BASE_TAGS,${{ inputs.test-tags }}"
         else
           TAGS="$BASE_TAGS"
         fi
-        
+
         echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
         echo "tags=$TAGS" >> $GITHUB_OUTPUT
-        
+
         echo "✅ Integration test configuration:"
         echo "  Packages: $PACKAGES"
         echo "  Tags: $TAGS"
@@ -111,33 +111,27 @@ runs:
       id: run-tests
       shell: bash
       run: |
-        echo "🧪 Running integration tests..."
-        
-        # Change to tests directory (has its own go.mod)
-        cd tests
-        
-        # Build test command
-        CMD="go test -v"
-        CMD="$CMD -parallel=${{ inputs.parallel }}"
-        CMD="$CMD -timeout=${{ inputs.timeout }}"
-        
-        # Add race detection
-        if [[ "${{ inputs.race-detection }}" == "true" ]]; then
-          CMD="$CMD -race"
+        echo "🔗 Running integration tests using make..."
+
+        # Set environment variables for make command
+        export TEST_TIMEOUT="${{ inputs.timeout }}"
+        export PARALLELISM="${{ inputs.parallel }}"
+        export VERBOSE="true"
+        export CI="true"
+        export VAULT_VERSION="${{ env.VAULT_VERSION }}"
+        export K3S_VERSION="${{ env.K3S_VERSION }}"
+
+        # Set test scenario if provided in tags
+        if [[ "${{ inputs.test-tags }}" == *"basic"* ]]; then
+          export TEST_SCENARIO="basic"
+        elif [[ "${{ inputs.test-tags }}" == *"stress"* ]]; then
+          export TEST_SCENARIO="stress"
+        elif [[ "${{ inputs.test-tags }}" == *"chaos"* ]]; then
+          export TEST_SCENARIO="chaos"
         fi
-        
-        # Add coverage (adjust path for working directory)
-        if [[ "${{ inputs.coverage }}" == "true" ]]; then
-          CMD="$CMD -coverprofile=../coverage/integration-coverage.out -covermode=atomic"
-        fi
-        
-        # Add tags and packages
-        CMD="$CMD -tags=${{ steps.config.outputs.tags }} ${{ steps.config.outputs.packages }}"
-        
-        echo "Executing in $(pwd): $CMD"
-        
-        # Run tests with proper error handling
-        if $CMD 2>&1 | tee "../reports/integration-test-output.log"; then
+
+        # Run tests using make command for consistency
+        if make test-integration 2>&1 | tee "reports/integration-test-output.log"; then
           echo "result=success" >> $GITHUB_OUTPUT
           echo "✅ Integration tests completed successfully"
         else
@@ -152,13 +146,13 @@ runs:
       shell: bash
       run: |
         echo "📊 Generating integration test summary..."
-        
+
         # Parse test results
         TOTAL_TESTS=$(grep -c "^=== RUN" reports/integration-test-output.log 2>/dev/null || echo "0")
         PASSED_TESTS=$(grep -c "--- PASS:" reports/integration-test-output.log 2>/dev/null || echo "0")
         FAILED_TESTS=$(grep -c "--- FAIL:" reports/integration-test-output.log 2>/dev/null || echo "0")
         SKIPPED_TESTS=$(grep -c "--- SKIP:" reports/integration-test-output.log 2>/dev/null || echo "0")
-        
+
         # Generate summary
         SUMMARY="## 🔧 Integration Test Results\\n\\n"
         SUMMARY="${SUMMARY}| Metric | Count |\\n"
@@ -167,11 +161,11 @@ runs:
         SUMMARY="${SUMMARY}| Passed | $PASSED_TESTS |\\n"
         SUMMARY="${SUMMARY}| Failed | $FAILED_TESTS |\\n"
         SUMMARY="${SUMMARY}| Skipped | $SKIPPED_TESTS |\\n"
-        
+
         echo "report<<EOF" >> $GITHUB_OUTPUT
         echo -e "$SUMMARY" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
-        
+
         # Add to step summary
         echo -e "$SUMMARY" >> $GITHUB_STEP_SUMMARY
 
@@ -182,17 +176,17 @@ runs:
       run: |
         if [[ -f "coverage/integration-coverage.out" ]]; then
           echo "📈 Processing integration coverage data..."
-          
+
           # Generate coverage report
           go tool cover -html=coverage/integration-coverage.out -o coverage/integration-coverage.html
           go tool cover -func=coverage/integration-coverage.out > coverage/integration-coverage.txt
-          
+
           # Extract coverage percentage
           COVERAGE=$(go tool cover -func=coverage/integration-coverage.out | grep "total:" | awk '{print $3}' | sed 's/%//')
           echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
-          
+
           echo "✅ Integration Coverage: $COVERAGE%"
-          
+
           # Add coverage to summary
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Integration Coverage: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
@@ -218,10 +212,10 @@ runs:
       shell: bash
       run: |
         echo "🧹 Cleaning up integration test environment..."
-        
+
         # Clean up any remaining containers
         docker system prune -f --volumes --filter "label=org.testcontainers.sessionId" 2>/dev/null || true
-        
+
         echo "✅ Integration test environment cleaned up"
 
     - name: Set test result

@@ -58,27 +58,27 @@ runs:
       shell: bash
       run: |
         echo "🔧 Setting up E2E test dependencies..."
-        
+
         # Load versions from config or use provided values
         if [[ -n "${{ inputs.vault-version }}" ]]; then
           VAULT_VERSION="${{ inputs.vault-version }}"
         else
           VAULT_VERSION=$(grep -A5 "vault:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 2>/dev/null || echo "1.19.0")
         fi
-        
+
         if [[ -n "${{ inputs.k3s-version }}" ]]; then
           K3S_VERSION="${{ inputs.k3s-version }}"
         else
           K3S_VERSION=$(grep -A5 "k3s:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 2>/dev/null || echo "v1.30.8-k3s1")
         fi
-        
+
         echo "VAULT_VERSION=$VAULT_VERSION" >> $GITHUB_ENV
         echo "K3S_VERSION=$K3S_VERSION" >> $GITHUB_ENV
-        
+
         # Install k3d for E2E tests
         echo "🐳 Installing k3d..."
         curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-        
+
         echo "✅ E2E test versions:"
         echo "  Vault: $VAULT_VERSION"
         echo "  K3s: $K3S_VERSION"
@@ -88,20 +88,20 @@ runs:
       shell: bash
       run: |
         echo "🔍 Configuring E2E tests..."
-        
+
         PACKAGES="./e2e/..."
         BASE_TAGS="e2e"
-        
+
         # Add custom tags if provided
         if [[ -n "${{ inputs.test-tags }}" ]]; then
           TAGS="$BASE_TAGS,${{ inputs.test-tags }}"
         else
           TAGS="$BASE_TAGS"
         fi
-        
+
         echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
         echo "tags=$TAGS" >> $GITHUB_OUTPUT
-        
+
         echo "✅ E2E test configuration:"
         echo "  Packages: $PACKAGES"
         echo "  Tags: $TAGS"
@@ -111,44 +111,34 @@ runs:
       shell: bash
       run: |
         echo "🚀 Setting up E2E test cluster..."
-        
+
         # Create k3d cluster for E2E tests
         k3d cluster create e2e-test \
           --k3s-arg "--disable=traefik@server:*" \
           --wait --timeout 300s
-        
+
         # Verify cluster is ready
         kubectl cluster-info
         kubectl get nodes
-        
+
         echo "✅ E2E test cluster ready"
 
     - name: Run E2E tests
       id: run-tests
       shell: bash
       run: |
-        echo "🌐 Running E2E tests..."
-        
-        # Change to tests directory (has its own go.mod)
-        cd tests
-        
-        # Build test command
-        CMD="go test -v"
-        CMD="$CMD -parallel=${{ inputs.parallel }}"
-        CMD="$CMD -timeout=${{ inputs.timeout }}"
-        
-        # Add coverage (adjust path for working directory)
-        if [[ "${{ inputs.coverage }}" == "true" ]]; then
-          CMD="$CMD -coverprofile=../coverage/e2e-coverage.out -covermode=atomic"
-        fi
-        
-        # Add tags and packages
-        CMD="$CMD -tags=${{ steps.config.outputs.tags }} ${{ steps.config.outputs.packages }}"
-        
-        echo "Executing in $(pwd): $CMD"
-        
-        # Run tests with proper error handling
-        if $CMD 2>&1 | tee "../reports/e2e-test-output.log"; then
+        echo "🌐 Running E2E tests using make..."
+
+        # Set environment variables for make command
+        export TEST_TIMEOUT="${{ inputs.timeout }}"
+        export PARALLELISM="${{ inputs.parallel }}"
+        export VERBOSE="true"
+        export CI="true"
+        export VAULT_VERSION="${{ env.VAULT_VERSION }}"
+        export K3S_VERSION="${{ env.K3S_VERSION }}"
+
+        # Run tests using make command for consistency
+        if make test-e2e 2>&1 | tee "reports/e2e-test-output.log"; then
           echo "result=success" >> $GITHUB_OUTPUT
           echo "✅ E2E tests completed successfully"
         else
@@ -163,13 +153,13 @@ runs:
       shell: bash
       run: |
         echo "📊 Generating E2E test summary..."
-        
+
         # Parse test results
         TOTAL_TESTS=$(grep -c "^=== RUN" reports/e2e-test-output.log 2>/dev/null || echo "0")
         PASSED_TESTS=$(grep -c "--- PASS:" reports/e2e-test-output.log 2>/dev/null || echo "0")
         FAILED_TESTS=$(grep -c "--- FAIL:" reports/e2e-test-output.log 2>/dev/null || echo "0")
         SKIPPED_TESTS=$(grep -c "--- SKIP:" reports/e2e-test-output.log 2>/dev/null || echo "0")
-        
+
         # Generate summary
         SUMMARY="## 🌐 E2E Test Results\\n\\n"
         SUMMARY="${SUMMARY}| Metric | Count |\\n"
@@ -178,11 +168,11 @@ runs:
         SUMMARY="${SUMMARY}| Passed | $PASSED_TESTS |\\n"
         SUMMARY="${SUMMARY}| Failed | $FAILED_TESTS |\\n"
         SUMMARY="${SUMMARY}| Skipped | $SKIPPED_TESTS |\\n"
-        
+
         echo "report<<EOF" >> $GITHUB_OUTPUT
         echo -e "$SUMMARY" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
-        
+
         # Add to step summary
         echo -e "$SUMMARY" >> $GITHUB_STEP_SUMMARY
 
@@ -193,17 +183,17 @@ runs:
       run: |
         if [[ -f "coverage/e2e-coverage.out" ]]; then
           echo "📈 Processing E2E coverage data..."
-          
+
           # Generate coverage report
           go tool cover -html=coverage/e2e-coverage.out -o coverage/e2e-coverage.html
           go tool cover -func=coverage/e2e-coverage.out > coverage/e2e-coverage.txt
-          
+
           # Extract coverage percentage
           COVERAGE=$(go tool cover -func=coverage/e2e-coverage.out | grep "total:" | awk '{print $3}' | sed 's/%//')
           echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
-          
+
           echo "✅ E2E Coverage: $COVERAGE%"
-          
+
           # Add coverage to summary
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 E2E Coverage: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
@@ -217,15 +207,15 @@ runs:
       shell: bash
       run: |
         echo "📋 Collecting cluster logs for debugging..."
-        
+
         # Get cluster state
         kubectl get all --all-namespaces > artifacts/cluster-state.log 2>/dev/null || true
         kubectl get events --all-namespaces --sort-by='.lastTimestamp' > artifacts/cluster-events.log 2>/dev/null || true
         kubectl top pods --all-namespaces > artifacts/cluster-resources.log 2>/dev/null || true
-        
+
         # Get operator logs if deployed
         kubectl logs -l app=vault-autounseal-operator --all-namespaces > artifacts/operator-logs.log 2>/dev/null || true
-        
+
         echo "✅ Cluster logs collected"
 
     - name: Upload test artifacts
@@ -245,13 +235,13 @@ runs:
       shell: bash
       run: |
         echo "🧹 Cleaning up E2E test environment..."
-        
+
         # Clean up k3d cluster
         k3d cluster delete e2e-test 2>/dev/null || true
-        
+
         # Clean up any remaining containers
         docker system prune -f --volumes --filter "label=org.testcontainers.sessionId" 2>/dev/null || true
-        
+
         echo "✅ E2E test environment cleaned up"
 
     - name: Set test result

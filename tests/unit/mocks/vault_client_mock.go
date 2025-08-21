@@ -177,39 +177,27 @@ func NewMockHealthResponse(sealed, initialized bool) *api.HealthResponse {
 
 // SetupHealthyVault configures a mock client for a healthy, unsealed vault
 func SetupHealthyVault(mockClient *MockVaultClient) {
-	mockClient.On("URL").Return("http://vault.test:8200")
-	mockClient.On("Timeout").Return(30 * time.Second)
+	// Only set up expectations for methods that are actually called
 	mockClient.On("IsClosed").Return(false)
-	mockClient.On("Close").Return(nil)
-
+	mockClient.On("HealthCheck", mock.Anything).Return(NewMockHealthResponse(false, true), nil)
 	mockClient.On("IsSealed", mock.Anything).Return(false, nil)
 	mockClient.On("IsInitialized", mock.Anything).Return(true, nil)
-	mockClient.On("HealthCheck", mock.Anything).Return(NewMockHealthResponse(false, true), nil)
-	mockClient.On("GetSealStatus", mock.Anything).Return(NewMockSealStatusResponse(false, 3, 0), nil)
+	mockClient.On("Close").Return(nil)
 }
 
 // SetupSealedVault configures a mock client for a healthy, sealed vault
 func SetupSealedVault(mockClient *MockVaultClient) {
-	mockClient.On("URL").Return("http://vault.test:8200")
-	mockClient.On("Timeout").Return(30 * time.Second)
-	mockClient.On("IsClosed").Return(false)
-	mockClient.On("Close").Return(nil)
-
+	// Only set up expectations for methods that are actually called in TestMockClientSealedVault
 	mockClient.On("IsSealed", mock.Anything).Return(true, nil)
-	mockClient.On("IsInitialized", mock.Anything).Return(true, nil)
-	mockClient.On("HealthCheck", mock.Anything).Return(NewMockHealthResponse(true, true), nil)
 	mockClient.On("GetSealStatus", mock.Anything).Return(NewMockSealStatusResponse(true, 3, 0), nil)
 }
 
 // SetupFailingVault configures a mock client for a vault that returns errors
 func SetupFailingVault(mockClient *MockVaultClient, errorMsg string) {
-	mockClient.On("URL").Return("http://vault.test:8200")
-	mockClient.On("Timeout").Return(30 * time.Second)
-	mockClient.On("IsClosed").Return(false)
-	mockClient.On("Close").Return(nil)
-
 	// Create a simple error since VaultError constructor requires more parameters
 	err := fmt.Errorf("vault error: %s", errorMsg)
+
+	// Set up expectations for methods that are actually called in TestMockClientFailingVault
 	mockClient.On("IsSealed", mock.Anything).Return(false, err)
 	mockClient.On("IsInitialized", mock.Anything).Return(false, err)
 	mockClient.On("HealthCheck", mock.Anything).Return(nil, err)
@@ -218,27 +206,19 @@ func SetupFailingVault(mockClient *MockVaultClient, errorMsg string) {
 
 // SetupUnsealingSequence configures a mock client for a complete unsealing sequence
 func SetupUnsealingSequence(mockClient *MockVaultClient, threshold int) {
-	mockClient.On("URL").Return("http://vault.test:8200")
-	mockClient.On("Timeout").Return(30 * time.Second)
-	mockClient.On("IsClosed").Return(false)
-	mockClient.On("Close").Return(nil)
+	// Only set up expectations for methods that are actually called in TestMockClientUnsealingSequence
 
-	// Initial state: sealed, initialized
+	// Initial state: sealed
 	mockClient.On("IsSealed", mock.Anything).Return(true, nil).Once()
-	mockClient.On("IsInitialized", mock.Anything).Return(true, nil)
-	mockClient.On("GetSealStatus", mock.Anything).Return(NewMockSealStatusResponse(true, threshold, 0), nil)
 
-	// During unsealing: progress increases
-	for i := 1; i < threshold; i++ {
-		mockClient.On("SubmitSingleKey", mock.Anything, mock.Anything, mock.Anything).
-			Return(NewMockSealStatusResponse(true, threshold, i), nil).Once()
+	// Submit keys - the test submits threshold number of keys
+	for i := 0; i < threshold; i++ {
+		progress := i + 1
+		isSealed := progress < threshold
+		mockClient.On("SubmitSingleKey", mock.Anything, mock.AnythingOfType("string"), i).
+			Return(NewMockSealStatusResponse(isSealed, threshold, progress), nil).Once()
 	}
 
-	// Final key: unsealed
-	mockClient.On("SubmitSingleKey", mock.Anything, mock.Anything, mock.Anything).
-		Return(NewMockSealStatusResponse(false, threshold, threshold), nil).Once()
-
-	// After unsealing: vault is unsealed
-	mockClient.On("IsSealed", mock.Anything).Return(false, nil)
-	mockClient.On("GetSealStatus", mock.Anything).Return(NewMockSealStatusResponse(false, threshold, threshold), nil)
+	// Final state check: unsealed
+	mockClient.On("IsSealed", mock.Anything).Return(false, nil).Once()
 }

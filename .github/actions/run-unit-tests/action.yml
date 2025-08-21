@@ -59,20 +59,20 @@ runs:
       shell: bash
       run: |
         echo "🔍 Configuring unit tests..."
-        
+
         PACKAGES="./pkg/... ./tests/unit/..."
         BASE_TAGS="unit"
-        
+
         # Add custom tags if provided
         if [[ -n "${{ inputs.test-tags }}" ]]; then
           TAGS="$BASE_TAGS,${{ inputs.test-tags }}"
         else
           TAGS="$BASE_TAGS"
         fi
-        
+
         echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
         echo "tags=$TAGS" >> $GITHUB_OUTPUT
-        
+
         echo "✅ Unit test configuration:"
         echo "  Packages: $PACKAGES"
         echo "  Tags: $TAGS"
@@ -81,30 +81,21 @@ runs:
       id: run-tests
       shell: bash
       run: |
-        echo "🧪 Running unit tests..."
-        
-        # Build test command
-        CMD="go test -v"
-        CMD="$CMD -parallel=${{ inputs.parallel }}"
-        CMD="$CMD -timeout=${{ inputs.timeout }}"
-        
-        # Add race detection
+        echo "🧪 Running unit tests using make..."
+
+        # Set environment variables for make command
+        export TEST_TIMEOUT="${{ inputs.timeout }}"
+        export PARALLELISM="${{ inputs.parallel }}"
+        export VERBOSE="true"
+        export CI="true"
+
+        # Add race detection for CI
         if [[ "${{ inputs.race-detection }}" == "true" ]]; then
-          CMD="$CMD -race"
+          export CI="true"  # This enables race detection in the Makefile
         fi
-        
-        # Add coverage
-        if [[ "${{ inputs.coverage }}" == "true" ]]; then
-          CMD="$CMD -coverprofile=coverage/coverage.out -covermode=atomic"
-        fi
-        
-        # Add tags and packages
-        CMD="$CMD -tags=${{ steps.config.outputs.tags }} ${{ steps.config.outputs.packages }}"
-        
-        echo "Executing: $CMD"
-        
-        # Run tests with proper error handling
-        if $CMD 2>&1 | tee "reports/unit-test-output.log"; then
+
+        # Run tests using make command for consistency
+        if make test-unit 2>&1 | tee "reports/unit-test-output.log"; then
           echo "result=success" >> $GITHUB_OUTPUT
           echo "✅ Unit tests completed successfully"
         else
@@ -119,13 +110,13 @@ runs:
       shell: bash
       run: |
         echo "📊 Generating unit test summary..."
-        
+
         # Parse test results
         TOTAL_TESTS=$(grep -c "^=== RUN" reports/unit-test-output.log 2>/dev/null || echo "0")
         PASSED_TESTS=$(grep -c "--- PASS:" reports/unit-test-output.log 2>/dev/null || echo "0")
         FAILED_TESTS=$(grep -c "--- FAIL:" reports/unit-test-output.log 2>/dev/null || echo "0")
         SKIPPED_TESTS=$(grep -c "--- SKIP:" reports/unit-test-output.log 2>/dev/null || echo "0")
-        
+
         # Generate summary
         SUMMARY="## 🧪 Unit Test Results\\n\\n"
         SUMMARY="${SUMMARY}| Metric | Count |\\n"
@@ -134,11 +125,11 @@ runs:
         SUMMARY="${SUMMARY}| Passed | $PASSED_TESTS |\\n"
         SUMMARY="${SUMMARY}| Failed | $FAILED_TESTS |\\n"
         SUMMARY="${SUMMARY}| Skipped | $SKIPPED_TESTS |\\n"
-        
+
         echo "report<<EOF" >> $GITHUB_OUTPUT
         echo -e "$SUMMARY" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
-        
+
         # Add to step summary
         echo -e "$SUMMARY" >> $GITHUB_STEP_SUMMARY
 
@@ -147,24 +138,31 @@ runs:
       if: inputs.coverage == 'true' && always()
       shell: bash
       run: |
-        if [[ -f "coverage/coverage.out" ]]; then
+        # Use make command to generate coverage report for consistency
+        if make test-coverage 2>/dev/null; then
           echo "📈 Processing coverage data..."
-          
-          # Generate coverage report
-          go tool cover -html=coverage/coverage.out -o coverage/coverage.html
-          go tool cover -func=coverage/coverage.out > coverage/coverage.txt
-          
-          # Extract coverage percentage
-          COVERAGE=$(go tool cover -func=coverage/coverage.out | grep "total:" | awk '{print $3}' | sed 's/%//')
-          echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
-          
-          echo "✅ Coverage: $COVERAGE%"
-          
-          # Add coverage to summary
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Coverage: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
+
+          # Check for coverage files in tests directory
+          if [[ -f "tests/coverage.out" ]]; then
+            cp tests/coverage.out coverage/coverage.out
+          fi
+
+          if [[ -f "coverage/coverage.out" ]]; then
+            # Extract coverage percentage
+            COVERAGE=$(go tool cover -func=coverage/coverage.out | grep "total:" | awk '{print $3}' | sed 's/%//')
+            echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+
+            echo "✅ Coverage: $COVERAGE%"
+
+            # Add coverage to summary
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 Coverage: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No coverage data found after make test-coverage"
+            echo "percentage=0" >> $GITHUB_OUTPUT
+          fi
         else
-          echo "⚠️ No coverage data found"
+          echo "⚠️ make test-coverage failed or no coverage data"
           echo "percentage=0" >> $GITHUB_OUTPUT
         fi
 

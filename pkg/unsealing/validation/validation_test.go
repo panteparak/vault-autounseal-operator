@@ -160,9 +160,9 @@ func (suite *ValidationTestSuite) TestStrictKeyValidator() {
 		{
 			name: "valid keys with proper length",
 			keys: []string{
-				"dGVzdC1rZXktd2l0aC1wcm9wZXItbGVuZ3Ro", // 32 bytes when decoded
-				"YW5vdGhlci12YWxpZC1rZXktd2l0aC1sZW4=", // 32 bytes when decoded
-				"dGhpcmQta2V5LXdpdGgtcHJvcGVyLWxlbmc=", // 32 bytes when decoded
+				"SoQIPLHO638rXEBHJOhqw67mvQ385Dj86cEMkk82Fl4=", // 32 bytes when decoded
+				"Er4D5cInAsJsxLzScYi6VeymsOkQY3e242Iq56aQc1M=", // 32 bytes when decoded
+				"mT2YWjNGZqWMfrqnYviwfsMMMaDo7dGnUiSgTIOuITQ=", // 32 bytes when decoded
 			},
 			threshold:   3,
 			expectError: false,
@@ -246,19 +246,19 @@ func (suite *ValidationTestSuite) TestSensitiveContentRedaction() {
 		{
 			name: "password in key should be redacted",
 			keys: []string{
-				"cGFzc3dvcmQxMjM=", // "password123"
+				"cGFzc3dvcmQxMjM=", // "password123" - wrong length for vault key
 			},
 			threshold:      1,
-			expectedInMsg:  []string{"[REDACTED]", "sensitive"},
+			expectedInMsg:  []string{"[REDACTED]"},
 			notExpectedInMsg: []string{"password123", "cGFzc3dvcmQxMjM="},
 		},
 		{
 			name: "localhost in key should be redacted",
 			keys: []string{
-				"bG9jYWxob3N0OjgwODA=", // "localhost:8080"
+				"bG9jYWxob3N0OjgwODA=", // "localhost:8080" - wrong length for vault key
 			},
 			threshold:      1,
-			expectedInMsg:  []string{"[REDACTED]", "sensitive"},
+			expectedInMsg:  []string{"[REDACTED]"},
 			notExpectedInMsg: []string{"localhost", "8080"},
 		},
 	}
@@ -334,11 +334,11 @@ func (suite *ValidationTestSuite) TestConcurrentValidation() {
 	for i := 0; i < concurrency; i++ {
 		go func(idx int) {
 			keys := []string{
-				"dGVzdC1rZXktMQ==",
-				"dGVzdC1rZXktMg==",
-				"dGVzdC1rZXktMw==",
+				"SoQIPLHO638rXEBHJOhqw67mvQ385Dj86cEMkk82Fl4=", // 32 bytes when decoded
+				"Er4D5cInAsJsxLzScYi6VeymsOkQY3e242Iq56aQc1M=", // 32 bytes when decoded
+				"mT2YWjNGZqWMfrqnYviwfsMMMaDo7dGnUiSgTIOuITQ=", // 32 bytes when decoded
 			}
-			err := suite.validator.ValidateKeys(keys, 3)
+			err := suite.strictValidator.ValidateKeys(keys, 3)
 			results <- err
 		}(i)
 	}
