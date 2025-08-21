@@ -3,6 +3,8 @@ package integration
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -57,7 +59,7 @@ func (suite *E2EWorkflowTestSuite) SetupSuite() {
 // setupCompleteEnvironment creates K3s cluster with CRDs, Vault, and controller
 func (suite *E2EWorkflowTestSuite) setupCompleteEnvironment() {
 	// Create K3s cluster with all necessary CRDs and RBAC
-	_ = `apiVersion: apiextensions.k8s.io/v1
+	crdAndRBACManifest := `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: vaultunsealconfigs.vault.io
@@ -107,6 +109,47 @@ spec:
             - vaultInstances
           status:
             type: object
+            properties:
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                    reason:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      type: integer
+                      format: int64
+                  required:
+                  - type
+                  - status
+                  - lastTransitionTime
+              vaultStatuses:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    sealed:
+                      type: boolean
+                    lastUnsealed:
+                      type: string
+                      format: date-time
+                    error:
+                      type: string
+                  required:
+                  - name
+                  - sealed
         required:
         - spec
     subresources:
@@ -153,10 +196,18 @@ subjects:
   name: vault-operator
   namespace: default`
 
+	// Create temporary manifest file
+	manifestFile, err := ioutil.TempFile("", "vault-operator-*.yaml")
+	require.NoError(suite.T(), err, "Failed to create temporary manifest file")
+	defer os.Remove(manifestFile.Name())
+
+	_, err = manifestFile.WriteString(crdAndRBACManifest)
+	require.NoError(suite.T(), err, "Failed to write manifest content")
+	manifestFile.Close()
+
 	k3sContainer, err := k3s.Run(suite.ctx,
 		"rancher/k3s:v1.32.1-k3s1",
-		// TODO: Use proper k3s manifest loading
-		// k3s.WithManifest("vault-operator.yaml", crdAndRBACManifest),
+		k3s.WithManifest(manifestFile.Name()),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("k3s is up and running").
 				WithStartupTimeout(180*time.Second).
