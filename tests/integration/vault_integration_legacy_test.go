@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/vault/api"
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
 	"github.com/panteparak/vault-autounseal-operator/pkg/controller"
 	vaultpkg "github.com/panteparak/vault-autounseal-operator/pkg/vault"
