@@ -1,6 +1,6 @@
 # New Workflow Plans
 
-## Branch 
+## Branch
 ### feat/* (push)
 Run: lint, test, helm-package
 

@@ -42,7 +42,7 @@ PR Workflow: 45-60 minutes
 ├── Lint (ci.yaml): 3-4 min
 ├── Lint (test.yml): 3-4 min ← DUPLICATE
 ├── Unit Tests (ci.yaml): 5-8 min
-├── Unit Tests (test.yml): 5-8 min ← DUPLICATE  
+├── Unit Tests (test.yml): 5-8 min ← DUPLICATE
 ├── Integration (ci.yaml): 15-20 min ← LEGACY
 ├── Integration (test.yml): 10-15 min ← OUTDATED
 ├── Integration (integration-tests-go.yml): 35-40 min ← BEST
@@ -55,7 +55,7 @@ PR Workflow: 45-60 minutes
 
 #### After (Optimized)
 ```
-PR Workflow: 25-30 minutes  
+PR Workflow: 25-30 minutes
 ├── Primary CI/CD: 15-20 min
 │   ├── Lint: 3-4 min (once)
 │   ├── Unit Tests: 5-8 min (once)
@@ -63,7 +63,7 @@ PR Workflow: 25-30 minutes
 │   └── Smoke Tests: 2-3 min (new)
 └── Extended CI/CD: On-demand only
     ├── Full Integration: 25 min
-    ├── Security Scan: 15 min  
+    ├── Security Scan: 15 min
     └── Performance: As needed
 ```
 
@@ -190,7 +190,7 @@ PR Workflow: 25-30 minutes
 required_status_checks:
   contexts:
     - "lint"
-    - "test" 
+    - "test"
     - "integration-tests"
     - "build"
     - "security"
@@ -280,7 +280,7 @@ gh run list --workflow="🚀 Primary CI/CD"
 
 ---
 
-**📋 Next Steps**: 
+**📋 Next Steps**:
 1. Review this guide with the team
 2. Create migration branch and test new workflows
 3. Schedule team meeting to discuss timeline and responsibilities

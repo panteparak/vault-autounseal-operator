@@ -37,14 +37,14 @@ runs:
       shell: bash
       run: |
         echo "🔍 Verifying Go installation..."
-        
+
         GO_VERSION=$(go version)
         echo "✅ $GO_VERSION"
-        
+
         # Set output
         INSTALLED_VERSION=$(go version | grep -oE 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | sed 's/go//')
         echo "go-version=$INSTALLED_VERSION" >> $GITHUB_OUTPUT
-        
+
         # Show Go environment
         echo "📋 Go environment:"
         echo "  GOROOT: $(go env GOROOT)"
@@ -57,16 +57,16 @@ runs:
       shell: bash
       run: |
         echo "🔍 Verifying go.mod and go.sum are tidy..."
-        
+
         # Check if go.mod exists
         if [[ ! -f "go.mod" ]]; then
           echo "⚠️ No go.mod found, skipping verification"
           exit 0
         fi
-        
+
         # Run go mod tidy
         go mod tidy
-        
+
         # Check for changes
         if ! git diff --exit-code -- go.mod go.sum; then
           echo "❌ go.mod/go.sum are not tidy. Please run 'go mod tidy' locally and commit the changes."
@@ -75,14 +75,14 @@ runs:
           git --no-pager diff go.mod go.sum
           exit 1
         fi
-        
+
         echo "✅ go.mod and go.sum are tidy"
 
     - name: Download dependencies
       shell: bash
       run: |
         echo "📦 Downloading Go dependencies..."
-        
+
         if [[ -f "go.mod" ]]; then
           go mod download
           echo "✅ Dependencies downloaded"
@@ -94,17 +94,17 @@ runs:
       shell: bash
       run: |
         echo "💾 Go cache information:"
-        
+
         # Show cache directories and sizes
         if command -v du &> /dev/null; then
           GOCACHE_DIR=$(go env GOCACHE)
           GOMODCACHE_DIR=$(go env GOMODCACHE)
-          
+
           if [[ -d "$GOCACHE_DIR" ]]; then
             GOCACHE_SIZE=$(du -sh "$GOCACHE_DIR" 2>/dev/null | cut -f1 || echo "unknown")
             echo "  Build cache: $GOCACHE_SIZE"
           fi
-          
+
           if [[ -d "$GOMODCACHE_DIR" ]]; then
             GOMODCACHE_SIZE=$(du -sh "$GOMODCACHE_DIR" 2>/dev/null | cut -f1 || echo "unknown")
             echo "  Module cache: $GOMODCACHE_SIZE"

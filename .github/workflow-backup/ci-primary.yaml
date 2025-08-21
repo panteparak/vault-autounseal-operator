@@ -226,10 +226,10 @@ jobs:
       - name: Check all jobs status
         run: |
           # Check if any required job failed
-          if [[ "${{ needs.lint.result }}" == "failure" || 
-                "${{ needs.unit-tests.result }}" == "failure" || 
-                "${{ needs.build.result }}" == "failure" || 
-                "${{ needs.helm-package.result }}" == "failure" || 
+          if [[ "${{ needs.lint.result }}" == "failure" ||
+                "${{ needs.unit-tests.result }}" == "failure" ||
+                "${{ needs.build.result }}" == "failure" ||
+                "${{ needs.helm-package.result }}" == "failure" ||
                 "${{ needs.smoke-tests.result }}" == "failure" ]]; then
             echo "❌ One or more required jobs failed"
             exit 1

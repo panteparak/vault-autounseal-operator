@@ -44,7 +44,7 @@ jobs:
         scenario:
           - name: basic-unsealing
             description: "Basic Vault unsealing workflow"
-          - name: failover-scenario  
+          - name: failover-scenario
             description: "Multi-vault failover testing"
           - name: multi-vault-cluster
             description: "Large cluster unsealing"
@@ -174,7 +174,7 @@ jobs:
 
   # Performance benchmarking
   performance-tests:
-    name: ⚡ Performance Benchmarks  
+    name: ⚡ Performance Benchmarks
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event_name == 'schedule' || github.event.inputs.run_performance_tests == 'true'
@@ -202,7 +202,7 @@ jobs:
           echo '```' >> performance-report.md
           cat benchmark-results.txt >> performance-report.md
           echo '```' >> performance-report.md
-          
+
           # Check for performance regressions (simple baseline)
           if [ -f baseline-benchmark.txt ]; then
             echo "" >> performance-report.md
@@ -275,12 +275,12 @@ jobs:
           echo "**Branch**: ${{ github.ref_name }}" >> extended-report.md
           echo "**Commit**: ${{ github.sha }}" >> extended-report.md
           echo "" >> extended-report.md
-          
+
           echo "## Job Results" >> extended-report.md
           echo "" >> extended-report.md
           echo "| Component | Status | Notes |" >> extended-report.md
           echo "|-----------|--------|-------|" >> extended-report.md
-          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} | TestContainers scenarios |" >> extended-report.md  
+          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} | TestContainers scenarios |" >> extended-report.md
           echo "| Security Scanning | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} | Trivy + Gosec analysis |" >> extended-report.md
           echo "| Performance Tests | ${{ needs.performance-tests.result == 'success' && '✅ Passed' || needs.performance-tests.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Benchmark analysis |" >> extended-report.md
           echo "| Compatibility | ${{ needs.compatibility-tests.result == 'success' && '✅ Passed' || needs.compatibility-tests.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} | Multi-version Vault |" >> extended-report.md
@@ -289,11 +289,11 @@ jobs:
           # Quality gate checks
           echo "## Quality Gates" >> extended-report.md
           echo "" >> extended-report.md
-          
+
           # Check critical failures
           INTEGRATION_FAILED="${{ needs.integration-tests.result == 'failure' }}"
           SECURITY_FAILED="${{ needs.security-scan.result == 'failure' }}"
-          
+
           if [[ "$INTEGRATION_FAILED" == "true" ]]; then
             echo "❌ **CRITICAL**: Integration tests failed - blocking deployment" >> extended-report.md
             echo "QUALITY_GATE=FAILED" >> $GITHUB_ENV
@@ -312,7 +312,7 @@ jobs:
           script: |
             const fs = require('fs');
             const report = fs.readFileSync('extended-report.md', 'utf8');
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

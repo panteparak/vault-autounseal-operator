@@ -5,9 +5,9 @@ This folder contains the new optimized CI/CD system built with reusable componen
 ## 🎯 Active Workflows (4 total)
 
 ### 1. ✨ **ci-new.yaml** - Primary CI Pipeline
-**Duration**: 12-18 minutes  
-**Purpose**: Fast feedback for all development work  
-**Triggers**: All pushes, PRs to main/develop  
+**Duration**: 12-18 minutes
+**Purpose**: Fast feedback for all development work
+**Triggers**: All pushes, PRs to main/develop
 
 **Features**:
 - Parallel job execution
@@ -16,10 +16,10 @@ This folder contains the new optimized CI/CD system built with reusable componen
 - Comprehensive PR commenting
 - Quality gate enforcement
 
-### 2. 🧪 **extended-new.yaml** - Comprehensive Testing  
-**Duration**: 25-35 minutes  
-**Purpose**: Thorough testing without blocking PRs  
-**Triggers**: Daily at 2 AM UTC, manual dispatch, main branch pushes  
+### 2. 🧪 **extended-new.yaml** - Comprehensive Testing
+**Duration**: 25-35 minutes
+**Purpose**: Thorough testing without blocking PRs
+**Triggers**: Daily at 2 AM UTC, manual dispatch, main branch pushes
 
 **Features**:
 - Matrix testing (5 scenarios × 4 Vault versions)
@@ -28,10 +28,10 @@ This folder contains the new optimized CI/CD system built with reusable componen
 - Comprehensive security analysis
 - Quality gate with automatic issue creation
 
-### 3. 🚀 **release-new.yaml** - Streamlined Releases  
-**Duration**: 12-18 minutes  
-**Purpose**: Production-ready release automation  
-**Triggers**: Git tags (v*.*.*), manual dispatch  
+### 3. 🚀 **release-new.yaml** - Streamlined Releases
+**Duration**: 12-18 minutes
+**Purpose**: Production-ready release automation
+**Triggers**: Git tags (v*.*.*), manual dispatch
 
 **Features**:
 - Automatic version validation
@@ -40,36 +40,36 @@ This folder contains the new optimized CI/CD system built with reusable componen
 - Multi-platform image builds
 - Helm chart packaging and validation
 
-### 4. 🤖 **dependabot-automerge.yaml** - Dependency Automation  
-**Duration**: 1-2 minutes  
-**Purpose**: Automated dependency updates  
-**Triggers**: Dependabot PRs  
+### 4. 🤖 **dependabot-automerge.yaml** - Dependency Automation
+**Duration**: 1-2 minutes
+**Purpose**: Automated dependency updates
+**Triggers**: Dependabot PRs
 **Status**: Unchanged from original system
 
 ## 🔧 Composite Actions (7 total)
 
 ### 1. 🔧 **setup**
-**Purpose**: Common environment setup  
+**Purpose**: Common environment setup
 **Features**: Go/Node/Docker/K8s setup, caching, configuration loading
 
-### 2. 🏗️ **build-image**  
-**Purpose**: Multi-platform Docker builds  
+### 2. 🏗️ **build-image**
+**Purpose**: Multi-platform Docker builds
 **Features**: amd64/arm64 builds, registry management, validation
 
 ### 3. 🧪 **run-unit-tests**
-**Purpose**: Unit testing with coverage  
+**Purpose**: Unit testing with coverage
 **Features**: Go unit tests, race detection, coverage reporting, Codecov upload
 
 ### 4. 🔧 **run-integration-tests**
-**Purpose**: Integration testing with TestContainers  
+**Purpose**: Integration testing with TestContainers
 **Features**: Integration tests, Vault/K8s versions, proper working directory handling
 
 ### 5. 🌐 **run-e2e-tests**
-**Purpose**: End-to-end testing with real K8s  
+**Purpose**: End-to-end testing with real K8s
 **Features**: E2E tests, k3d cluster setup, comprehensive infrastructure testing
 
 ### 6. 🔒 **security-scan**
-**Purpose**: Security scanning suite  
+**Purpose**: Security scanning suite
 **Features**: Code/container/dependency scans, SARIF reports
 
 ## 📊 Performance Metrics
@@ -103,7 +103,7 @@ gh workflow run "✨ CI (New)" --ref feature/important -f run_e2e=true
 # Full comprehensive testing
 gh workflow run "🧪 Extended Testing (New)" --ref main -f test_scenarios=all
 
-# Security-focused testing only  
+# Security-focused testing only
 gh workflow run "🧪 Extended Testing (New)" --ref main -f test_scenarios=security-only
 
 # Performance testing with high parallelism
@@ -156,7 +156,7 @@ gh api repos/$OWNER/$REPO/actions/runs/$RUN_ID/timing
 # Check security alerts
 gh api repos/$OWNER/$REPO/code-scanning/alerts
 
-# Monitor test coverage trends  
+# Monitor test coverage trends
 gh api repos/$OWNER/$REPO/actions/artifacts | jq '.artifacts[] | select(.name | contains("coverage"))'
 
 # Check for quality gate issues
@@ -172,7 +172,7 @@ gh issue list --label="quality-gate,priority-high"
 - Supports environment variable overrides
 - Automatic configuration loading in all workflows
 
-**Test Infrastructure**:  
+**Test Infrastructure**:
 - Leverages TestContainers for integration tests
 - Uses shared utilities from `tests/integration/shared/`
 - Maintains compatibility with existing Makefiles

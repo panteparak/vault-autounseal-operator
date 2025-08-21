@@ -63,42 +63,42 @@ jobs:
             echo "force-rebuild=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Compare against base branch for PRs, or previous commit for pushes
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             BASE="${{ github.event.pull_request.base.sha }}"
           else
             BASE="HEAD~1"
           fi
-          
+
           # Check what types of files changed
           DOCS_CHANGED="false"
           CODE_CHANGED="false"
           HELM_CHANGED="false"
-          
+
           # Check for docs changes
           if git diff --name-only $BASE HEAD | grep -E '^(docs/|.*\.md$|mkdocs\.yml)'; then
             DOCS_CHANGED="true"
           fi
-          
+
           # Check for code changes that affect API docs
           if git diff --name-only $BASE HEAD | grep -E '^pkg/.*\.go$'; then
             CODE_CHANGED="true"
           fi
-          
+
           # Check for Helm changes
           if git diff --name-only $BASE HEAD | grep -E '^helm/'; then
             HELM_CHANGED="true"
           fi
-          
+
           echo "docs=$DOCS_CHANGED" >> $GITHUB_OUTPUT
           echo "code=$CODE_CHANGED" >> $GITHUB_OUTPUT
           echo "helm=$HELM_CHANGED" >> $GITHUB_OUTPUT
           echo "force-rebuild=false" >> $GITHUB_OUTPUT
-          
+
           echo "📋 Change Detection Results:"
           echo "  Docs: $DOCS_CHANGED"
-          echo "  Code: $CODE_CHANGED" 
+          echo "  Code: $CODE_CHANGED"
           echo "  Helm: $HELM_CHANGED"
 
   # Build documentation with smart caching
@@ -144,50 +144,50 @@ jobs:
         if: needs.detect-changes.outputs.code-changed == 'true'
         run: |
           echo "🔧 Generating API documentation from Go code..."
-          
+
           # Generate godoc-style documentation
           go install golang.org/x/tools/cmd/godoc@latest
-          
+
           # Create API docs directory
           mkdir -p docs/api
-          
+
           # Generate package documentation
           for pkg in $(go list ./pkg/...); do
             pkg_name=$(basename $pkg)
             echo "Generating docs for $pkg..."
             go doc -all $pkg > docs/api/${pkg_name}.md
           done
-          
+
           echo "✅ API documentation generated"
 
       - name: Generate CRD documentation
         if: needs.detect-changes.outputs.helm-changed == 'true'
         run: |
           echo "📋 Generating CRD documentation..."
-          
+
           # Install crd-ref-docs if not present
           go install github.com/elastic/crd-ref-docs@latest
-          
+
           # Generate CRD reference docs
           crd-ref-docs \
             --source-path=./pkg/api \
             --config=docs/crd-docs-config.yaml \
             --renderer=markdown \
             --output-path=docs/reference/crds.md
-          
+
           echo "✅ CRD documentation generated"
 
       - name: Build MkDocs site
         run: |
           echo "🏗️ Building MkDocs site..."
-          
+
           # Verify mkdocs.yml exists
           if [[ ! -f mkdocs.yml ]]; then
             echo "⚠️ mkdocs.yml not found, creating basic configuration..."
             cat > mkdocs.yml << 'EOF'
           site_name: Vault Auto-Unseal Operator
           site_description: Kubernetes operator for automatically unsealing Vault instances
-          
+
           theme:
             name: material
             palette:
@@ -201,11 +201,11 @@ jobs:
               - navigation.top
               - search.highlight
               - content.code.copy
-          
+
           plugins:
             - search
             - mermaid2
-          
+
           markdown_extensions:
             - pymdownx.highlight:
                 anchor_linenums: true
@@ -218,7 +218,7 @@ jobs:
                     format: !!python/name:mermaid2.fence_mermaid
             - admonition
             - pymdownx.details
-          
+
           nav:
             - Home: index.md
             - User Guide:
@@ -232,26 +232,26 @@ jobs:
               - Testing: development/testing.md
           EOF
           fi
-          
+
           # Build the site
           mkdocs build --strict
-          
+
           echo "✅ MkDocs site built successfully"
 
       - name: Optimize built site
         run: |
           echo "⚡ Optimizing built site..."
-          
+
           # Compress images if any exist
           find site/ -name "*.png" -exec optipng -quiet {} \; 2>/dev/null || true
           find site/ -name "*.jpg" -exec jpegoptim --quiet {} \; 2>/dev/null || true
-          
+
           # Generate sitemap if not present
           if [[ ! -f site/sitemap.xml ]]; then
             echo "🗺️ Generating sitemap..."
             find site/ -name "*.html" | sed 's|site/||' | sort > sitemap.txt
           fi
-          
+
           echo "✅ Site optimization completed"
 
       - name: Upload documentation artifact
@@ -310,23 +310,23 @@ jobs:
           script: |
             const message = `
             ## 📚 Documentation Preview
-            
+
             Your documentation changes have been built and are ready for review!
-            
+
             ### 📋 What Changed
             - **Docs**: ${{ needs.detect-changes.outputs.docs-changed == 'true' && '✅ Updated' || '⏭️ No changes' }}
-            - **API Docs**: ${{ needs.detect-changes.outputs.code-changed == 'true' && '✅ Regenerated' || '⏭️ No changes' }}  
+            - **API Docs**: ${{ needs.detect-changes.outputs.code-changed == 'true' && '✅ Regenerated' || '⏭️ No changes' }}
             - **CRD Docs**: ${{ needs.detect-changes.outputs.helm-changed == 'true' && '✅ Regenerated' || '⏭️ No changes' }}
-            
+
             ### 🔍 Review Checklist
             - [ ] Check documentation builds without errors
             - [ ] Verify all links work correctly
             - [ ] Ensure code examples are accurate
             - [ ] Review API documentation updates
-            
+
             *The documentation will be automatically deployed when this PR is merged to main.*
             `;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -351,12 +351,12 @@ jobs:
               repo: context.repo.repo,
               per_page: 100
             });
-            
+
             const previewArtifacts = artifacts.data.artifacts
               .filter(artifact => artifact.name.startsWith('docs-preview-'))
               .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
               .slice(5); // Keep newest 5, delete the rest
-            
+
             for (const artifact of previewArtifacts) {
               await github.rest.actions.deleteArtifact({
                 owner: context.repo.owner,

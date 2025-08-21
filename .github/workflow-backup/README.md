@@ -3,7 +3,7 @@
 This folder contains the original and intermediate workflow files that were replaced by the new optimized CI system.
 
 ## 📅 Archive Date
-**Created**: August 20, 2025  
+**Created**: August 20, 2025
 **Reason**: CI/CD system modernization and optimization
 
 ## 📋 Archived Files
@@ -72,7 +72,7 @@ If you need to rollback to the old system:
    ```bash
    # Rename new workflows to disable them
    mv ci-new.yaml ci-new.yaml.disabled
-   mv extended-new.yaml extended-new.yaml.disabled  
+   mv extended-new.yaml extended-new.yaml.disabled
    mv release-new.yaml release-new.yaml.disabled
    ```
 

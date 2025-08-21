@@ -40,7 +40,7 @@ ifeq ($(VERBOSE),true)
 endif
 
 GO_TEST_FLAGS += -timeout $(TEST_TIMEOUT) -parallel $(PARALLELISM) -failfast -count=1
-GO_TEST_COVERAGE_FLAGS := -coverprofile=coverage.out -covermode=atomic
+GO_TEST_COVERAGE_FLAGS := -coverprofile=coverage.out -covermode=atomic -coverpkg=../pkg/...
 
 # Fail-fast settings for CI
 ifeq ($(CI),true)
@@ -201,7 +201,7 @@ test-clean: ## Clean test artifacts
 	@docker rm -f $(shell docker ps -aq --filter "name=k3s-") 2>/dev/null || true
 	@echo "✅ Test artifacts cleaned"
 
-test-coverage: ## Generate coverage report  
+test-coverage: ## Generate coverage report
 	@echo "📊 Generating coverage report..."
 	@mkdir -p coverage
 	@CI=true $(MAKE) test-unit

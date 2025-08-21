@@ -61,17 +61,17 @@ jobs:
               IS_PRERELEASE="false"
             fi
           fi
-          
+
           # Validate version format
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
             echo "❌ Invalid version format: $VERSION"
             exit 1
           fi
-          
+
           echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
           echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
-          
+
           echo "✅ Release version: $VERSION (prerelease: $IS_PRERELEASE)"
 
       - name: Generate changelog
@@ -79,11 +79,11 @@ jobs:
         run: |
           # Get the previous tag
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-          
+
           if [[ -n "$PREVIOUS_TAG" ]]; then
             echo "## Changes since $PREVIOUS_TAG" > changelog.md
             echo "" >> changelog.md
-            
+
             # Get commits since previous tag
             git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD >> changelog.md
           else
@@ -91,7 +91,7 @@ jobs:
             echo "" >> changelog.md
             echo "- Initial release of vault-autounseal-operator" >> changelog.md
           fi
-          
+
           # Output for use in other steps
           echo 'changelog<<EOF' >> $GITHUB_OUTPUT
           cat changelog.md >> $GITHUB_OUTPUT
@@ -163,11 +163,11 @@ jobs:
       - name: Update chart version and appVersion
         run: |
           VERSION="${{ needs.determine-version.outputs.version }}"
-          
+
           # Update Chart.yaml
           sed -i "s/^version: .*/version: $VERSION/" ./helm/vault-autounseal-operator/Chart.yaml
           sed -i "s/^appVersion: .*/appVersion: $VERSION/" ./helm/vault-autounseal-operator/Chart.yaml
-          
+
           # Update values.yaml with new image
           sed -i "s|repository: .*|repository: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}|" ./helm/vault-autounseal-operator/values.yaml
           sed -i "s/tag: .*/tag: ${{ needs.determine-version.outputs.version }}/" ./helm/vault-autounseal-operator/values.yaml
@@ -205,39 +205,39 @@ jobs:
         run: |
           cat > release-notes.md << 'EOF'
           # 🚀 Release ${{ needs.determine-version.outputs.tag }}
-          
+
           ## What's New
-          
+
           ${{ needs.determine-version.outputs.changelog }}
-          
+
           ## 📦 Installation
-          
+
           ### Helm Chart
           ```bash
           helm repo add vault-autounseal-operator https://panteparak.github.io/vault-autounseal-operator
           helm install my-operator vault-autounseal-operator/vault-autounseal-operator --version ${{ needs.determine-version.outputs.version }}
           ```
-          
+
           ### Docker Image
           ```bash
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-version.outputs.version }}
           ```
-          
+
           ## 🔍 Verification
-          
+
           **Image Digest**: `${{ needs.build-images.outputs.image-digest }}`
-          
+
           **Supported Platforms**:
           - linux/amd64
           - linux/arm64
-          
+
           ## 📋 Compatibility
-          
+
           - **Kubernetes**: 1.28+
           - **Helm**: 3.8+
           - **Vault**: 1.12.0+
           - **Go**: ${{ env.GO_VERSION }}
-          
+
           EOF
 
       - name: Create GitHub Release
@@ -263,10 +263,10 @@ jobs:
         run: |
           # Verify Docker image exists
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-version.outputs.version }}
-          
+
           # Verify image can run
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.determine-version.outputs.version }} --version
-          
+
           echo "✅ Release ${{ needs.determine-version.outputs.tag }} verified successfully"
 
       - name: Update release summary
