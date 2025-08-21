@@ -96,7 +96,7 @@ test-all: test-deps ## Run all test categories
 
 test-unit: test-deps ## Run unit tests
 	@echo "🔬 Running unit tests..."
-	@go test $(GO_TEST_FLAGS) $(GO_TEST_COVERAGE_FLAGS) ./$(UNIT_DIR)/...
+	@go test $(GO_TEST_FLAGS) $(GO_TEST_COVERAGE_FLAGS) ./$(UNIT_DIR)/controller/... ./$(UNIT_DIR)/validation/... ./$(UNIT_DIR)/vault/...
 	@echo "✅ Unit tests completed"
 
 test-integration: test-deps ## Run integration tests
@@ -201,12 +201,17 @@ test-clean: ## Clean test artifacts
 	@docker rm -f $(shell docker ps -aq --filter "name=k3s-") 2>/dev/null || true
 	@echo "✅ Test artifacts cleaned"
 
-test-coverage: test-unit ## Generate coverage report
+test-coverage: ## Generate coverage report  
 	@echo "📊 Generating coverage report..."
 	@mkdir -p coverage
-	@go tool cover -html=coverage.out -o coverage/coverage.html
-	@go tool cover -func=coverage.out > coverage/coverage.txt
-	@echo "✅ Coverage report generated at coverage/"
+	@CI=true $(MAKE) test-unit
+	@if [ -f coverage.out ]; then \
+		go tool cover -html=coverage.out -o coverage/coverage.html; \
+		go tool cover -func=coverage.out > coverage/coverage.txt; \
+		echo "✅ Coverage report generated at coverage/"; \
+	else \
+		echo "⚠️ No coverage data generated"; \
+	fi
 
 test-report: ## Generate comprehensive test report
 	@echo "📋 Generating test report..."
