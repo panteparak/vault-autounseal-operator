@@ -1,5 +1,7 @@
 # Primary CI Pipeline - Fast feedback using composite actions
-# Uses: setup, run-tests, build-image, security-scan composite actions
+# Phase 1: Parallel linting, unit tests, integration tests, helm validation, security scan
+# Phase 2: Docker build (after unit tests and linting pass)
+# Phase 3: Parallel smoke tests and E2E tests (after successful build)
 # Estimated Duration: 12-18 minutes (optimized with composite actions)
 
 name: ✨ CI (New)
@@ -123,16 +125,24 @@ jobs:
           go-version: ${{ needs.setup.outputs.go-version }}
           vault-version: ${{ needs.setup.outputs.vault-version }}
 
-  # E2E tests (only when requested or on main)
+  # E2E tests (run after build, parallel with smoke tests)
   e2e-tests:
     name: 🌐 E2E Tests
     runs-on: ubuntu-latest
-    needs: setup
-    if: github.event.inputs.run_e2e == 'true' || github.ref == 'refs/heads/main'
+    needs: [build, setup]
+    if: (github.event.inputs.run_e2e == 'true' || github.ref == 'refs/heads/main') && needs.build.result == 'success'
     timeout-minutes: 25
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+
+      - name: Log in to Container Registry
+        if: needs.build.result == 'success'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run E2E tests
         uses: ./.github/actions/run-e2e-tests
@@ -142,6 +152,9 @@ jobs:
           go-version: ${{ needs.setup.outputs.go-version }}
           vault-version: ${{ needs.setup.outputs.vault-version }}
           k3s-version: ${{ needs.setup.outputs.k3s-version }}
+        env:
+          # Pass the first image tag from the build step (newline-separated tags, take first line)
+          OPERATOR_IMAGE_TAGS: ${{ needs.build.outputs.image-tags }}
 
   # Helm chart validation
   helm-validate:
@@ -169,11 +182,15 @@ jobs:
     needs: [setup, unit-tests, lint]
     if: github.event.inputs.skip_build != 'true'
     timeout-minutes: 20
+    outputs:
+      image-tags: ${{ steps.build-image.outputs.image-tags }}
+      image-digest: ${{ steps.build-image.outputs.image-digest }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
       - name: Build Docker image
+        id: build-image
         uses: ./.github/actions/build-image
         with:
           registry: ghcr.io
@@ -318,8 +335,8 @@ jobs:
           [[ "$HELM_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS helm-validate"
           [[ "$SECURITY_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS security"
 
-          # E2E failure is not blocking if it was optional
-          if [[ "$E2E_STATUS" == "failure" && "${{ github.event.inputs.run_e2e }}" == "true" ]]; then
+          # E2E failure is blocking only if it was explicitly requested and build succeeded
+          if [[ "$E2E_STATUS" == "failure" && "${{ github.event.inputs.run_e2e }}" == "true" && "$BUILD_STATUS" == "success" ]]; then
             FAILED_JOBS="$FAILED_JOBS e2e-tests"
           fi
 
@@ -358,8 +375,8 @@ jobs:
           echo "| Helm Validate | ${{ needs.helm-validate.result == 'success' && '✅' || '❌' }} | ~2min | Chart validation |" >> $GITHUB_STEP_SUMMARY
           echo "| Security | ${{ needs.security-quick.result == 'success' && '✅' || needs.security-quick.result == 'skipped' && '⏭️' || '❌' }} | ~5min | Quick security scan |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ${{ needs.build.result == 'success' && '✅' || needs.build.result == 'skipped' && '⏭️' || '❌' }} | ~8min | Multi-platform Docker |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E Tests | ${{ needs.e2e-tests.result == 'success' && '✅' || needs.e2e-tests.result == 'skipped' && '⏭️' || '❌' }} | ~15min | Optional/main only |" >> $GITHUB_STEP_SUMMARY
           echo "| Smoke Tests | ${{ needs.smoke-tests.result == 'success' && '✅' || needs.smoke-tests.result == 'skipped' && '⏭️' || '❌' }} | ~3min | Image validation |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Tests | ${{ needs.e2e-tests.result == 'success' && '✅' || needs.e2e-tests.result == 'skipped' && '⏭️' || '❌' }} | ~15min | After build/main only |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Add coverage info if available

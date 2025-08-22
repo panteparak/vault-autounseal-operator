@@ -123,6 +123,42 @@ runs:
 
         echo "✅ E2E test cluster ready"
 
+    - name: Check for pre-built operator image
+      id: check-image
+      shell: bash
+      run: |
+        echo "🔍 Checking for pre-built operator image..."
+
+        # Look for existing image tags from CI build
+        if [[ -n "${OPERATOR_IMAGE_TAG:-}" ]]; then
+          echo "Found operator image tag from CI: $OPERATOR_IMAGE_TAG"
+          echo "image-tag=$OPERATOR_IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "use-prebuilt=true" >> $GITHUB_OUTPUT
+        elif [[ -n "${OPERATOR_IMAGE_TAGS:-}" ]]; then
+          # Extract first tag from newline-separated list
+          FIRST_TAG=$(echo "$OPERATOR_IMAGE_TAGS" | head -n1)
+          echo "Found operator image tags from CI, using first: $FIRST_TAG"
+
+          # Pull the image to ensure it's available locally
+          echo "🔄 Pulling operator image for E2E tests..."
+          if docker pull "$FIRST_TAG"; then
+            echo "✅ Successfully pulled $FIRST_TAG"
+            echo "image-tag=$FIRST_TAG" >> $GITHUB_OUTPUT
+            echo "use-prebuilt=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Failed to pull $FIRST_TAG, will build from scratch"
+            echo "use-prebuilt=false" >> $GITHUB_OUTPUT
+          fi
+        elif docker images --format "table {{.Repository}}:{{.Tag}}" | grep -E "ghcr.io/.*vault-autounseal-operator:" | head -1; then
+          EXISTING_TAG=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "ghcr.io/.*vault-autounseal-operator:" | head -1)
+          echo "Found existing operator image: $EXISTING_TAG"
+          echo "image-tag=$EXISTING_TAG" >> $GITHUB_OUTPUT
+          echo "use-prebuilt=true" >> $GITHUB_OUTPUT
+        else
+          echo "No pre-built operator image found, will build during test"
+          echo "use-prebuilt=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: Run E2E tests
       id: run-tests
       shell: bash
@@ -136,6 +172,14 @@ runs:
         export CI="true"
         export VAULT_VERSION="${{ env.VAULT_VERSION }}"
         export K3S_VERSION="${{ env.K3S_VERSION }}"
+
+        # Set pre-built image tag if available
+        if [[ "${{ steps.check-image.outputs.use-prebuilt }}" == "true" ]]; then
+          export OPERATOR_IMAGE_TAG="${{ steps.check-image.outputs.image-tag }}"
+          echo "🚀 Using pre-built operator image: $OPERATOR_IMAGE_TAG"
+        else
+          echo "🏗️ Will build operator image during test"
+        fi
 
         # Run tests using make command for consistency
         if make test-e2e 2>&1 | tee "reports/e2e-test-output.log"; then
