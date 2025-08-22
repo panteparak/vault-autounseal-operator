@@ -2,13 +2,16 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
 	"github.com/panteparak/vault-autounseal-operator/pkg/controller"
+	"github.com/panteparak/vault-autounseal-operator/pkg/testing/mocks"
 	"github.com/panteparak/vault-autounseal-operator/tests/integration/shared"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -97,11 +100,20 @@ func (suite *ControllerReconciliationTestSuite) TestBasicReconciliation() {
 		require.NoError(suite.T(), err, "Should create VaultUnsealConfig")
 
 		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("test-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		// Create a mock repository for the integration test
+		mockRepo := &mocks.MockVaultClientRepository{}
+
+		// Set up mock to return error when trying to connect (since we don't have real vault)
+		mockRepo.On("GetClient", mock.Anything, "default/reconcile-vault", mock.Anything).
+			Return(nil, errors.New("vault connection failed - expected in integration test")).Maybe()
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("test-controller"),
+			k3sInstance.Scheme,
+			mockRepo,
+			nil, // Use default options
+		)
 
 		// Trigger reconciliation
 		req := ctrl.Request{
@@ -112,7 +124,9 @@ func (suite *ControllerReconciliationTestSuite) TestBasicReconciliation() {
 		}
 
 		result, err := reconciler.Reconcile(suite.ctx, req)
-		assert.NoError(suite.T(), err, "Reconciliation should succeed")
+		// In this integration test, we expect the reconcile to complete but mark vaults as failed
+		// since we're using a mock that returns connection errors
+		assert.NoError(suite.T(), err, "Reconciliation should complete gracefully even with vault connection failures")
 		assert.NotNil(suite.T(), result, "Should have reconciliation result")
 
 		// Verify status was updated
@@ -178,11 +192,19 @@ func (suite *ControllerReconciliationTestSuite) TestMultipleVaultInstances() {
 		require.NoError(suite.T(), err, "Should create multi-vault config")
 
 		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("multi-vault-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		mockRepo := &mocks.MockVaultClientRepository{}
+
+		// Set up mock to return error when trying to connect (since we don't have real vault)
+		mockRepo.On("GetClient", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
+			Return(nil, errors.New("vault connection failed - expected in integration test")).Maybe()
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("multi-vault-controller"),
+			k3sInstance.Scheme,
+			mockRepo,
+			nil, // Use default options
+		)
 
 		// Reconcile
 		req := ctrl.Request{
@@ -193,7 +215,9 @@ func (suite *ControllerReconciliationTestSuite) TestMultipleVaultInstances() {
 		}
 
 		result, err := reconciler.Reconcile(suite.ctx, req)
-		assert.NoError(suite.T(), err, "Multi-vault reconciliation should succeed")
+		// In this integration test, we expect the reconcile to complete but mark vaults as failed
+		// since we're using a mock that returns connection errors
+		assert.NoError(suite.T(), err, "Multi-vault reconciliation should complete gracefully even with vault connection failures")
 		assert.NotNil(suite.T(), result, "Should have reconciliation result")
 
 		// Verify config was processed
@@ -246,11 +270,19 @@ func (suite *ControllerReconciliationTestSuite) TestReconciliationWithErrors() {
 		require.NoError(suite.T(), err, "Should create error-test config")
 
 		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("error-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		mockRepo := &mocks.MockVaultClientRepository{}
+
+		// Set up mock to return error when trying to connect (since we don't have real vault)
+		mockRepo.On("GetClient", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
+			Return(nil, errors.New("vault connection failed - expected in integration test")).Maybe()
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("error-controller"),
+			k3sInstance.Scheme,
+			mockRepo,
+			nil, // Use default options
+		)
 
 		// Reconcile - should handle errors gracefully
 		req := ctrl.Request{

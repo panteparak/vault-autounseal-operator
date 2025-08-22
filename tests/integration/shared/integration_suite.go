@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 	"fmt"
+	"testing"
 	"time"
 
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
@@ -131,7 +132,7 @@ func (suite *IntegrationTestSuite) SetupIntegrationSuite(options *IntegrationSet
 	suite.setupOptions = options
 
 	// Skip in short mode if requested
-	if options.SkipInShortMode && suite.T().Short() {
+	if options.SkipInShortMode && testing.Short() {
 		suite.T().Skip("Skipping integration tests in short mode")
 	}
 
@@ -353,7 +354,7 @@ func (suite *IntegrationTestSuite) CreateTestVaultUnsealConfig(name, namespace s
 
 	// For integration tests, we might want to create the actual resource
 	// This is a placeholder for now - implement based on test needs
-	suite.T().Logf("Generated VaultUnsealConfig manifest for %s/%s", namespace, name)
+	suite.T().Logf("Generated VaultUnsealConfig manifest for %s/%s (%d bytes)", namespace, name, len(manifest))
 
 	return nil // TODO: Parse YAML and return the resource
 }

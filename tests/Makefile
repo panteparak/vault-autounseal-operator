@@ -96,7 +96,7 @@ test-all: test-deps ## Run all test categories
 
 test-unit: test-deps ## Run unit tests
 	@echo "🔬 Running unit tests..."
-	@go test $(GO_TEST_FLAGS) $(GO_TEST_COVERAGE_FLAGS) ./$(UNIT_DIR)/controller/... ./$(UNIT_DIR)/validation/... ./$(UNIT_DIR)/vault/...
+	@go test $(GO_TEST_FLAGS) $(GO_TEST_COVERAGE_FLAGS) ./$(UNIT_DIR)/controller/... ./$(UNIT_DIR)/validation/... ./$(UNIT_DIR)/vault/... ./$(UNIT_DIR)/config/... ./$(UNIT_DIR)/metrics/... ./$(UNIT_DIR)/logging/...
 	@echo "✅ Unit tests completed"
 
 test-integration: test-deps ## Run integration tests

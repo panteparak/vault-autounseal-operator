@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -165,7 +166,7 @@ func RunCompatibilityTests(t *testing.T, testSuite suite.TestingSuite) {
 	}
 
 	// Only run compatibility tests if explicitly enabled
-	if !suite.suite.(*CompatibilityTestSuite).Config().IsCompatibilityTestingEnabled() {
+	if os.Getenv("ENABLE_COMPATIBILITY_TESTING") != "true" {
 		t.Skip("Compatibility testing not enabled - set ENABLE_COMPATIBILITY_TESTING=true")
 	}
 

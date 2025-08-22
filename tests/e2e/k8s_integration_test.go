@@ -368,7 +368,7 @@ func (suite *K8sIntegrationTestSuite) TestEndToEndWorkflow() {
 }
 
 // TestK8sIntegrationTestSuite runs the K8s integration test suite
-func TestK8sIntegrationTestSuite(t *testing.T) {
+func TestK8sE2EIntegrationTestSuite(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping K8s integration tests in short mode")
 	}
