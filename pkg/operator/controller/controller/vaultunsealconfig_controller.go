@@ -96,7 +96,7 @@ func (r *VaultUnsealConfigReconciler) processVaultInstances(
 }
 
 func (r *VaultUnsealConfigReconciler) updateVaultConfigStatus(
-	ctx context.Context,
+	_ context.Context,
 	vaultConfig *vaultv1.VaultUnsealConfig,
 	vaultStatuses []vaultv1.VaultInstanceStatus,
 	allReady bool,

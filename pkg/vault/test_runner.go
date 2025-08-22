@@ -94,7 +94,22 @@ func (rp *ResourceProfiler) StopProfiling() error {
 
 	var errors []error
 
-	// Stop CPU profiling
+	errors = append(errors, rp.stopCPUProfiling()...)
+	errors = append(errors, rp.stopTracing()...)
+	errors = append(errors, rp.writeMemoryProfile()...)
+	errors = append(errors, rp.writeBlockProfile()...)
+	errors = append(errors, rp.writeMutexProfile()...)
+
+	if len(errors) > 0 {
+		return fmt.Errorf("profiling errors: %v", errors)
+	}
+
+	return nil
+}
+
+// stopCPUProfiling stops CPU profiling and closes the file
+func (rp *ResourceProfiler) stopCPUProfiling() []error {
+	var errors []error
 	if rp.config.CPU {
 		pprof.StopCPUProfile()
 		if file, exists := rp.profiles["cpu"]; exists {
@@ -103,8 +118,12 @@ func (rp *ResourceProfiler) StopProfiling() error {
 			}
 		}
 	}
+	return errors
+}
 
-	// Stop tracing
+// stopTracing stops tracing and closes the trace file
+func (rp *ResourceProfiler) stopTracing() []error {
+	var errors []error
 	if rp.config.Trace {
 		trace.Stop()
 		if file, exists := rp.profiles["trace"]; exists {
@@ -113,8 +132,12 @@ func (rp *ResourceProfiler) StopProfiling() error {
 			}
 		}
 	}
+	return errors
+}
 
-	// Write memory profile
+// writeMemoryProfile writes the memory profile to disk
+func (rp *ResourceProfiler) writeMemoryProfile() []error {
+	var errors []error
 	if rp.config.Memory {
 		memFile, err := os.Create("mem.prof")
 		if err != nil {
@@ -126,8 +149,12 @@ func (rp *ResourceProfiler) StopProfiling() error {
 			_ = memFile.Close()
 		}
 	}
+	return errors
+}
 
-	// Write block profile
+// writeBlockProfile writes the block profile to disk
+func (rp *ResourceProfiler) writeBlockProfile() []error {
+	var errors []error
 	if rp.config.Block {
 		blockFile, err := os.Create("block.prof")
 		if err != nil {
@@ -139,8 +166,12 @@ func (rp *ResourceProfiler) StopProfiling() error {
 			_ = blockFile.Close()
 		}
 	}
+	return errors
+}
 
-	// Write mutex profile
+// writeMutexProfile writes the mutex profile to disk
+func (rp *ResourceProfiler) writeMutexProfile() []error {
+	var errors []error
 	if rp.config.Mutex {
 		mutexFile, err := os.Create("mutex.prof")
 		if err != nil {
@@ -152,12 +183,7 @@ func (rp *ResourceProfiler) StopProfiling() error {
 			_ = mutexFile.Close()
 		}
 	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("profiling errors: %v", errors)
-	}
-
-	return nil
+	return errors
 }
 
 // TestReporter handles test result reporting
@@ -567,8 +593,8 @@ func (tr *TestRunner) runPropertyTest(config *TestConfig) error {
 
 		threshold := 1 + i%len(keys)
 
-		// Should not panic
-		_ = validator.ValidateKeys(keys, threshold)
+		// Should not panic - error is intentionally ignored for property testing
+		_ = validator.ValidateKeys(keys, threshold) //nolint:errcheck // Property test: validation errors are expected and ignored
 	}
 
 	if config.ReportVerbose {
@@ -597,7 +623,8 @@ func (tr *TestRunner) runMemoryTest(config *TestConfig) error {
 		key := base64.StdEncoding.EncodeToString(keyData)
 		keys := []string{key}
 
-		_ = validator.ValidateKeys(keys, 1)
+		// Memory stress test - validation errors are expected and ignored
+		_ = validator.ValidateKeys(keys, 1) //nolint:errcheck // Memory test: validation errors are expected and ignored
 
 		if i%10 == 0 {
 			metrics.TakeMemorySnapshot()

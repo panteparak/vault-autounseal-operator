@@ -146,7 +146,7 @@ func (tm *TestMetrics) GetSummary() TestSummary {
 
 		if last.Alloc >= first.Alloc {
 			diff := last.Alloc - first.Alloc
-			if diff <= uint64(^uint64(0)>>1) { // Check if fits in int64
+			if diff <= ^uint64(0)>>1 { // Check if fits in int64
 				summary.MemoryGrowth = int64(diff)
 			} else {
 				summary.MemoryGrowth = ^int64(0) >> 1 // Max int64 value
@@ -372,11 +372,14 @@ func NewChaosTestRunner(numClients int) *ChaosTestRunner {
 
 	// Create clients
 	for i := 0; i < numClients; i++ {
-		client, _ := ctr.factory.NewClient(
+		client, err := ctr.factory.NewClient(
 			fmt.Sprintf("http://chaos-%d:8200", i),
 			false,
 			100*time.Millisecond,
 		)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to create chaos test client %d: %v", i, err))
+		}
 		ctr.clients[i] = ctr.factory.GetClient(fmt.Sprintf("http://chaos-%d:8200", i))
 		_ = client // Keep reference to prevent GC
 	}
@@ -425,7 +428,7 @@ func NewChaosTestRunner(numClients int) *ChaosTestRunner {
 			ApplyFunc: func(c *MockVaultClient) {
 				c.SetSealed(!c.GetSealed())
 			},
-			RecoverFunc: func(c *MockVaultClient) {
+			RecoverFunc: func(_ *MockVaultClient) {
 				// State changes are part of the chaos, no explicit recovery needed
 			},
 		},

@@ -214,7 +214,7 @@ func NewConnectionError(endpoint string, err error, retryable bool) *ConnectionE
 	}
 }
 
-func NewTimeoutError(operation, endpoint string, timeout time.Duration) *TimeoutError {
+func NewTimeoutError(operation string, timeout time.Duration) *TimeoutError {
 	return &TimeoutError{
 		Operation: operation,
 		Timeout:   timeout,

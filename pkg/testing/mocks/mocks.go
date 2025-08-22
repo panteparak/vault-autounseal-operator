@@ -5,9 +5,17 @@ import (
 	"time"
 
 	"github.com/hashicorp/vault/api"
-	"github.com/stretchr/testify/mock"
-
+	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
 	"github.com/panteparak/vault-autounseal-operator/pkg/core/types"
+	"github.com/panteparak/vault-autounseal-operator/pkg/vault"
+	"github.com/stretchr/testify/mock"
+)
+
+const (
+	// MockSealThreshold is the default threshold for mock seal responses.
+	MockSealThreshold = 5
+	// MockServerTimeUTC is a mock timestamp for health responses.
+	MockServerTimeUTC = 1234567890
 )
 
 // MockVaultClient is a mock implementation of VaultClient
@@ -22,12 +30,22 @@ func (m *MockVaultClient) IsSealed(ctx context.Context) (bool, error) {
 
 func (m *MockVaultClient) GetSealStatus(ctx context.Context) (*api.SealStatusResponse, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(*api.SealStatusResponse), args.Error(1)
+	if response := args.Get(0); response != nil {
+		if sealStatus, ok := response.(*api.SealStatusResponse); ok {
+			return sealStatus, args.Error(1)
+		}
+	}
+	return nil, args.Error(1)
 }
 
 func (m *MockVaultClient) Unseal(ctx context.Context, keys []string, threshold int) (*api.SealStatusResponse, error) {
 	args := m.Called(ctx, keys, threshold)
-	return args.Get(0).(*api.SealStatusResponse), args.Error(1)
+	if response := args.Get(0); response != nil {
+		if sealStatus, ok := response.(*api.SealStatusResponse); ok {
+			return sealStatus, args.Error(1)
+		}
+	}
+	return nil, args.Error(1)
 }
 
 func (m *MockVaultClient) IsInitialized(ctx context.Context) (bool, error) {
@@ -37,7 +55,12 @@ func (m *MockVaultClient) IsInitialized(ctx context.Context) (bool, error) {
 
 func (m *MockVaultClient) HealthCheck(ctx context.Context) (*api.HealthResponse, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(*api.HealthResponse), args.Error(1)
+	if response := args.Get(0); response != nil {
+		if healthResp, ok := response.(*api.HealthResponse); ok {
+			return healthResp, args.Error(1)
+		}
+	}
+	return nil, args.Error(1)
 }
 
 func (m *MockVaultClient) Close() error {
@@ -70,9 +93,19 @@ type MockUnsealStrategy struct {
 	mock.Mock
 }
 
-func (m *MockUnsealStrategy) Unseal(ctx context.Context, client types.VaultClient, keys []string, threshold int) (*api.SealStatusResponse, error) {
+func (m *MockUnsealStrategy) Unseal(
+	ctx context.Context,
+	client types.VaultClient,
+	keys []string,
+	threshold int,
+) (*api.SealStatusResponse, error) {
 	args := m.Called(ctx, client, keys, threshold)
-	return args.Get(0).(*api.SealStatusResponse), args.Error(1)
+	if response := args.Get(0); response != nil {
+		if sealStatus, ok := response.(*api.SealStatusResponse); ok {
+			return sealStatus, args.Error(1)
+		}
+	}
+	return nil, args.Error(1)
 }
 
 // MockClientMetrics is a mock implementation of ClientMetrics
@@ -104,7 +137,10 @@ func (m *MockRetryPolicy) ShouldRetry(err error, attempt int) bool {
 
 func (m *MockRetryPolicy) NextDelay(attempt int) time.Duration {
 	args := m.Called(attempt)
-	return args.Get(0).(time.Duration)
+	if duration, ok := args.Get(0).(time.Duration); ok {
+		return duration
+	}
+	return 0
 }
 
 func (m *MockRetryPolicy) MaxAttempts() int {
@@ -117,7 +153,78 @@ type MockClientFactory struct {
 	mock.Mock
 }
 
-func (m *MockClientFactory) NewClient(endpoint string, tlsSkipVerify bool, timeout time.Duration) (types.VaultClient, error) {
+func (m *MockClientFactory) NewClient(
+	endpoint string,
+	tlsSkipVerify bool,
+	timeout time.Duration,
+) (vault.VaultClient, error) {
 	args := m.Called(endpoint, tlsSkipVerify, timeout)
-	return args.Get(0).(types.VaultClient), args.Error(1)
+
+	client := args.Get(0)
+	if client == nil {
+		return nil, args.Error(1)
+	}
+
+	if vaultClient, ok := client.(vault.VaultClient); ok {
+		return vaultClient, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+// MockVaultClientRepository is a mock implementation of VaultClientRepository.
+type MockVaultClientRepository struct {
+	mock.Mock
+}
+
+// GetClient mocks the GetClient method.
+func (m *MockVaultClientRepository) GetClient(
+	ctx context.Context,
+	key string,
+	instance *vaultv1.VaultInstance,
+) (vault.VaultClient, error) {
+	args := m.Called(ctx, key, instance)
+
+	client := args.Get(0)
+	if client == nil {
+		return nil, args.Error(1)
+	}
+
+	if vaultClient, ok := client.(vault.VaultClient); ok {
+		return vaultClient, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+// Close mocks the Close method.
+func (m *MockVaultClientRepository) Close() error {
+	args := m.Called()
+
+	return args.Error(0)
+}
+
+// NewMockSealStatusResponse creates a mock SealStatusResponse.
+func NewMockSealStatusResponse(sealed bool, progress, total int) *api.SealStatusResponse {
+	return &api.SealStatusResponse{
+		Type:        "shamir",
+		Initialized: true,
+		Sealed:      sealed,
+		T:           total,
+		N:           MockSealThreshold,
+		Progress:    progress,
+		Nonce:       "test-nonce",
+		Version:     "1.15.0",
+	}
+}
+
+// NewMockHealthResponse creates a mock HealthResponse.
+func NewMockHealthResponse(initialized, sealed bool) *api.HealthResponse {
+	return &api.HealthResponse{
+		Initialized:   initialized,
+		Sealed:        sealed,
+		Standby:       false,
+		ServerTimeUTC: MockServerTimeUTC,
+		Version:       "1.15.0",
+		ClusterName:   "test-cluster",
+		ClusterID:     "test-cluster-id",
+	}
 }

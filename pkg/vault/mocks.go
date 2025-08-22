@@ -409,7 +409,7 @@ func NewMockClientFactory() *MockClientFactory {
 }
 
 // NewClient implements ClientFactory
-func (f *MockClientFactory) NewClient(endpoint string, tlsSkipVerify bool, timeout time.Duration) (VaultClient, error) {
+func (f *MockClientFactory) NewClient(endpoint string, _ bool, _ time.Duration) (VaultClient, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

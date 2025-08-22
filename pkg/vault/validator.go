@@ -220,7 +220,11 @@ func (v *StrictKeyValidator) validateKeyLength(key string) error {
 		return nil
 	}
 
-	decoded, _ := base64.StdEncoding.DecodeString(key) // Already validated above
+	decoded, err := base64.StdEncoding.DecodeString(key)
+	if err != nil {
+		// This should not happen as key was validated above, but handle gracefully
+		return NewValidationError("key", key, "invalid base64 encoding")
+	}
 	if len(decoded) != v.requiredKeyLength {
 		return NewValidationError("key", key,
 			fmt.Sprintf("key must be exactly %d bytes when decoded (got %d)",
@@ -251,7 +255,11 @@ func (v *StrictKeyValidator) validateForbiddenStrings(key string) error {
 	}
 
 	keyLower := strings.ToLower(key)
-	decoded, _ := base64.StdEncoding.DecodeString(key) // Already validated above
+	decoded, err := base64.StdEncoding.DecodeString(key)
+	if err != nil {
+		// This should not happen as key was validated above, but handle gracefully
+		return NewValidationError("key", key, "invalid base64 encoding")
+	}
 	decodedLower := strings.ToLower(string(decoded))
 
 	for _, forbidden := range v.forbiddenStrings {

@@ -273,11 +273,11 @@ func (suite *EdgeCaseTestSuite) TestConcurrentEdgeCases() {
 		threshold int
 		shouldErr bool
 	}{
-		{[]string{""}, 1, true},                                                    // empty key
-		{[]string{"invalid-base64"}, 1, true},                                     // invalid base64
-		{[]string{"dGVzdA==", "dGVzdA=="}, 1, true},                              // duplicates
-		{generateKeys(10), 5, false},                                              // valid case
-		{[]string{"dGVzdDEyMzQ1Njc4OTA="}, 2, true},                              // threshold too high
+		{[]string{""}, 1, true},                                                     // empty key
+		{[]string{"invalid-base64"}, 1, true},                                       // invalid base64
+		{[]string{"dGVzdA==", "dGVzdA=="}, 1, true},                                 // duplicates
+		{generateKeys(10), 5, false},                                                // valid case
+		{[]string{"dGVzdDEyMzQ1Njc4OTA="}, 2, true},                                 // threshold too high
 		{[]string{base64.StdEncoding.EncodeToString(makeBytes(0x00, 32))}, 1, true}, // all zeros
 	}
 

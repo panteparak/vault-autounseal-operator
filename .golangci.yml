@@ -1,0 +1,110 @@
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  gocyclo:
+    min-complexity: 15
+
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+      - shadow
+
+  lll:
+    line-length: 160
+
+  funlen:
+    lines: 90
+    statements: 50
+
+  misspell:
+    locale: US
+
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - "checkPrivateReceivers"
+          - "disableStutteringCheck"
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: context-as-argument
+      - name: context-keys-type
+
+  staticcheck:
+    checks: ["all"]
+
+linters:
+  disable-all: true
+  enable:
+    # Enabled by default
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Additional useful linters
+    - asciicheck
+    - bodyclose
+    - contextcheck
+    - dupl
+    - funlen
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - lll
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+    - wastedassign
+    - whitespace
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-dirs:
+    - vendor
+    - .git
+    - bin
+    - charts
+    - generated
+  exclude-files:
+    - ".*\\.pb\\.go$"
+    - ".*_generated\\.go$"
+
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - lll
+        - funlen
+        - gocognit
+
+    # Allow _ in test function names
+    - path: _test\.go
+      text: "don't use underscores in Go names"
+
+    # Exclude some issues from test files
+    - path: _test\.go
+      linters:
+        - revive
+      text: "exported.*should have comment"

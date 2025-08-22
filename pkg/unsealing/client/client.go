@@ -244,17 +244,23 @@ func (c *Client) unsealDirect(ctx context.Context, keys []string, threshold int)
 }
 
 // SubmitSingleKey submits a single unseal key (used by strategies)
-func (c *Client) SubmitSingleKey(ctx context.Context, encodedKey string, keyIndex int) (*api.SealStatusResponse, error) {
+func (c *Client) SubmitSingleKey(
+	ctx context.Context,
+	encodedKey string,
+	keyIndex int,
+) (*api.SealStatusResponse, error) {
 	// Validate that the key is valid base64
 	_, err := base64.StdEncoding.DecodeString(encodedKey)
 	if err != nil {
-		return nil, types.NewValidationError("key", encodedKey, fmt.Sprintf("invalid base64 encoding in key %d: %v", keyIndex, err))
+		return nil, types.NewValidationError("key", encodedKey,
+			fmt.Sprintf("invalid base64 encoding in key %d: %v", keyIndex, err))
 	}
 
 	// Submit the base64 encoded key directly (Vault API expects base64)
 	status, err := c.client.Sys().UnsealWithContext(ctx, encodedKey)
 	if err != nil {
-		return nil, types.NewVaultError("unseal-key-submit", c.url, fmt.Errorf("failed to submit unseal key %d: %w", keyIndex, err), true)
+		return nil, types.NewVaultError("unseal-key-submit", c.url,
+			fmt.Errorf("failed to submit unseal key %d: %w", keyIndex, err), true)
 	}
 
 	return status, nil
@@ -342,6 +348,10 @@ func (c *Client) IsClosed() bool {
 type DefaultFactory struct{}
 
 // NewClient implements ClientFactory interface
-func (f *DefaultFactory) NewClient(endpoint string, tlsSkipVerify bool, timeout time.Duration) (types.VaultClient, error) {
+func (f *DefaultFactory) NewClient(
+	endpoint string,
+	tlsSkipVerify bool,
+	timeout time.Duration,
+) (types.VaultClient, error) {
 	return NewClient(endpoint, tlsSkipVerify, timeout)
 }

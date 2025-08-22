@@ -12,6 +12,13 @@ import (
 	"github.com/hashicorp/vault/api"
 )
 
+const (
+	// DefaultTimeoutSeconds is the default timeout for vault operations in seconds.
+	DefaultTimeoutSeconds = 30
+	// DefaultMaxRetries is the default number of retries for vault operations.
+	DefaultMaxRetries = 3
+)
+
 // Client wraps the HashiCorp Vault client with additional functionality
 type Client struct {
 	client    *api.Client
@@ -36,16 +43,75 @@ type ClientConfig struct {
 	RetryDelay    time.Duration
 }
 
+// ClientOption is a functional option for configuring a vault client.
+type ClientOption func(*ClientConfig)
+
+// WithTimeout sets the client timeout.
+func WithTimeout(timeout time.Duration) ClientOption {
+	return func(c *ClientConfig) {
+		c.Timeout = timeout
+	}
+}
+
+// WithTLSSkipVerify sets whether to skip TLS verification.
+func WithTLSSkipVerify(skip bool) ClientOption {
+	return func(c *ClientConfig) {
+		c.TLSSkipVerify = skip
+	}
+}
+
+// WithValidator sets the key validator.
+func WithValidator(validator KeyValidator) ClientOption {
+	return func(c *ClientConfig) {
+		c.Validator = validator
+	}
+}
+
+// WithStrategy sets the unseal strategy.
+func WithStrategy(strategy UnsealStrategy) ClientOption {
+	return func(c *ClientConfig) {
+		c.Strategy = strategy
+	}
+}
+
+// WithMetrics sets the metrics collector.
+func WithMetrics(metrics ClientMetrics) ClientOption {
+	return func(c *ClientConfig) {
+		c.Metrics = metrics
+	}
+}
+
+// WithRetryPolicy sets retry configuration.
+func WithRetryPolicy(maxRetries int, retryDelay time.Duration) ClientOption {
+	return func(c *ClientConfig) {
+		c.MaxRetries = maxRetries
+		c.RetryDelay = retryDelay
+	}
+}
+
 // NewClient creates a new Vault client with the given configuration
 func NewClient(url string, tlsSkipVerify bool, timeout time.Duration) (*Client, error) {
+	return NewClientWithOptions(url,
+		WithTLSSkipVerify(tlsSkipVerify),
+		WithTimeout(timeout),
+	)
+}
+
+// NewClientWithOptions creates a new Vault client using functional options.
+func NewClientWithOptions(url string, opts ...ClientOption) (*Client, error) {
 	config := &ClientConfig{
 		URL:           url,
-		TLSSkipVerify: tlsSkipVerify,
-		Timeout:       timeout,
+		TLSSkipVerify: false,
+		Timeout:       DefaultTimeoutSeconds * time.Second,
 		Validator:     NewDefaultKeyValidator(),
-		MaxRetries:    3,
+		MaxRetries:    DefaultMaxRetries,
 		RetryDelay:    time.Second,
 	}
+
+	for _, opt := range opts {
+		opt(config)
+	}
+
 	return NewClientWithConfig(config)
 }
 
@@ -57,21 +123,25 @@ func validateClientConfig(config *ClientConfig) error {
 
 	// Basic URL validation
 	if !strings.HasPrefix(config.URL, "http://") && !strings.HasPrefix(config.URL, "https://") {
-		return NewValidationError("url", config.URL, "URL must start with http:// or https://")
+		return NewValidationError("url", config.URL,
+			"URL must start with http:// or https://")
 	}
 
 	// Reject extremely long URLs
 	if len(config.URL) > 2048 {
-		return NewValidationError("url", config.URL, "URL exceeds maximum length of 2048 characters")
+		return NewValidationError("url", config.URL,
+			"URL exceeds maximum length of 2048 characters")
 	}
 
 	// Reject extremely small timeouts
 	if config.Timeout < time.Millisecond {
-		return NewValidationError("timeout", config.Timeout, "Timeout must be at least 1 millisecond")
+		return NewValidationError("timeout", config.Timeout,
+			"Timeout must be at least 1 millisecond")
 	}
 
 	if config.MaxRetries < 0 {
-		return NewValidationError("maxRetries", config.MaxRetries, "MaxRetries cannot be negative")
+		return NewValidationError("maxRetries", config.MaxRetries,
+			"MaxRetries cannot be negative")
 	}
 
 	return nil
@@ -218,17 +288,21 @@ func (c *Client) Unseal(ctx context.Context, keys []string, threshold int) (*api
 }
 
 // SubmitSingleKey submits a single unseal key (used by strategies)
-func (c *Client) SubmitSingleKey(ctx context.Context, encodedKey string, keyIndex int) (*api.SealStatusResponse, error) {
+func (c *Client) SubmitSingleKey(
+	ctx context.Context, encodedKey string, keyIndex int,
+) (*api.SealStatusResponse, error) {
 	// Validate that the key is valid base64
 	_, err := base64.StdEncoding.DecodeString(encodedKey)
 	if err != nil {
-		return nil, NewValidationError("key", encodedKey, fmt.Sprintf("invalid base64 encoding in key %d: %v", keyIndex, err))
+		return nil, NewValidationError("key", encodedKey,
+			fmt.Sprintf("invalid base64 encoding in key %d: %v", keyIndex, err))
 	}
 
 	// Submit the base64 encoded key directly (Vault API expects base64)
 	status, err := c.client.Sys().UnsealWithContext(ctx, encodedKey)
 	if err != nil {
-		return nil, NewVaultError("unseal-key-submit", c.url, fmt.Errorf("failed to submit unseal key %d: %w", keyIndex, err), true)
+		return nil, NewVaultError("unseal-key-submit", c.url,
+			fmt.Errorf("failed to submit unseal key %d: %w", keyIndex, err), true)
 	}
 
 	return status, nil
@@ -316,6 +390,8 @@ func (c *Client) IsClosed() bool {
 type DefaultClientFactory struct{}
 
 // NewClient implements ClientFactory interface
-func (f *DefaultClientFactory) NewClient(endpoint string, tlsSkipVerify bool, timeout time.Duration) (VaultClient, error) {
+func (f *DefaultClientFactory) NewClient(
+	endpoint string, tlsSkipVerify bool, timeout time.Duration,
+) (VaultClient, error) {
 	return NewClient(endpoint, tlsSkipVerify, timeout)
 }

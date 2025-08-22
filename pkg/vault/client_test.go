@@ -88,7 +88,7 @@ func (suite *ClientTestSuite) TestNewClient() {
 				assert.Equal(suite.T(), tt.url, client.URL())
 				assert.Equal(suite.T(), tt.timeout, client.Timeout())
 				assert.False(suite.T(), client.IsClosed())
-				client.Close()
+				_ = client.Close()
 			}
 		})
 	}
@@ -151,7 +151,7 @@ func (suite *ClientTestSuite) TestNewClientWithConfig() {
 				} else {
 					assert.Equal(suite.T(), tt.config.Timeout, client.Timeout())
 				}
-				client.Close()
+				_ = client.Close()
 			}
 		})
 	}
@@ -213,7 +213,7 @@ func (suite *ClientTestSuite) TestClientClosedOperations() {
 func (suite *ClientTestSuite) TestSubmitSingleKey() {
 	client, err := NewClient("http://localhost:8200", false, 30*time.Second)
 	require.NoError(suite.T(), err)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	tests := []struct {
 		name        string
@@ -270,7 +270,7 @@ func (suite *ClientTestSuite) TestDefaultClientFactory() {
 	var vaultClient VaultClient = client
 	assert.NotNil(suite.T(), vaultClient)
 
-	client.Close()
+	_ = client.Close()
 }
 
 // TestValidateClientConfig tests the client configuration validation
@@ -352,7 +352,7 @@ func (suite *ClientTestSuite) TestValidateClientConfig() {
 func (suite *ClientTestSuite) TestClientThreadSafety() {
 	client, err := NewClient("http://localhost:8200", false, 30*time.Second)
 	require.NoError(suite.T(), err)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Test concurrent access to client properties
 	concurrency := 100
@@ -417,7 +417,7 @@ func (suite *ClientTestSuite) TestClientThreadSafety() {
 func (suite *ClientTestSuite) TestClientWithCustomValidator() {
 	// Create a custom validator that always returns an error
 	customValidator := &MockKeyValidator{
-		validateFunc: func(keys []string, threshold int) error {
+		validateFunc: func(_ []string, _ int) error {
 			return fmt.Errorf("custom validation error")
 		},
 	}
@@ -432,7 +432,7 @@ func (suite *ClientTestSuite) TestClientWithCustomValidator() {
 
 	client, err := NewClientWithConfig(config)
 	require.NoError(suite.T(), err)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// The client should have the custom validator
 	// This would be tested through the unsealing process, but since we don't have
@@ -444,7 +444,7 @@ func (suite *ClientTestSuite) TestClientWithCustomValidator() {
 func (suite *ClientTestSuite) TestClientWithCustomStrategy() {
 	// Create a custom strategy
 	customStrategy := &MockUnsealStrategy{
-		unsealFunc: func(ctx context.Context, client VaultClient, keys []string, threshold int) (*api.SealStatusResponse, error) {
+		unsealFunc: func(_ context.Context, _ VaultClient, _ []string, _ int) (*api.SealStatusResponse, error) {
 			return &api.SealStatusResponse{Sealed: false}, nil
 		},
 	}
@@ -459,7 +459,7 @@ func (suite *ClientTestSuite) TestClientWithCustomStrategy() {
 
 	client, err := NewClientWithConfig(config)
 	require.NoError(suite.T(), err)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// The client should have the custom strategy
 	assert.NotNil(suite.T(), client)
@@ -467,7 +467,7 @@ func (suite *ClientTestSuite) TestClientWithCustomStrategy() {
 
 // MockKeyValidator implements KeyValidator for testing
 type MockKeyValidator struct {
-	validateFunc        func(keys []string, threshold int) error
+	validateFunc       func(keys []string, threshold int) error
 	validateBase64Func func(key string) error
 }
 

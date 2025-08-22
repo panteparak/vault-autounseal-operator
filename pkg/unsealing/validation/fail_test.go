@@ -225,7 +225,7 @@ func (suite *ValidationFailTestSuite) TestConcurrentValidationFailures() {
 
 	// Launch concurrent validations with invalid data
 	for i := 0; i < concurrency; i++ {
-		go func(id int) {
+		go func(_ int) {
 			// Use invalid keys to test error handling under concurrency
 			invalidKeys := []string{"invalid", "also-invalid", "still-invalid"}
 			err := suite.validator.ValidateKeys(invalidKeys, 3)

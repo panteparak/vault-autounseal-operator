@@ -23,7 +23,12 @@ func NewDefaultUnsealStrategy(validator KeyValidator, metrics ClientMetrics) *De
 }
 
 // Unseal implements the UnsealStrategy interface
-func (s *DefaultUnsealStrategy) Unseal(ctx context.Context, client VaultClient, keys []string, threshold int) (*api.SealStatusResponse, error) {
+func (s *DefaultUnsealStrategy) Unseal(
+	ctx context.Context,
+	client VaultClient,
+	keys []string,
+	threshold int,
+) (*api.SealStatusResponse, error) {
 	start := time.Now()
 
 	// Validate inputs first
@@ -60,7 +65,11 @@ func (s *DefaultUnsealStrategy) Unseal(ctx context.Context, client VaultClient, 
 }
 
 // submitKeys submits unseal keys one by one
-func (s *DefaultUnsealStrategy) submitKeys(ctx context.Context, client VaultClient, keys []string) (*api.SealStatusResponse, error) {
+func (s *DefaultUnsealStrategy) submitKeys(
+	ctx context.Context,
+	client VaultClient,
+	keys []string,
+) (*api.SealStatusResponse, error) {
 	var lastStatus *api.SealStatusResponse
 
 	for i, key := range keys {
@@ -94,7 +103,12 @@ func (s *DefaultUnsealStrategy) submitKeys(ctx context.Context, client VaultClie
 }
 
 // submitSingleKey submits a single unseal key
-func (s *DefaultUnsealStrategy) submitSingleKey(ctx context.Context, client VaultClient, key string, index int) (*api.SealStatusResponse, error) {
+func (s *DefaultUnsealStrategy) submitSingleKey(
+	ctx context.Context,
+	client VaultClient,
+	key string,
+	index int,
+) (*api.SealStatusResponse, error) {
 	// Check if client implements our extended interface
 	if extendedClient, ok := client.(*Client); ok {
 		return extendedClient.SubmitSingleKey(ctx, key, index)
@@ -127,7 +141,12 @@ func NewParallelUnsealStrategy(baseStrategy UnsealStrategy, maxConcurrency int) 
 }
 
 // Unseal implements the UnsealStrategy interface with parallel processing
-func (s *ParallelUnsealStrategy) Unseal(ctx context.Context, client VaultClient, keys []string, threshold int) (*api.SealStatusResponse, error) {
+func (s *ParallelUnsealStrategy) Unseal(
+	ctx context.Context,
+	client VaultClient,
+	keys []string,
+	threshold int,
+) (*api.SealStatusResponse, error) {
 	// For single instance, just delegate to base strategy
 	return s.baseStrategy.Unseal(ctx, client, keys, threshold)
 }
@@ -147,7 +166,12 @@ func NewRetryUnsealStrategy(baseStrategy UnsealStrategy, retryPolicy RetryPolicy
 }
 
 // Unseal implements the UnsealStrategy interface with retry logic
-func (s *RetryUnsealStrategy) Unseal(ctx context.Context, client VaultClient, keys []string, threshold int) (*api.SealStatusResponse, error) {
+func (s *RetryUnsealStrategy) Unseal(
+	ctx context.Context,
+	client VaultClient,
+	keys []string,
+	threshold int,
+) (*api.SealStatusResponse, error) {
 	var lastErr error
 
 	for attempt := 0; attempt < s.retryPolicy.MaxAttempts(); attempt++ {

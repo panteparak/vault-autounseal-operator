@@ -88,7 +88,7 @@ func NewCircuitBreaker(name string, config *IntegrationTestConfig) *CircuitBreak
 }
 
 // Execute runs an operation through the circuit breaker
-func (cb *CircuitBreaker) Execute(ctx context.Context, operation func() error) error {
+func (cb *CircuitBreaker) Execute(_ context.Context, operation func() error) error {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 

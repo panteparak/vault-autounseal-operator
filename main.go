@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
 	"github.com/panteparak/vault-autounseal-operator/pkg/controller"
@@ -16,6 +19,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
+const (
+	// SignalBufferSize is the buffer size for signal channel.
+	SignalBufferSize = 2
+)
+
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
@@ -26,89 +34,183 @@ var (
 	gitCommit = "unknown"
 )
 
+// OperatorConfig holds the configuration for the operator.
+type OperatorConfig struct {
+	MetricsAddr          string
+	ProbeAddr            string
+	EnableLeaderElection bool
+	ShowVersion          bool
+	HealthCheck          bool
+	Development          bool
+}
+
+// NewOperatorConfig creates a new operator configuration with defaults.
+func NewOperatorConfig() *OperatorConfig {
+	return &OperatorConfig{
+		MetricsAddr:          ":8080",
+		ProbeAddr:            ":8081",
+		EnableLeaderElection: false,
+		Development:          true,
+	}
+}
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(vaultv1.AddToScheme(scheme))
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
-	var showVersion bool
-	var healthCheck bool
+	config := NewOperatorConfig()
+	parseFlags(config)
 
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
+	if config.ShowVersion {
+		printVersion()
+		return
+	}
+
+	if config.HealthCheck {
+		setupLog.Info("health check passed")
+		return
+	}
+
+	os.Exit(runMain(config))
+}
+
+// runMain runs the main application logic and returns an exit code.
+func runMain(config *OperatorConfig) int {
+	ctx, cancel := setupSignalHandler()
+	defer cancel()
+
+	err := run(ctx, config)
+	if err != nil {
+		setupLog.Error(err, "operator failed")
+		return 1
+	}
+	return 0
+}
+
+// parseFlags configures the operator config from command line flags.
+func parseFlags(config *OperatorConfig) {
+	flag.StringVar(&config.MetricsAddr, "metrics-bind-address", config.MetricsAddr,
+		"The address the metric endpoint binds to.")
+	flag.StringVar(&config.ProbeAddr, "health-probe-bind-address", config.ProbeAddr,
+		"The address the probe endpoint binds to.")
+	flag.BoolVar(&config.EnableLeaderElection, "leader-elect", config.EnableLeaderElection,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.BoolVar(&showVersion, "version", false, "Show version information and exit.")
-	flag.BoolVar(&healthCheck, "health-check", false, "Perform health check and exit.")
+	flag.BoolVar(&config.ShowVersion, "version", config.ShowVersion, "Show version information and exit.")
+	flag.BoolVar(&config.HealthCheck, "health-check", config.HealthCheck, "Perform health check and exit.")
+	flag.BoolVar(&config.Development, "development", config.Development, "Enable development mode for logging.")
 
 	opts := zap.Options{
-		Development: true,
+		Development: config.Development,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	// Handle version flag
-	if showVersion {
-		fmt.Printf("vault-autounseal-operator version %s\n", version)
-		fmt.Printf("Build time: %s\n", buildTime)
-		fmt.Printf("Git commit: %s\n", gitCommit)
-		os.Exit(0)
-	}
-
-	// Handle health check flag (basic validation)
-	if healthCheck {
-		fmt.Println("OK")
-		os.Exit(0)
-	}
-
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+}
 
-	setupLog.Info("starting vault auto-unseal operator", "version", version)
+// printVersion displays version information.
+func printVersion() {
+	setupLog.Info("version information",
+		"version", version,
+		"build-time", buildTime,
+		"git-commit", gitCommit,
+	)
+}
 
-	config, err := ctrl.GetConfig()
+// setupSignalHandler creates a context that cancels on SIGTERM/SIGINT.
+func setupSignalHandler() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	c := make(chan os.Signal, SignalBufferSize)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-c
+		setupLog.Info("received termination signal, shutting down")
+		cancel()
+	}()
+
+	return ctx, cancel
+}
+
+// run starts the operator with the given configuration.
+func run(ctx context.Context, config *OperatorConfig) error {
+	setupLog.Info("starting vault auto-unseal operator",
+		"version", version,
+		"build-time", buildTime,
+		"git-commit", gitCommit,
+		"metrics-addr", config.MetricsAddr,
+		"probe-addr", config.ProbeAddr,
+		"leader-election", config.EnableLeaderElection,
+	)
+
+	kubeConfig, err := ctrl.GetConfig()
 	if err != nil {
-		setupLog.Error(err, "unable to get kubernetes config - ensure operator is running in cluster or has valid kubeconfig")
-		os.Exit(1)
+		return fmt.Errorf(
+			"unable to get kubernetes config - ensure operator is running in cluster or has valid kubeconfig: %w",
+			err)
 	}
 
-	mgr, err := ctrl.NewManager(config, ctrl.Options{
+	mgr, err := ctrl.NewManager(kubeConfig, ctrl.Options{
 		Scheme:                 scheme,
-		Metrics:                server.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
+		Metrics:                server.Options{BindAddress: config.MetricsAddr},
+		HealthProbeBindAddress: config.ProbeAddr,
+		LeaderElection:         config.EnableLeaderElection,
 		LeaderElectionID:       "vault-autounseal-operator-leader",
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		return fmt.Errorf("unable to start manager: %w", err)
 	}
 
-	if err = (&controller.VaultUnsealConfigReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("VaultUnsealConfig"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VaultUnsealConfig")
-		os.Exit(1)
+	if err := setupControllers(mgr); err != nil {
+		return fmt.Errorf("unable to setup controllers: %w", err)
 	}
 
+	if err := setupHealthChecks(mgr); err != nil {
+		return fmt.Errorf("unable to setup health checks: %w", err)
+	}
+
+	setupLog.Info("starting vault auto-unseal operator manager")
+
+	if err := mgr.Start(ctx); err != nil {
+		return fmt.Errorf("manager start failed: %w", err)
+	}
+
+	return nil
+}
+
+// setupControllers configures all controllers.
+func setupControllers(mgr ctrl.Manager) error {
+	clientRepository := controller.NewDefaultVaultClientRepository(nil)
+	reconcilerOptions := controller.DefaultReconcilerOptions()
+
+	reconciler := controller.NewVaultUnsealConfigReconciler(
+		mgr.GetClient(),
+		ctrl.Log.WithName("controllers").WithName("VaultUnsealConfig"),
+		mgr.GetScheme(),
+		clientRepository,
+		reconcilerOptions,
+	)
+
+	if err := reconciler.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("failed to setup reconciler: %w", err)
+	}
+
+	return nil
+}
+
+// setupHealthChecks configures health and readiness checks.
+func setupHealthChecks(mgr ctrl.Manager) error {
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
+		return fmt.Errorf("unable to set up health check: %w", err)
 	}
 
-	setupLog.Info("starting vault auto-unseal operator")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		return fmt.Errorf("unable to set up ready check: %w", err)
 	}
+
+	return nil
 }

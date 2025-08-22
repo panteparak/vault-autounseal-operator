@@ -236,10 +236,10 @@ func (suite *ValidationTestSuite) TestKeyValidatorFactory() {
 // TestSensitiveContentRedaction tests that sensitive content is properly redacted
 func (suite *ValidationTestSuite) TestSensitiveContentRedaction() {
 	tests := []struct {
-		name           string
-		keys           []string
-		threshold      int
-		expectedInMsg  []string
+		name             string
+		keys             []string
+		threshold        int
+		expectedInMsg    []string
 		notExpectedInMsg []string
 	}{
 		{
@@ -247,8 +247,8 @@ func (suite *ValidationTestSuite) TestSensitiveContentRedaction() {
 			keys: []string{
 				"cGFzc3dvcmQxMjM=", // "password123" - wrong length for vault key
 			},
-			threshold:      1,
-			expectedInMsg:  []string{"[REDACTED]"},
+			threshold:        1,
+			expectedInMsg:    []string{"[REDACTED]"},
 			notExpectedInMsg: []string{"password123", "cGFzc3dvcmQxMjM="},
 		},
 		{
@@ -256,8 +256,8 @@ func (suite *ValidationTestSuite) TestSensitiveContentRedaction() {
 			keys: []string{
 				"bG9jYWxob3N0OjgwODA=", // "localhost:8080" - wrong length for vault key
 			},
-			threshold:      1,
-			expectedInMsg:  []string{"[REDACTED]"},
+			threshold:        1,
+			expectedInMsg:    []string{"[REDACTED]"},
 			notExpectedInMsg: []string{"localhost", "8080"},
 		},
 	}

@@ -115,7 +115,7 @@ func (tl *TestLogger) Log(level DebugLevel, event, testName string, metadata map
 	// Write to file if available
 	if tl.outputFile != nil {
 		if jsonBytes, err := json.Marshal(testEvent); err == nil {
-			_, _ = tl.outputFile.WriteString(string(jsonBytes) + "\n")
+			_, _ = tl.outputFile.WriteString(string(jsonBytes) + "\n") //nolint:errcheck // Debug output failure is not critical
 		}
 	}
 }
@@ -165,7 +165,16 @@ func (tl *TestLogger) GenerateReport() string {
 	var report strings.Builder
 	report.WriteString("=== Integration Test Debug Report ===\n\n")
 
-	// Summary
+	testsByName := tl.generateSummary(&report)
+	tl.generateErrorSummary(&report)
+	tl.generateTimingAnalysis(&report, testsByName)
+	tl.generateDetailedTimeline(&report)
+
+	return report.String()
+}
+
+// generateSummary creates the summary section and returns test groupings
+func (tl *TestLogger) generateSummary(report *strings.Builder) map[string][]TestEvent {
 	totalEvents := len(tl.events)
 	errorCount := 0
 	testsByName := make(map[string][]TestEvent)
@@ -174,7 +183,6 @@ func (tl *TestLogger) GenerateReport() string {
 		if event.Event == "ERROR" {
 			errorCount++
 		}
-
 		if event.TestName != "" {
 			testsByName[event.TestName] = append(testsByName[event.TestName], event)
 		}
@@ -185,22 +193,33 @@ func (tl *TestLogger) GenerateReport() string {
 	report.WriteString(fmt.Sprintf("Tests: %d\n", len(testsByName)))
 	report.WriteString("\n")
 
-	// Error summary
-	if errorCount > 0 {
-		report.WriteString("=== ERRORS ===\n")
-		for _, event := range tl.events {
-			if event.Event == "ERROR" {
-				report.WriteString(fmt.Sprintf("[%s] %s: %s\n",
-					event.Timestamp.Format("15:04:05.000"),
-					event.TestName,
-					event.Metadata["error"]))
+	return testsByName
+}
+
+// generateErrorSummary creates the error summary section
+func (tl *TestLogger) generateErrorSummary(report *strings.Builder) {
+	hasErrors := false
+	for _, event := range tl.events {
+		if event.Event == "ERROR" {
+			if !hasErrors {
+				report.WriteString("=== ERRORS ===\n")
+				hasErrors = true
 			}
+			report.WriteString(fmt.Sprintf("[%s] %s: %s\n",
+				event.Timestamp.Format("15:04:05.000"),
+				event.TestName,
+				event.Metadata["error"]))
 		}
+	}
+	if hasErrors {
 		report.WriteString("\n")
 	}
+}
 
-	// Timing analysis
+// generateTimingAnalysis creates the timing analysis section
+func (tl *TestLogger) generateTimingAnalysis(report *strings.Builder, testsByName map[string][]TestEvent) {
 	report.WriteString("=== TIMING ANALYSIS ===\n")
+
 	var testNames []string
 	for testName := range testsByName {
 		testNames = append(testNames, testName)
@@ -208,56 +227,66 @@ func (tl *TestLogger) GenerateReport() string {
 	sort.Strings(testNames)
 
 	for _, testName := range testNames {
-		events := testsByName[testName]
+		tl.analyzeTestTiming(report, testName, testsByName[testName])
+	}
+	report.WriteString("\n")
+}
 
-		var totalDuration time.Duration
-		var operations []string
+// analyzeTestTiming analyzes timing for a single test
+func (tl *TestLogger) analyzeTestTiming(report *strings.Builder, testName string, events []TestEvent) {
+	var totalDuration time.Duration
+	var operations []string
 
-		for _, event := range events {
-			if event.Event == "TIMING" {
-				if duration, ok := event.Metadata["duration_ms"].(int64); ok {
-					totalDuration += time.Duration(duration) * time.Millisecond
-				}
-				if op, ok := event.Metadata["operation"].(string); ok {
-					operations = append(operations, op)
-				}
+	for _, event := range events {
+		if event.Event == "TIMING" {
+			if duration, ok := event.Metadata["duration_ms"].(int64); ok {
+				totalDuration += time.Duration(duration) * time.Millisecond
+			}
+			if op, ok := event.Metadata["operation"].(string); ok {
+				operations = append(operations, op)
 			}
 		}
+	}
 
-		report.WriteString(fmt.Sprintf("%s: %v (%d operations)\n",
-			testName, totalDuration, len(operations)))
+	report.WriteString(fmt.Sprintf("%s: %v (%d operations)\n",
+		testName, totalDuration, len(operations)))
 
-		if tl.level >= DebugLevelTrace {
-			for _, op := range operations {
-				report.WriteString(fmt.Sprintf("  - %s\n", op))
-			}
+	if tl.level >= DebugLevelTrace {
+		for _, op := range operations {
+			report.WriteString(fmt.Sprintf("  - %s\n", op))
+		}
+	}
+}
+
+// generateDetailedTimeline creates the detailed timeline section
+func (tl *TestLogger) generateDetailedTimeline(report *strings.Builder) {
+	if tl.level < DebugLevelTrace {
+		return
+	}
+
+	report.WriteString("=== DETAILED TIMELINE ===\n")
+	for _, event := range tl.events {
+		tl.formatTimelineEvent(report, event)
+	}
+}
+
+// formatTimelineEvent formats a single event for the timeline
+func (tl *TestLogger) formatTimelineEvent(report *strings.Builder, event TestEvent) {
+	report.WriteString(fmt.Sprintf("[%s] %s:%s",
+		event.Timestamp.Format("15:04:05.000"),
+		event.Level,
+		event.Event))
+
+	if event.TestName != "" {
+		report.WriteString(fmt.Sprintf(" (%s)", event.TestName))
+	}
+
+	if len(event.Metadata) > 0 {
+		if jsonBytes, err := json.Marshal(event.Metadata); err == nil {
+			report.WriteString(fmt.Sprintf(" %s", string(jsonBytes)))
 		}
 	}
 	report.WriteString("\n")
-
-	// Detailed timeline (only for trace level)
-	if tl.level >= DebugLevelTrace {
-		report.WriteString("=== DETAILED TIMELINE ===\n")
-		for _, event := range tl.events {
-			report.WriteString(fmt.Sprintf("[%s] %s:%s",
-				event.Timestamp.Format("15:04:05.000"),
-				event.Level,
-				event.Event))
-
-			if event.TestName != "" {
-				report.WriteString(fmt.Sprintf(" (%s)", event.TestName))
-			}
-
-			if len(event.Metadata) > 0 {
-				if jsonBytes, err := json.Marshal(event.Metadata); err == nil {
-					report.WriteString(fmt.Sprintf(" %s", string(jsonBytes)))
-				}
-			}
-			report.WriteString("\n")
-		}
-	}
-
-	return report.String()
 }
 
 // EnhancedIntegrationTestRunner extends the basic runner with debugging capabilities
@@ -357,98 +386,9 @@ func (eitr *EnhancedIntegrationTestRunner) RunScenariosWithDebug(ctx context.Con
 	overallStart := time.Now()
 
 	for i, scenario := range scenarios {
-		eitr.logger.Log(DebugLevelVerbose, "SCENARIO_START", scenario.Name, map[string]interface{}{
-			"index":       i,
-			"description": scenario.Description,
-			"timeout":     scenario.Timeout,
-		})
-
-		// Check circuit breaker state before each scenario
-		circuitState := eitr.circuitBreaker.GetState()
-		if circuitState == CircuitOpen {
-			err := fmt.Errorf("circuit breaker is OPEN - failing fast on scenario: %s", scenario.Name)
-			eitr.logger.LogError(scenario.Name, err, map[string]interface{}{
-				"circuit_state":  circuitState.String(),
-				"scenario_index": i,
-			})
+		if err := eitr.executeScenarioWithDebug(ctx, scenario, i); err != nil {
 			return err
 		}
-
-		// Execute scenario with debugging
-		scenarioStart := time.Now()
-
-		scenarioCtx := ctx
-		if scenario.Timeout > 0 {
-			var cancel context.CancelFunc
-			scenarioCtx, cancel = context.WithTimeout(ctx, scenario.Timeout)
-			defer cancel()
-		}
-
-		// Setup phase
-		if scenario.Setup != nil {
-			eitr.logger.Log(DebugLevelTrace, "SCENARIO_SETUP", scenario.Name, nil)
-			setupStart := time.Now()
-			if err := scenario.Setup(scenarioCtx); err != nil {
-				setupDuration := time.Since(setupStart)
-				eitr.logger.LogError(scenario.Name, err, map[string]interface{}{
-					"phase":       "setup",
-					"duration_ms": setupDuration.Milliseconds(),
-				})
-				return fmt.Errorf("scenario %s setup failed: %w", scenario.Name, err)
-			}
-			eitr.logger.LogTiming(scenario.Name, "setup", time.Since(setupStart), nil)
-		}
-
-		// Execute main test
-		eitr.logger.Log(DebugLevelTrace, "SCENARIO_EXECUTE", scenario.Name, nil)
-		executeStart := time.Now()
-		err := eitr.RunTestWithDebug(scenarioCtx, scenario.Name, scenario.Execute)
-		executeDuration := time.Since(executeStart)
-
-		// Cleanup phase (always run, even on failure)
-		if scenario.Cleanup != nil {
-			eitr.logger.Log(DebugLevelTrace, "SCENARIO_CLEANUP", scenario.Name, nil)
-			cleanupStart := time.Now()
-			if cleanupErr := scenario.Cleanup(scenarioCtx); cleanupErr != nil {
-				cleanupDuration := time.Since(cleanupStart)
-				eitr.logger.LogError(scenario.Name, cleanupErr, map[string]interface{}{
-					"phase":       "cleanup",
-					"duration_ms": cleanupDuration.Milliseconds(),
-				})
-				if err == nil {
-					err = fmt.Errorf("scenario %s cleanup failed: %w", scenario.Name, cleanupErr)
-				}
-			} else {
-				eitr.logger.LogTiming(scenario.Name, "cleanup", time.Since(cleanupStart), nil)
-			}
-		}
-
-		scenarioDuration := time.Since(scenarioStart)
-
-		// Check if error matches expectation
-		if scenario.ExpectError && err == nil {
-			err = fmt.Errorf("scenario %s expected error but succeeded", scenario.Name)
-			eitr.logger.LogError(scenario.Name, err, map[string]interface{}{
-				"expected_error": true,
-				"duration_ms":    scenarioDuration.Milliseconds(),
-			})
-			return err
-		}
-		if !scenario.ExpectError && err != nil {
-			eitr.logger.LogError(scenario.Name, err, map[string]interface{}{
-				"expected_success": true,
-				"duration_ms":      scenarioDuration.Milliseconds(),
-			})
-			return fmt.Errorf("scenario %s failed: %w", scenario.Name, err)
-		}
-
-		// Log scenario completion
-		eitr.logger.Log(DebugLevelVerbose, "SCENARIO_COMPLETE", scenario.Name, map[string]interface{}{
-			"index":        i,
-			"duration":     scenarioDuration,
-			"execute_time": executeDuration,
-			"success":      err == nil,
-		})
 	}
 
 	overallDuration := time.Since(overallStart)
@@ -458,6 +398,151 @@ func (eitr *EnhancedIntegrationTestRunner) RunScenariosWithDebug(ctx context.Con
 		"success":        true,
 	})
 
+	return nil
+}
+
+// executeScenarioWithDebug executes a single scenario with full debugging
+func (eitr *EnhancedIntegrationTestRunner) executeScenarioWithDebug(
+	ctx context.Context, scenario TestScenario, index int,
+) error {
+	eitr.logger.Log(DebugLevelVerbose, "SCENARIO_START", scenario.Name, map[string]interface{}{
+		"index":       index,
+		"description": scenario.Description,
+		"timeout":     scenario.Timeout,
+	})
+
+	if err := eitr.checkCircuitBreaker(scenario.Name, index); err != nil {
+		return err
+	}
+
+	scenarioStart := time.Now()
+	scenarioCtx := eitr.createScenarioContext(ctx, scenario.Timeout)
+
+	executeDuration, err := eitr.runScenarioPhases(scenarioCtx, scenario)
+	scenarioDuration := time.Since(scenarioStart)
+
+	if err := eitr.validateScenarioResult(scenario, err, scenarioDuration); err != nil {
+		return err
+	}
+
+	eitr.logger.Log(DebugLevelVerbose, "SCENARIO_COMPLETE", scenario.Name, map[string]interface{}{
+		"index":        index,
+		"duration":     scenarioDuration,
+		"execute_time": executeDuration,
+		"success":      err == nil,
+	})
+
+	return nil
+}
+
+// checkCircuitBreaker verifies circuit breaker state before scenario execution
+func (eitr *EnhancedIntegrationTestRunner) checkCircuitBreaker(scenarioName string, index int) error {
+	circuitState := eitr.circuitBreaker.GetState()
+	if circuitState == CircuitOpen {
+		err := fmt.Errorf("circuit breaker is OPEN - failing fast on scenario: %s", scenarioName)
+		eitr.logger.LogError(scenarioName, err, map[string]interface{}{
+			"circuit_state":  circuitState.String(),
+			"scenario_index": index,
+		})
+		return err
+	}
+	return nil
+}
+
+// createScenarioContext creates context with timeout if specified
+func (eitr *EnhancedIntegrationTestRunner) createScenarioContext(
+	ctx context.Context, timeout time.Duration,
+) context.Context {
+	if timeout > 0 {
+		scenarioCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return scenarioCtx
+	}
+	return ctx
+}
+
+// runScenarioPhases executes setup, main test, and cleanup phases
+func (eitr *EnhancedIntegrationTestRunner) runScenarioPhases(
+	ctx context.Context, scenario TestScenario,
+) (time.Duration, error) {
+	// Setup phase
+	if err := eitr.runSetupPhase(ctx, scenario); err != nil {
+		return 0, err
+	}
+
+	// Execute main test
+	eitr.logger.Log(DebugLevelTrace, "SCENARIO_EXECUTE", scenario.Name, nil)
+	executeStart := time.Now()
+	err := eitr.RunTestWithDebug(ctx, scenario.Name, scenario.Execute)
+	executeDuration := time.Since(executeStart)
+
+	// Cleanup phase (always run, even on failure)
+	if cleanupErr := eitr.runCleanupPhase(ctx, scenario); cleanupErr != nil && err == nil {
+		err = cleanupErr
+	}
+
+	return executeDuration, err
+}
+
+// runSetupPhase executes scenario setup if defined
+func (eitr *EnhancedIntegrationTestRunner) runSetupPhase(ctx context.Context, scenario TestScenario) error {
+	if scenario.Setup == nil {
+		return nil
+	}
+
+	eitr.logger.Log(DebugLevelTrace, "SCENARIO_SETUP", scenario.Name, nil)
+	setupStart := time.Now()
+	if err := scenario.Setup(ctx); err != nil {
+		setupDuration := time.Since(setupStart)
+		eitr.logger.LogError(scenario.Name, err, map[string]interface{}{
+			"phase":       "setup",
+			"duration_ms": setupDuration.Milliseconds(),
+		})
+		return fmt.Errorf("scenario %s setup failed: %w", scenario.Name, err)
+	}
+	eitr.logger.LogTiming(scenario.Name, "setup", time.Since(setupStart), nil)
+	return nil
+}
+
+// runCleanupPhase executes scenario cleanup if defined
+func (eitr *EnhancedIntegrationTestRunner) runCleanupPhase(ctx context.Context, scenario TestScenario) error {
+	if scenario.Cleanup == nil {
+		return nil
+	}
+
+	eitr.logger.Log(DebugLevelTrace, "SCENARIO_CLEANUP", scenario.Name, nil)
+	cleanupStart := time.Now()
+	if err := scenario.Cleanup(ctx); err != nil {
+		cleanupDuration := time.Since(cleanupStart)
+		eitr.logger.LogError(scenario.Name, err, map[string]interface{}{
+			"phase":       "cleanup",
+			"duration_ms": cleanupDuration.Milliseconds(),
+		})
+		return fmt.Errorf("scenario %s cleanup failed: %w", scenario.Name, err)
+	}
+	eitr.logger.LogTiming(scenario.Name, "cleanup", time.Since(cleanupStart), nil)
+	return nil
+}
+
+// validateScenarioResult checks if scenario result matches expectation
+func (eitr *EnhancedIntegrationTestRunner) validateScenarioResult(
+	scenario TestScenario, err error, duration time.Duration,
+) error {
+	if scenario.ExpectError && err == nil {
+		err = fmt.Errorf("scenario %s expected error but succeeded", scenario.Name)
+		eitr.logger.LogError(scenario.Name, err, map[string]interface{}{
+			"expected_error": true,
+			"duration_ms":    duration.Milliseconds(),
+		})
+		return err
+	}
+	if !scenario.ExpectError && err != nil {
+		eitr.logger.LogError(scenario.Name, err, map[string]interface{}{
+			"expected_success": true,
+			"duration_ms":      duration.Milliseconds(),
+		})
+		return fmt.Errorf("scenario %s failed: %w", scenario.Name, err)
+	}
 	return nil
 }
 

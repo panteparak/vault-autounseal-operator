@@ -34,6 +34,23 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+.PHONY: tidy
+tidy: ## Run go mod tidy to clean up module dependencies.
+	go mod tidy
+
+.PHONY: verify
+verify: fmt vet tidy ## Run verification checks (format, vet, tidy).
+	@echo "✅ Verification completed"
+
+.PHONY: quality
+quality: verify lint test-unit ## Run all code quality checks.
+	@echo "✅ Code quality checks completed"
+
+.PHONY: security-scan
+security-scan: ## Run security vulnerability scans.
+	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
+	govulncheck ./...
+
 ##@ Testing (Modular Test Structure)
 
 # New modular test system (tests/ directory)
@@ -174,8 +191,34 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 ##@ Build
 
 .PHONY: build
-build: fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
+build: verify ## Build manager binary with version info.
+	@mkdir -p bin
+	@VERSION=$$(cat VERSION 2>/dev/null || echo "dev"); \
+	BUILD_TIME=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	GIT_COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	go build -ldflags="-X main.version=$$VERSION -X main.buildTime=$$BUILD_TIME -X main.gitCommit=$$GIT_COMMIT" \
+		-o bin/manager main.go
+	@echo "✅ Built manager binary with version info"
+
+.PHONY: build-debug
+build-debug: verify ## Build manager binary with debug symbols.
+	@mkdir -p bin
+	go build -gcflags="all=-N -l" -o bin/manager-debug main.go
+
+.PHONY: cross-compile
+cross-compile: verify ## Cross-compile binaries for multiple platforms.
+	@mkdir -p bin
+	@VERSION=$$(cat VERSION 2>/dev/null || echo "dev"); \
+	BUILD_TIME=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	GIT_COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo "unknown"); \
+	LDFLAGS="-X main.version=$$VERSION -X main.buildTime=$$BUILD_TIME -X main.gitCommit=$$GIT_COMMIT"; \
+	for os in linux darwin windows; do \
+		for arch in amd64 arm64; do \
+			echo "Building for $$os/$$arch..."; \
+			GOOS=$$os GOARCH=$$arch go build -ldflags="$$LDFLAGS" -o bin/manager-$$os-$$arch main.go; \
+		done; \
+	done
+	@echo "✅ Cross-compilation completed"
 
 .PHONY: run
 run: fmt vet ## Run a controller from your host.
