@@ -2,13 +2,16 @@ package shared
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
 	"github.com/panteparak/vault-autounseal-operator/pkg/controller"
+	"github.com/panteparak/vault-autounseal-operator/pkg/testing/mocks"
 	"github.com/panteparak/vault-autounseal-operator/tests/config"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -279,11 +282,19 @@ func (suite *IntegrationTestSuite) setupController() {
 			Build()
 	}
 
-	suite.reconciler = &controller.VaultUnsealConfigReconciler{
-		Client: suite.k8sClient,
-		Scheme: suite.scheme,
-		Log:    ctrl.Log.WithName("controllers").WithName("VaultUnsealConfig"),
-	}
+	// Create controller with mock repository
+	mockRepo := &mocks.MockVaultClientRepository{}
+	// Set up mock to return error when trying to connect (since we don't have real vault)
+	mockRepo.On("GetClient", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
+		Return(nil, errors.New("vault connection failed - expected in integration test")).Maybe()
+
+	suite.reconciler = controller.NewVaultUnsealConfigReconciler(
+		suite.k8sClient,
+		ctrl.Log.WithName("controllers").WithName("VaultUnsealConfig"),
+		suite.scheme,
+		mockRepo,
+		nil, // Use default options
+	)
 
 	suite.T().Log("Controller initialized successfully")
 }

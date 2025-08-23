@@ -292,8 +292,20 @@ update-version: ## Update version in Helm chart
 	sed -i.bak 's/^appVersion: .*/appVersion: "$(VERSION)"/' helm/vault-autounseal-operator/Chart.yaml
 	rm -f helm/vault-autounseal-operator/Chart.yaml.bak
 
+.PHONY: helm-lint
+helm-lint: ## Lint Helm chart
+	helm lint helm/vault-autounseal-operator/
+
+.PHONY: helm-template
+helm-template: ## Generate Kubernetes manifests from Helm chart
+	mkdir -p manifests/helm-generated/
+	helm template vault-autounseal-operator helm/vault-autounseal-operator/ \
+		--namespace vault-system \
+		--set image.tag=$(VERSION) \
+		> manifests/helm-generated/all-in-one.yaml
+
 .PHONY: package-helm
-package-helm: generate-crds update-version ## Package Helm chart with CRDs
+package-helm: generate-crds update-version helm-lint ## Package Helm chart with CRDs
 	mkdir -p charts/
 	# Copy CRDs to Helm chart templates
 	mkdir -p helm/vault-autounseal-operator/templates/crds/
@@ -302,31 +314,63 @@ package-helm: generate-crds update-version ## Package Helm chart with CRDs
 	helm package helm/vault-autounseal-operator/ --destination ./charts/
 	ls -la charts/
 
+.PHONY: docs-build
+docs-build: generate-crds ## Build documentation site locally
+	@echo "🏗️ Building documentation site..."
+	mkdir -p docs-site/static/crds/ docs-site/static/manifests/
+	cp generated/*.yaml docs-site/static/crds/ 2>/dev/null || echo "No CRDs to copy"
+	cp -r manifests/* docs-site/static/manifests/ 2>/dev/null || echo "No manifests to copy"
+	cp -r examples/* docs-site/static/examples/ 2>/dev/null || echo "No examples to copy"
+	@echo "✅ Documentation build completed. Open docs-site/index.html to preview."
+
+.PHONY: docs-serve
+docs-serve: docs-build ## Serve documentation site locally
+	@echo "🌐 Starting local documentation server..."
+	@command -v python3 >/dev/null 2>&1 || { echo "Python3 is required to serve docs locally"; exit 1; }
+	cd docs-site && python3 -m http.server 8080
+	@echo "📖 Documentation available at http://localhost:8080"
+
 .PHONY: release
-release: package-helm ## Create release artifacts
+release: package-helm helm-template ## Create release artifacts
 	mkdir -p release/
 	cp -r charts/* release/
 	cp -r generated/* release/ 2>/dev/null || echo "No CRDs to copy"
+	cp -r manifests/helm-generated/* release/ 2>/dev/null || echo "No generated manifests to copy"
 	# Create install script
 	@echo '#!/bin/bash' > release/install.sh
 	@echo 'set -e' >> release/install.sh
 	@echo '' >> release/install.sh
 	@echo 'NAMESPACE=$${NAMESPACE:-vault-system}' >> release/install.sh
 	@echo 'CHART_VERSION=$${CHART_VERSION:-$(VERSION)}' >> release/install.sh
+	@echo 'RELEASE_NAME=$${RELEASE_NAME:-vault-autounseal-operator}' >> release/install.sh
 	@echo '' >> release/install.sh
 	@echo 'echo "Installing Vault Auto-Unseal Operator v$(VERSION) to namespace: $$NAMESPACE"' >> release/install.sh
 	@echo '' >> release/install.sh
 	@echo '# Create namespace if it does not exist' >> release/install.sh
 	@echo 'kubectl create namespace $$NAMESPACE --dry-run=client -o yaml | kubectl apply -f -' >> release/install.sh
 	@echo '' >> release/install.sh
+	@echo '# Check if Helm is available' >> release/install.sh
+	@echo 'if ! command -v helm &> /dev/null; then' >> release/install.sh
+	@echo '    echo "Error: Helm is not installed. Please install Helm first."' >> release/install.sh
+	@echo '    echo "Visit: https://helm.sh/docs/intro/install/"' >> release/install.sh
+	@echo '    exit 1' >> release/install.sh
+	@echo 'fi' >> release/install.sh
+	@echo '' >> release/install.sh
 	@echo '# Install using Helm' >> release/install.sh
-	@echo 'helm upgrade --install vault-autounseal-operator \' >> release/install.sh
+	@echo 'echo "Installing via Helm..."' >> release/install.sh
+	@echo 'helm upgrade --install $$RELEASE_NAME \' >> release/install.sh
 	@echo '  ./vault-autounseal-operator-$(VERSION).tgz \' >> release/install.sh
 	@echo '  --namespace $$NAMESPACE \' >> release/install.sh
-	@echo '  --wait' >> release/install.sh
+	@echo '  --wait \' >> release/install.sh
+	@echo '  --timeout 300s' >> release/install.sh
 	@echo '' >> release/install.sh
 	@echo 'echo "Installation complete!"' >> release/install.sh
+	@echo 'echo ""' >> release/install.sh
+	@echo 'echo "To check the status:"' >> release/install.sh
+	@echo 'echo "  kubectl get pods -n $$NAMESPACE"' >> release/install.sh
+	@echo 'echo "  kubectl logs -n $$NAMESPACE deployment/vault-autounseal-operator"' >> release/install.sh
 	chmod +x release/install.sh
+	@echo "✅ Release artifacts created in ./release/"
 
 .PHONY: clean
 clean: ## Clean build artifacts

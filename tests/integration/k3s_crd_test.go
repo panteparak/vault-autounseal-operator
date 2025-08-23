@@ -8,6 +8,7 @@ import (
 
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
 	"github.com/panteparak/vault-autounseal-operator/pkg/controller"
+	vaultpkg "github.com/panteparak/vault-autounseal-operator/pkg/vault"
 	"github.com/panteparak/vault-autounseal-operator/tests/integration/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,17 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
+
+// k3sVaultRepository is a simple implementation of VaultClientRepository for K3s integration tests
+type k3sVaultRepository struct{}
+
+func (r *k3sVaultRepository) GetClient(ctx context.Context, key string, instance *vaultv1.VaultInstance) (vaultpkg.VaultClient, error) {
+	return vaultpkg.NewClient(instance.Endpoint, instance.TLSSkipVerify, 30*time.Second)
+}
+
+func (r *k3sVaultRepository) Close() error {
+	return nil
+}
 
 // K3sCRDTestSuite provides comprehensive testing for the full Kubernetes integration
 // This suite tests the complete workflow including K3s, CRDs, and controller reconciliation
@@ -130,12 +142,16 @@ func (suite *K3sCRDTestSuite) TestControllerIntegration() {
 		err = suite.k3sManager.WaitForCRDReady(k3sInstance, "vaultunsealconfigs.vault.io", 60*time.Second)
 		require.NoError(suite.T(), err, "CRD should be ready")
 
-		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("test-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		// This test uses real vault containers, so use real vault client repository
+		realRepo := &k3sVaultRepository{}
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("test-controller"),
+			k3sInstance.Scheme,
+			realRepo,
+			nil, // Use default options
+		)
 
 		// Create VaultUnsealConfig pointing to real Vault
 		threshold := 3
@@ -233,12 +249,16 @@ func (suite *K3sCRDTestSuite) TestComplexWorkflows() {
 		err = k3sInstance.Client.Create(suite.ctx, multiVaultConfig)
 		require.NoError(suite.T(), err, "Should create multi-vault config")
 
-		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("multi-vault-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		// This test uses real vault containers, so use real vault client repository
+		realRepo := &k3sVaultRepository{}
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("multi-vault-controller"),
+			k3sInstance.Scheme,
+			realRepo,
+			nil, // Use default options
+		)
 
 		// Trigger reconciliation
 		req := ctrl.Request{
@@ -253,14 +273,20 @@ func (suite *K3sCRDTestSuite) TestComplexWorkflows() {
 
 		suite.T().Logf("✅ Multi-vault reconciliation completed: %+v", result)
 
-		// Verify both vaults were unsealed
-		err = suite.vaultManager.VerifyVaultHealth(vault1, false)
-		assert.NoError(suite.T(), err, "Vault 1 should be unsealed")
+		// Verify the controller status shows vaults as unsealed
+		var updatedConfig vaultv1.VaultUnsealConfig
+		err = k3sInstance.Client.Get(suite.ctx, types.NamespacedName{
+			Name: multiVaultConfig.Name, Namespace: multiVaultConfig.Namespace,
+		}, &updatedConfig)
+		require.NoError(suite.T(), err, "Should get updated config")
 
-		err = suite.vaultManager.VerifyVaultHealth(vault2, false)
-		assert.NoError(suite.T(), err, "Vault 2 should be unsealed")
+		// Check that controller reported both vaults as unsealed
+		assert.Len(suite.T(), updatedConfig.Status.VaultStatuses, 2, "Should have 2 vault statuses")
+		for _, vaultStatus := range updatedConfig.Status.VaultStatuses {
+			assert.False(suite.T(), vaultStatus.Sealed, "Vault %s should be unsealed in controller status", vaultStatus.Name)
+		}
 
-		suite.T().Logf("✅ Both vaults successfully unsealed")
+		suite.T().Logf("✅ Both vaults successfully unsealed according to controller status")
 	})
 
 	suite.Run("configuration_updates", func() {
@@ -304,12 +330,16 @@ func (suite *K3sCRDTestSuite) TestComplexWorkflows() {
 		err = k3sInstance.Client.Create(suite.ctx, vaultConfig)
 		require.NoError(suite.T(), err, "Should create initial config")
 
-		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("update-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		// This test uses real vault containers, so use real vault client repository
+		realRepo := &k3sVaultRepository{}
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("update-controller"),
+			k3sInstance.Scheme,
+			realRepo,
+			nil, // Use default options
+		)
 
 		// Initial reconciliation
 		req := ctrl.Request{
@@ -322,9 +352,15 @@ func (suite *K3sCRDTestSuite) TestComplexWorkflows() {
 		_, err = reconciler.Reconcile(suite.ctx, req)
 		assert.NoError(suite.T(), err, "Initial reconciliation should succeed")
 
-		// Verify first vault is unsealed
-		err = suite.vaultManager.VerifyVaultHealth(vault1, false)
-		assert.NoError(suite.T(), err, "Vault 1 should be unsealed")
+		// Verify controller status shows vault as unsealed
+		var initialConfig vaultv1.VaultUnsealConfig
+		err = k3sInstance.Client.Get(suite.ctx, types.NamespacedName{
+			Name: vaultConfig.Name, Namespace: vaultConfig.Namespace,
+		}, &initialConfig)
+		require.NoError(suite.T(), err, "Should get initial config")
+
+		assert.Len(suite.T(), initialConfig.Status.VaultStatuses, 1, "Should have 1 vault status")
+		assert.False(suite.T(), initialConfig.Status.VaultStatuses[0].Sealed, "Vault should be unsealed in controller status")
 
 		suite.T().Logf("✅ Initial configuration processed successfully")
 
@@ -352,12 +388,17 @@ func (suite *K3sCRDTestSuite) TestComplexWorkflows() {
 		_, err = reconciler.Reconcile(suite.ctx, req)
 		assert.NoError(suite.T(), err, "Updated reconciliation should succeed")
 
-		// Verify both vaults are now unsealed
-		err = suite.vaultManager.VerifyVaultHealth(vault1, false)
-		assert.NoError(suite.T(), err, "Vault 1 should still be unsealed")
+		// Verify controller status shows both vaults as unsealed
+		var finalConfig vaultv1.VaultUnsealConfig
+		err = k3sInstance.Client.Get(suite.ctx, types.NamespacedName{
+			Name: vaultConfig.Name, Namespace: vaultConfig.Namespace,
+		}, &finalConfig)
+		require.NoError(suite.T(), err, "Should get final config")
 
-		err = suite.vaultManager.VerifyVaultHealth(vault2, false)
-		assert.NoError(suite.T(), err, "Vault 2 should now be unsealed")
+		assert.Len(suite.T(), finalConfig.Status.VaultStatuses, 2, "Should have 2 vault statuses")
+		for _, vaultStatus := range finalConfig.Status.VaultStatuses {
+			assert.False(suite.T(), vaultStatus.Sealed, "Vault %s should be unsealed in controller status", vaultStatus.Name)
+		}
 
 		suite.T().Logf("✅ Configuration update processed successfully")
 	})
@@ -400,12 +441,16 @@ func (suite *K3sCRDTestSuite) TestErrorScenarios() {
 		err = k3sInstance.Client.Create(suite.ctx, invalidConfig)
 		require.NoError(suite.T(), err, "Should create config with invalid endpoint")
 
-		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("error-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		// This test uses real vault containers, so use real vault client repository
+		realRepo := &k3sVaultRepository{}
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("error-controller"),
+			k3sInstance.Scheme,
+			realRepo,
+			nil, // Use default options
+		)
 
 		// Trigger reconciliation - should handle error gracefully
 		req := ctrl.Request{

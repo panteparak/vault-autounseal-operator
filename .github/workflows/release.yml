@@ -1,0 +1,539 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (without v prefix)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      chart-url: ${{ steps.package.outputs.chart-url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Building version: $VERSION"
+
+      - name: Update VERSION file
+        run: echo "${{ steps.get_version.outputs.version }}" > VERSION
+
+      - name: Install controller-gen
+        run: |
+          GOBIN=$PWD/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+
+      - name: Generate CRDs
+        run: |
+          mkdir -p config/crd/bases generated/
+          ./bin/controller-gen crd:allowDangerousTypes=true paths="./pkg/api/..." output:crd:artifacts:config=config/crd/bases
+          cp config/crd/bases/*.yaml generated/ 2>/dev/null || echo "No CRDs generated"
+
+      - name: Update Helm chart version
+        run: |
+          sed -i "s/^version: .*/version: ${{ steps.get_version.outputs.version }}/" helm/vault-autounseal-operator/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"${{ steps.get_version.outputs.version }}\"/" helm/vault-autounseal-operator/Chart.yaml
+
+      - name: Copy CRDs to Helm chart
+        run: |
+          mkdir -p helm/vault-autounseal-operator/templates/crds/
+          if [ -d generated ] && [ "$(ls -A generated/)" ]; then
+            cp generated/*.yaml helm/vault-autounseal-operator/templates/crds/
+            echo "CRDs copied to Helm chart templates"
+          else
+            echo "No CRDs found to copy"
+          fi
+
+      - name: Lint Helm chart
+        run: |
+          helm lint helm/vault-autounseal-operator/
+
+      - name: Package Helm chart
+        id: package
+        run: |
+          mkdir -p charts/
+          helm package helm/vault-autounseal-operator/ --destination ./charts/
+          CHART_FILE=$(ls charts/*.tgz | head -n1)
+          echo "chart-file=$CHART_FILE" >> $GITHUB_OUTPUT
+          echo "chart-url=https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/$(basename $CHART_FILE)" >> $GITHUB_OUTPUT
+          ls -la charts/
+
+      - name: Generate Kubernetes manifests
+        run: |
+          mkdir -p manifests/release/
+          # Generate manifests from Helm chart
+          helm template vault-autounseal-operator ./charts/*.tgz \
+            --namespace vault-system \
+            --set image.tag=v${{ steps.get_version.outputs.version }} \
+            > manifests/release/all-in-one.yaml
+
+          # Split into individual files for easier consumption
+          helm template vault-autounseal-operator ./charts/*.tgz \
+            --namespace vault-system \
+            --set image.tag=v${{ steps.get_version.outputs.version }} \
+            --output-dir manifests/release/split/
+
+          echo "Generated Kubernetes manifests:"
+          find manifests/release/ -name "*.yaml" -exec echo "  {}" \;
+
+      - name: Build cross-platform binaries
+        run: |
+          make cross-compile VERSION=${{ steps.get_version.outputs.version }}
+
+      - name: Create release directory
+        run: |
+          mkdir -p release/
+          cp charts/* release/ 2>/dev/null || true
+          cp -r manifests/release/* release/ 2>/dev/null || true
+          cp -r generated/* release/ 2>/dev/null || true
+          cp -r bin/* release/ 2>/dev/null || true
+
+      - name: Generate installation script
+        run: |
+          cat > release/install.sh << 'EOF'
+          #!/bin/bash
+          set -e
+
+          NAMESPACE=${NAMESPACE:-vault-system}
+          RELEASE_NAME=${RELEASE_NAME:-vault-autounseal-operator}
+          CHART_VERSION=${{ steps.get_version.outputs.version }}
+
+          echo "Installing Vault Auto-Unseal Operator v$CHART_VERSION to namespace: $NAMESPACE"
+
+          # Create namespace if it does not exist
+          kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+          # Check if Helm is available
+          if ! command -v helm &> /dev/null; then
+              echo "Error: Helm is not installed. Please install Helm first."
+              echo "Visit: https://helm.sh/docs/intro/install/"
+              exit 1
+          fi
+
+          # Install using Helm from GitHub release
+          echo "Installing via Helm..."
+          helm upgrade --install $RELEASE_NAME \
+            ${{ steps.package.outputs.chart-url }} \
+            --namespace $NAMESPACE \
+            --wait \
+            --timeout 300s
+
+          echo "Installation complete!"
+          echo ""
+          echo "To check the status:"
+          echo "  kubectl get pods -n $NAMESPACE"
+          echo "  kubectl logs -n $NAMESPACE deployment/vault-autounseal-operator"
+          EOF
+          chmod +x release/install.sh
+
+      - name: Generate README for release
+        run: |
+          cat > release/README.md << EOF
+          # Vault Auto-Unseal Operator v${{ steps.get_version.outputs.version }}
+
+          This release contains the Vault Auto-Unseal Operator Helm chart and Kubernetes manifests.
+
+          ## Installation
+
+          ### Using Helm (Recommended)
+
+          \`\`\`bash
+          # Download and run the installation script
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/install.sh | bash
+
+          # Or install manually
+          helm install vault-autounseal-operator \\
+            https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/vault-autounseal-operator-${{ steps.get_version.outputs.version }}.tgz \\
+            --namespace vault-system \\
+            --create-namespace
+          \`\`\`
+
+          ### Using Kubernetes Manifests
+
+          \`\`\`bash
+          # Apply all-in-one manifest
+          kubectl apply -f https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/all-in-one.yaml
+          \`\`\`
+
+          ## Files in this release
+
+          - **vault-autounseal-operator-${{ steps.get_version.outputs.version }}.tgz**: Helm chart
+          - **all-in-one.yaml**: Complete Kubernetes manifest
+          - **install.sh**: Installation script
+          - **CRD files**: Custom Resource Definitions
+          - **Binaries**: Cross-compiled operator binaries for various platforms
+
+          ## Documentation
+
+          - [Getting Started Guide](https://github.com/${{ github.repository }}/blob/main/docs/getting-started.md)
+          - [Architecture Documentation](https://github.com/${{ github.repository }}/blob/main/docs/ARCHITECTURE.md)
+          - [Examples](https://github.com/${{ github.repository }}/tree/main/examples)
+
+          ## Support
+
+          For issues and questions, please visit the [GitHub Issues](https://github.com/${{ github.repository }}/issues) page.
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body_path: release/README.md
+          files: |
+            release/*.tgz
+            release/*.yaml
+            release/install.sh
+            release/manager-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-docs:
+    name: Build and Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: build-and-release
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Go (for CRD generation)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install controller-gen
+        run: |
+          GOBIN=$PWD/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+
+      - name: Generate CRDs for docs
+        run: |
+          mkdir -p docs-site/static/crds/ docs-site/static/manifests/
+          ./bin/controller-gen crd:allowDangerousTypes=true paths="./pkg/api/..." output:crd:artifacts:config=docs-site/static/crds/
+
+          # Copy additional manifests
+          cp -r manifests/* docs-site/static/manifests/ 2>/dev/null || true
+
+          # Create CRD index
+          cat > docs-site/static/crds/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>CRD Documentation</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 40px; }
+                  h1 { color: #2c3e50; }
+                  .crd-file { margin: 10px 0; padding: 10px; background: #f8f9fa; border-left: 4px solid #007bff; }
+                  pre { background: #f4f4f4; padding: 15px; overflow-x: auto; }
+              </style>
+          </head>
+          <body>
+              <h1>Custom Resource Definitions (CRDs)</h1>
+              <p>This directory contains the CRD definitions for the Vault Auto-Unseal Operator v${{ needs.build-and-release.outputs.version }}.</p>
+          EOF
+
+          # Add CRD files to index
+          for crd_file in docs-site/static/crds/*.yaml; do
+            if [ -f "$crd_file" ]; then
+              filename=$(basename "$crd_file")
+              echo "<div class='crd-file'>" >> docs-site/static/crds/index.html
+              echo "<h3><a href='$filename'>$filename</a></h3>" >> docs-site/static/crds/index.html
+              echo "</div>" >> docs-site/static/crds/index.html
+            fi
+          done
+
+          echo "</body></html>" >> docs-site/static/crds/index.html
+
+      - name: Create documentation site
+        run: |
+          mkdir -p docs-site/
+
+          # Create main index.html
+          cat > docs-site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Vault Auto-Unseal Operator Documentation</title>
+              <style>
+                  body {
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                      line-height: 1.6;
+                      margin: 0;
+                      padding: 0;
+                      background-color: #f5f7fa;
+                  }
+                  .container {
+                      max-width: 1200px;
+                      margin: 0 auto;
+                      padding: 20px;
+                  }
+                  header {
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                      padding: 40px 0;
+                      margin-bottom: 40px;
+                  }
+                  .hero {
+                      text-align: center;
+                  }
+                  .hero h1 {
+                      margin: 0;
+                      font-size: 2.5em;
+                      font-weight: 300;
+                  }
+                  .version {
+                      font-size: 1.2em;
+                      opacity: 0.9;
+                      margin-top: 10px;
+                  }
+                  .grid {
+                      display: grid;
+                      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                      gap: 30px;
+                      margin: 40px 0;
+                  }
+                  .card {
+                      background: white;
+                      padding: 30px;
+                      border-radius: 8px;
+                      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                      transition: transform 0.2s;
+                  }
+                  .card:hover {
+                      transform: translateY(-5px);
+                  }
+                  .card h3 {
+                      color: #2c3e50;
+                      margin-top: 0;
+                  }
+                  .btn {
+                      display: inline-block;
+                      background: #007bff;
+                      color: white;
+                      padding: 10px 20px;
+                      text-decoration: none;
+                      border-radius: 5px;
+                      transition: background 0.2s;
+                  }
+                  .btn:hover {
+                      background: #0056b3;
+                  }
+                  .installation {
+                      background: #f8f9fa;
+                      padding: 20px;
+                      border-radius: 5px;
+                      margin: 20px 0;
+                  }
+                  pre {
+                      background: #2d3748;
+                      color: #e2e8f0;
+                      padding: 15px;
+                      border-radius: 5px;
+                      overflow-x: auto;
+                  }
+                  footer {
+                      text-align: center;
+                      padding: 40px 0;
+                      color: #666;
+                      border-top: 1px solid #eee;
+                      margin-top: 60px;
+                  }
+              </style>
+          </head>
+          <body>
+              <header>
+                  <div class="container">
+                      <div class="hero">
+                          <h1>Vault Auto-Unseal Operator</h1>
+                          <div class="version">Version ${{ needs.build-and-release.outputs.version }}</div>
+                          <p>A Kubernetes operator for automatically unsealing HashiCorp Vault instances</p>
+                      </div>
+                  </div>
+              </header>
+
+              <div class="container">
+                  <div class="installation">
+                      <h2>Quick Installation</h2>
+                      <pre><code># Install via Helm
+          helm install vault-autounseal-operator \
+            ${{ needs.build-and-release.outputs.chart-url }} \
+            --namespace vault-system \
+            --create-namespace
+
+          # Or use the installation script
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/v${{ needs.build-and-release.outputs.version }}/install.sh | bash</code></pre>
+                  </div>
+
+                  <div class="grid">
+                      <div class="card">
+                          <h3>📚 Documentation</h3>
+                          <p>Comprehensive guides and API references</p>
+                          <a href="getting-started.html" class="btn">Getting Started</a>
+                          <a href="architecture.html" class="btn">Architecture</a>
+                      </div>
+
+                      <div class="card">
+                          <h3>⚙️ Custom Resources</h3>
+                          <p>CRD definitions and Kubernetes manifests</p>
+                          <a href="static/crds/" class="btn">View CRDs</a>
+                          <a href="static/manifests/" class="btn">Manifests</a>
+                      </div>
+
+                      <div class="card">
+                          <h3>🚀 Examples</h3>
+                          <p>Ready-to-use configuration examples</p>
+                          <a href="examples.html" class="btn">View Examples</a>
+                      </div>
+
+                      <div class="card">
+                          <h3>📦 Downloads</h3>
+                          <p>Helm charts and installation artifacts</p>
+                          <a href="${{ needs.build-and-release.outputs.chart-url }}" class="btn">Helm Chart</a>
+                          <a href="https://github.com/${{ github.repository }}/releases/tag/v${{ needs.build-and-release.outputs.version }}" class="btn">Release</a>
+                      </div>
+                  </div>
+              </div>
+
+              <footer>
+                  <div class="container">
+                      <p>Built with ❤️ for the Kubernetes and HashiCorp Vault community</p>
+                      <p><a href="https://github.com/${{ github.repository }}">View on GitHub</a></p>
+                  </div>
+              </footer>
+          </body>
+          </html>
+          EOF
+
+      - name: Convert Markdown docs to HTML
+        run: |
+          # Install a simple markdown converter
+          npm install -g marked
+
+          # Convert markdown files to HTML
+          for md_file in docs/*.md; do
+            if [ -f "$md_file" ]; then
+              filename=$(basename "$md_file" .md)
+              echo "Converting $md_file to $filename.html"
+
+              cat > "docs-site/$filename.html" << EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>$(head -n1 "$md_file" | sed 's/^# //')</title>
+              <style>
+                  body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+                  h1, h2, h3 { color: #2c3e50; }
+                  pre { background: #f4f4f4; padding: 15px; overflow-x: auto; }
+                  code { background: #f4f4f4; padding: 2px 4px; }
+                  .nav { margin-bottom: 30px; }
+                  .nav a { margin-right: 15px; color: #007bff; text-decoration: none; }
+                  .nav a:hover { text-decoration: underline; }
+              </style>
+          </head>
+          <body>
+              <div class="nav">
+                  <a href="index.html">← Back to Documentation Home</a>
+              </div>
+          EOF
+
+              marked "$md_file" >> "docs-site/$filename.html"
+              echo "</body></html>" >> "docs-site/$filename.html"
+            fi
+          done
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'docs-site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  update-helm-index:
+    name: Update Helm Repository Index
+    runs-on: ubuntu-latest
+    needs: [build-and-release, build-docs]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Download chart
+        run: |
+          mkdir -p charts/
+          curl -L -o "charts/vault-autounseal-operator-${{ needs.build-and-release.outputs.version }}.tgz" \
+            "${{ needs.build-and-release.outputs.chart-url }}"
+
+      - name: Update Helm index
+        run: |
+          helm repo index charts/ --url "https://github.com/${{ github.repository }}/releases/download"
+          cp charts/index.yaml .
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add charts/ index.yaml
+          git commit -m "Update Helm repository index for v${{ needs.build-and-release.outputs.version }}" || exit 0
+          git push

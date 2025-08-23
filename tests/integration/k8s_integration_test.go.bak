@@ -158,19 +158,12 @@ func (suite *K8sIntegrationTestSuite) setupControllerWithK8s() {
 	suite.k8sClient, err = client.New(restConfig, client.Options{Scheme: suite.scheme})
 	require.NoError(suite.T(), err, "Failed to create K8s client")
 
-	// Create controller with mock repository
-	mockRepo := &mocks.MockVaultClientRepository{}
-	// Set up mock to return error when trying to connect (since we don't have real vault)
-	mockRepo.On("GetClient", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
-		Return(nil, errors.New("vault connection failed - expected in integration test")).Maybe()
-
-	suite.reconciler = controller.NewVaultUnsealConfigReconciler(
-		suite.k8sClient,
-		ctrl.Log.WithName("k8s-integration-controller"),
-		suite.scheme,
-		mockRepo,
-		nil, // Use default options
-	)
+	// Set up reconciler with real K8s client
+	suite.reconciler = &controller.VaultUnsealConfigReconciler{
+		Client: suite.k8sClient,
+		Log:    ctrl.Log.WithName("k8s-integration-controller"),
+		Scheme: suite.scheme,
+	}
 }
 
 // TearDownSuite cleans up resources after all tests

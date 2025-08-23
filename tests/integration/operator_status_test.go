@@ -2,13 +2,16 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
 	"github.com/panteparak/vault-autounseal-operator/pkg/controller"
+	"github.com/panteparak/vault-autounseal-operator/pkg/testing/mocks"
 	"github.com/panteparak/vault-autounseal-operator/tests/integration/shared"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -95,12 +98,19 @@ func (suite *OperatorStatusTestSuite) TestOperatorBasicStatus() {
 		err = k3sInstance.Client.Create(suite.ctx, vaultConfig)
 		require.NoError(suite.T(), err, "Should create VaultUnsealConfig")
 
-		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("status-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		// Create controller with mock repository
+		mockRepo := &mocks.MockVaultClientRepository{}
+		// Set up mock to return error when trying to connect (since we don't have real vault)
+		mockRepo.On("GetClient", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
+			Return(nil, errors.New("vault connection failed - expected in integration test")).Maybe()
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("status-controller"),
+			k3sInstance.Scheme,
+			mockRepo,
+			nil, // Use default options
+		)
 
 		// Perform reconciliation
 		req := ctrl.Request{
@@ -173,12 +183,19 @@ func (suite *OperatorStatusTestSuite) TestOperatorHealthChecks() {
 		err = k3sInstance.Client.Create(suite.ctx, healthConfig)
 		require.NoError(suite.T(), err, "Should create health config")
 
-		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("health-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		// Create controller with mock repository
+		mockRepo := &mocks.MockVaultClientRepository{}
+		// Set up mock to return error when trying to connect (since we don't have real vault)
+		mockRepo.On("GetClient", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
+			Return(nil, errors.New("vault connection failed - expected in integration test")).Maybe()
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("health-controller"),
+			k3sInstance.Scheme,
+			mockRepo,
+			nil, // Use default options
+		)
 
 		// Perform initial reconciliation
 		req := ctrl.Request{
@@ -252,12 +269,19 @@ func (suite *OperatorStatusTestSuite) TestOperatorErrorReporting() {
 		err = k3sInstance.Client.Create(suite.ctx, errorConfig)
 		require.NoError(suite.T(), err, "Should create error config")
 
-		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("error-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		// Create controller with mock repository
+		mockRepo := &mocks.MockVaultClientRepository{}
+		// Set up mock to return error when trying to connect (since we don't have real vault)
+		mockRepo.On("GetClient", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
+			Return(nil, errors.New("vault connection failed - expected in integration test")).Maybe()
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("error-controller"),
+			k3sInstance.Scheme,
+			mockRepo,
+			nil, // Use default options
+		)
 
 		// Perform reconciliation with invalid configuration
 		req := ctrl.Request{
@@ -324,12 +348,19 @@ func (suite *OperatorStatusTestSuite) TestOperatorReconciliationLoop() {
 		err = k3sInstance.Client.Create(suite.ctx, loopConfig)
 		require.NoError(suite.T(), err, "Should create loop config")
 
-		// Create controller
-		reconciler := &controller.VaultUnsealConfigReconciler{
-			Client: k3sInstance.Client,
-			Log:    ctrl.Log.WithName("loop-controller"),
-			Scheme: k3sInstance.Scheme,
-		}
+		// Create controller with mock repository
+		mockRepo := &mocks.MockVaultClientRepository{}
+		// Set up mock to return error when trying to connect (since we don't have real vault)
+		mockRepo.On("GetClient", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
+			Return(nil, errors.New("vault connection failed - expected in integration test")).Maybe()
+
+		reconciler := controller.NewVaultUnsealConfigReconciler(
+			k3sInstance.Client,
+			ctrl.Log.WithName("loop-controller"),
+			k3sInstance.Scheme,
+			mockRepo,
+			nil, // Use default options
+		)
 
 		req := ctrl.Request{
 			NamespacedName: types.NamespacedName{
