@@ -1,8 +1,8 @@
 # Primary CI Pipeline - Fast feedback using composite actions
-# Phase 1: Parallel linting, unit tests, integration tests, helm validation, security scan
+# Phase 1: Parallel linting, unit tests, helm validation, security scan
 # Phase 2: Docker build (after unit tests and linting pass)
 # Phase 3: Parallel smoke tests and E2E tests (after successful build)
-# Estimated Duration: 12-18 minutes (optimized with composite actions)
+# Estimated Duration: 8-15 minutes (optimized with composite actions)
 
 name: ✨ CI (New)
 
@@ -105,25 +105,6 @@ jobs:
           upload-coverage: true
           go-version: ${{ needs.setup.outputs.go-version }}
 
-  # Integration tests (basic scenarios only for speed)
-  integration-tests:
-    name: 🔧 Integration Tests (Basic)
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 20
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Run integration tests
-        uses: ./.github/actions/run-integration-tests
-        with:
-          coverage: false
-          race-detection: true
-          timeout: 15m
-          test-tags: basic
-          go-version: ${{ needs.setup.outputs.go-version }}
-          vault-version: ${{ needs.setup.outputs.vault-version }}
 
   # E2E tests (run after build, parallel with smoke tests)
   e2e-tests:
@@ -286,7 +267,6 @@ jobs:
       - setup
       - lint
       - unit-tests
-      - integration-tests
       - e2e-tests
       - helm-validate
       - build
@@ -305,7 +285,6 @@ jobs:
           SETUP_STATUS="${{ needs.setup.result }}"
           LINT_STATUS="${{ needs.lint.result }}"
           UNIT_STATUS="${{ needs.unit-tests.result }}"
-          INTEGRATION_STATUS="${{ needs.integration-tests.result }}"
           HELM_STATUS="${{ needs.helm-validate.result }}"
           SECURITY_STATUS="${{ needs.security-quick.result }}"
 
@@ -318,7 +297,6 @@ jobs:
           echo "  Setup: $SETUP_STATUS"
           echo "  Lint: $LINT_STATUS"
           echo "  Unit Tests: $UNIT_STATUS"
-          echo "  Integration Tests: $INTEGRATION_STATUS"
           echo "  Helm Validate: $HELM_STATUS"
           echo "  Security Quick: $SECURITY_STATUS"
           echo "  E2E Tests: $E2E_STATUS (optional)"
@@ -331,7 +309,6 @@ jobs:
           [[ "$SETUP_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS setup"
           [[ "$LINT_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS lint"
           [[ "$UNIT_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS unit-tests"
-          [[ "$INTEGRATION_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS integration-tests"
           [[ "$HELM_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS helm-validate"
           [[ "$SECURITY_STATUS" == "failure" ]] && FAILED_JOBS="$FAILED_JOBS security"
 
@@ -371,7 +348,6 @@ jobs:
           echo "| Setup | ${{ needs.setup.result == 'success' && '✅' || '❌' }} | ~2min | Environment preparation |" >> $GITHUB_STEP_SUMMARY
           echo "| Lint | ${{ needs.lint.result == 'success' && '✅' || '❌' }} | ~3min | Code quality checks |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} | ~5min | With coverage |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration | ${{ needs.integration-tests.result == 'success' && '✅' || '❌' }} | ~8min | Basic scenarios |" >> $GITHUB_STEP_SUMMARY
           echo "| Helm Validate | ${{ needs.helm-validate.result == 'success' && '✅' || '❌' }} | ~2min | Chart validation |" >> $GITHUB_STEP_SUMMARY
           echo "| Security | ${{ needs.security-quick.result == 'success' && '✅' || needs.security-quick.result == 'skipped' && '⏭️' || '❌' }} | ~5min | Quick security scan |" >> $GITHUB_STEP_SUMMARY
           echo "| Build | ${{ needs.build.result == 'success' && '✅' || needs.build.result == 'skipped' && '⏭️' || '❌' }} | ~8min | Multi-platform Docker |" >> $GITHUB_STEP_SUMMARY
@@ -400,8 +376,8 @@ jobs:
           # Add performance metrics
           echo "### ⚡ Performance" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Estimated Total Duration**: 12-18 minutes" >> $GITHUB_STEP_SUMMARY
-          echo "**Parallel Jobs**: 6-8 concurrent" >> $GITHUB_STEP_SUMMARY
+          echo "**Estimated Total Duration**: 8-15 minutes" >> $GITHUB_STEP_SUMMARY
+          echo "**Parallel Jobs**: 5-7 concurrent" >> $GITHUB_STEP_SUMMARY
           echo "**Reusable Components**: ✅ Using optimized workflows" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 

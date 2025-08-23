@@ -1,0 +1,155 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
+	"github.com/panteparak/vault-autounseal-operator/pkg/controller"
+	vaultpkg "github.com/panteparak/vault-autounseal-operator/pkg/vault"
+)
+
+// Example: How to use the Event-Driven Vault Unsealing Operator
+
+func main() {
+	// Set up logging
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	logger := ctrl.Log.WithName("event-driven-operator")
+
+	// Set up scheme
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = vaultv1.AddToScheme(scheme)
+
+	// Set up manager
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:           scheme,
+		Port:             9443,
+		LeaderElection:   true,
+		LeaderElectionID: "event-driven-vault-unsealing-operator",
+	})
+	if err != nil {
+		logger.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	// Create vault repository - need a concrete implementation
+	// For production, you'd implement this based on your vault setup
+	type basicVaultRepo struct{}
+	func (r *basicVaultRepo) GetClient(ctx context.Context, key string, instance *vaultv1.VaultInstance) (vaultpkg.VaultClient, error) {
+		return vaultpkg.NewClient(instance.Endpoint, instance.TLSSkipVerify, 30*time.Second)
+	}
+	func (r *basicVaultRepo) Close() error { return nil }
+
+	vaultRepo := &basicVaultRepo{}
+
+	// Create event-driven reconciler
+	eventDrivenReconciler := controller.NewEventDrivenVaultUnsealConfigReconciler(
+		mgr.GetClient(),
+		logger,
+		mgr.GetScheme(),
+		vaultRepo,
+		&controller.ReconcilerOptions{
+			Timeout:      2 * time.Minute,
+			RequeueAfter: 30 * time.Minute, // Long interval - events handle immediate needs
+		},
+	)
+
+	// Set up reconciler with manager
+	if err := eventDrivenReconciler.SetupWithManager(mgr); err != nil {
+		logger.Error(err, "unable to create controller", "controller", "EventDrivenVaultUnsealConfig")
+		os.Exit(1)
+	}
+
+	logger.Info("Starting event-driven vault unsealing operator")
+
+	// Set up signal handling
+	ctx, cancel := context.WithCancel(context.Background())
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-c
+		logger.Info("Received shutdown signal")
+		cancel()
+		eventDrivenReconciler.Stop()
+	}()
+
+	// Start manager
+	if err := mgr.Start(ctx); err != nil {
+		logger.Error(err, "problem running manager")
+		os.Exit(1)
+	}
+}
+
+/*
+Example VaultUnsealConfig with Pod Selector:
+
+apiVersion: vault.io/v1
+kind: VaultUnsealConfig
+metadata:
+  name: production-vault-config
+  namespace: vault-system
+spec:
+  vaultInstances:
+  - name: vault-0
+    endpoint: "https://vault-0.vault-internal:8200"
+    unsealKeys:
+      - "base64-encoded-key-1"
+      - "base64-encoded-key-2"
+      - "base64-encoded-key-3"
+    threshold: 3
+    tlsSkipVerify: false
+    # Pod selector to match vault pods
+    podSelector:
+      app: vault
+      component: server
+      vault.hashicorp.com/name: vault
+    namespace: vault-system
+  - name: vault-1
+    endpoint: "https://vault-1.vault-internal:8200"
+    unsealKeys:
+      - "base64-encoded-key-1"
+      - "base64-encoded-key-2"
+      - "base64-encoded-key-3"
+    threshold: 3
+    tlsSkipVerify: false
+    podSelector:
+      app: vault
+      component: server
+      vault.hashicorp.com/name: vault
+    namespace: vault-system
+
+Event Flow:
+1. Vault pod starts/restarts -> Pod Event
+2. Pod Watcher detects vault pod -> Triggers Unseal Event
+3. Unseal Processor receives event -> Attempts Unsealing
+4. Status Updated in VaultUnsealConfig -> Users see real-time status
+
+Performance Benefits:
+- Immediate response to pod events (seconds vs minutes)
+- No continuous polling of vault APIs
+- Scales efficiently with number of vault instances
+- Intelligent cooldown prevents duplicate operations
+- Backup reconciliation ensures consistency
+
+Event Types Handled:
+- Pod Started: New pod came online
+- Pod Ready: Pod passed readiness checks
+- Pod Restarted: Pod restarted due to failure
+- Pod IP Changed: Pod got new IP address
+
+Monitoring:
+- Controller metrics show event processing rates
+- Status conditions indicate real-time vault health
+- Event logs provide audit trail of unseal operations
+*/

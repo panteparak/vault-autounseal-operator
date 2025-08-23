@@ -3,17 +3,22 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
 	"github.com/panteparak/vault-autounseal-operator/pkg/vault"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -98,6 +103,7 @@ func NewDefaultVaultClientRepository(factory vault.ClientFactory) *DefaultVaultC
 // +kubebuilder:rbac:groups=vault.io,resources=vaultunsealconfigs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=vault.io,resources=vaultunsealconfigs/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // GetClient retrieves or creates a vault client for the given instance.
 func (r *DefaultVaultClientRepository) GetClient(
@@ -164,11 +170,12 @@ func (r *VaultUnsealConfigReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	logger.Info("Reconciling VaultUnsealConfig",
+	logger.Info("Reconciling VaultUnsealConfig - Event-driven controller",
 		"name", vaultConfig.Name,
 		"namespace", vaultConfig.Namespace,
 		"generation", vaultConfig.Generation,
 		"instances", len(vaultConfig.Spec.VaultInstances),
+		"note", "Triggered by VaultUnsealConfig or Pod events",
 	)
 
 	// Process each vault instance
@@ -346,5 +353,106 @@ func getThreshold(instance *vaultv1.VaultInstance) int {
 func (r *VaultUnsealConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&vaultv1.VaultUnsealConfig{}).
+		Watches(
+			&corev1.Pod{},
+			handler.EnqueueRequestsFromMapFunc(r.findVaultConfigsForPod),
+		).
 		Complete(r)
+}
+
+// findVaultConfigsForPod finds VaultUnsealConfigs that should be reconciled when a pod changes
+func (r *VaultUnsealConfigReconciler) findVaultConfigsForPod(ctx context.Context, obj client.Object) []reconcile.Request {
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return []reconcile.Request{}
+	}
+
+	// Check if this is a Vault pod by looking at labels
+	if !r.isVaultPod(pod) {
+		return []reconcile.Request{}
+	}
+
+	logger := r.Log.WithValues("pod", pod.Name, "namespace", pod.Namespace)
+
+	// List all VaultUnsealConfigs
+	var configs vaultv1.VaultUnsealConfigList
+	if err := r.List(ctx, &configs); err != nil {
+		logger.Error(err, "failed to list VaultUnsealConfigs")
+		return []reconcile.Request{}
+	}
+
+	var requests []reconcile.Request
+	for _, config := range configs.Items {
+		if r.configMatchesPod(&config, pod) {
+			logger.V(1).Info("Pod event triggers VaultUnsealConfig reconciliation",
+				"config", config.Name,
+				"podPhase", pod.Status.Phase)
+
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      config.Name,
+					Namespace: config.Namespace,
+				},
+			})
+		}
+	}
+
+	return requests
+}
+
+// isVaultPod checks if a pod is a Vault pod based on labels
+func (r *VaultUnsealConfigReconciler) isVaultPod(pod *corev1.Pod) bool {
+	if pod.Labels == nil {
+		return false
+	}
+
+	// Check for common Vault pod labels
+	appName := pod.Labels["app.kubernetes.io/name"]
+	component := pod.Labels["app.kubernetes.io/component"]
+
+	// Match various Vault deployment patterns
+	return appName == "vault" ||
+		   component == "server" ||
+		   strings.Contains(pod.Name, "vault")
+}
+
+// configMatchesPod checks if a VaultUnsealConfig should be reconciled for this pod
+func (r *VaultUnsealConfigReconciler) configMatchesPod(config *vaultv1.VaultUnsealConfig, pod *corev1.Pod) bool {
+	for _, instance := range config.Spec.VaultInstances {
+		// Check if pod matches the instance configuration
+		if r.podMatchesInstance(pod, &instance) {
+			return true
+		}
+	}
+	return false
+}
+
+// podMatchesInstance checks if a pod matches a specific vault instance configuration
+func (r *VaultUnsealConfigReconciler) podMatchesInstance(pod *corev1.Pod, instance *vaultv1.VaultInstance) bool {
+	// If instance specifies a namespace and it doesn't match, skip
+	if instance.Namespace != "" && instance.Namespace != pod.Namespace {
+		return false
+	}
+
+	// If instance has pod selector, use it
+	if len(instance.PodSelector) > 0 {
+		return r.podMatchesSelector(pod, instance.PodSelector)
+	}
+
+	// Default matching: check if pod looks like a vault pod
+	return r.isVaultPod(pod)
+}
+
+// podMatchesSelector checks if a pod matches the given label selector
+func (r *VaultUnsealConfigReconciler) podMatchesSelector(pod *corev1.Pod, selector map[string]string) bool {
+	if pod.Labels == nil {
+		return false
+	}
+
+	for key, value := range selector {
+		if podValue, exists := pod.Labels[key]; !exists || podValue != value {
+			return false
+		}
+	}
+	return true
 }

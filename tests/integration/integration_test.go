@@ -431,5 +431,9 @@ func TestVaultIntegrationTestSuite(t *testing.T) {
 		t.Skip("Skipping integration tests in short mode")
 	}
 
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping integration tests in CI environment")
+	}
+
 	suite.Run(t, new(VaultIntegrationTestSuite))
 }

@@ -125,6 +125,9 @@ spec:
                     status:
                       type: string
                       enum: ["True", "False", "Unknown"]
+                    observedGeneration:
+                      type: integer
+                      format: int64
                     lastTransitionTime:
                       type: string
                       format: date-time
@@ -135,24 +138,23 @@ spec:
                   required:
                   - type
                   - status
-              vaultInstanceStatuses:
+              vaultStatuses:
                 type: array
                 items:
                   type: object
                   properties:
                     name:
                       type: string
-                    status:
-                      type: string
-                      enum: ["Sealed", "Unsealed", "Unknown", "Error"]
-                    lastSeen:
+                    sealed:
+                      type: boolean
+                    lastUnsealed:
                       type: string
                       format: date-time
-                    message:
+                    error:
                       type: string
                   required:
                   - name
-                  - status
+                  - sealed
               observedGeneration:
                 type: integer
                 format: int64

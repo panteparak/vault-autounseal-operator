@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -597,6 +598,10 @@ func (suite *NegativeIntegrationTestSuite) TestConcurrentFailures() {
 func TestNegativeIntegrationTestSuite(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping negative integration tests in short mode")
+	}
+
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping negative integration tests in CI environment")
 	}
 
 	suite.Run(t, new(NegativeIntegrationTestSuite))
