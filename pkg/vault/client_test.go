@@ -267,7 +267,7 @@ func (suite *ClientTestSuite) TestDefaultClientFactory() {
 	require.NotNil(suite.T(), client)
 
 	// Ensure it returns a VaultClient interface
-	var vaultClient VaultClient = client
+	var vaultClient = client
 	assert.NotNil(suite.T(), vaultClient)
 
 	_ = client.Close()

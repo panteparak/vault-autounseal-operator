@@ -188,9 +188,9 @@ func (tl *TestLogger) generateSummary(report *strings.Builder) map[string][]Test
 		}
 	}
 
-	report.WriteString(fmt.Sprintf("Total Events: %d\n", totalEvents))
-	report.WriteString(fmt.Sprintf("Errors: %d\n", errorCount))
-	report.WriteString(fmt.Sprintf("Tests: %d\n", len(testsByName)))
+	fmt.Fprintf(report, "Total Events: %d\n", totalEvents)
+	fmt.Fprintf(report, "Errors: %d\n", errorCount)
+	fmt.Fprintf(report, "Tests: %d\n", len(testsByName))
 	report.WriteString("\n")
 
 	return testsByName
@@ -205,10 +205,10 @@ func (tl *TestLogger) generateErrorSummary(report *strings.Builder) {
 				report.WriteString("=== ERRORS ===\n")
 				hasErrors = true
 			}
-			report.WriteString(fmt.Sprintf("[%s] %s: %s\n",
+			fmt.Fprintf(report, "[%s] %s: %s\n",
 				event.Timestamp.Format("15:04:05.000"),
 				event.TestName,
-				event.Metadata["error"]))
+				event.Metadata["error"])
 		}
 	}
 	if hasErrors {
@@ -248,12 +248,12 @@ func (tl *TestLogger) analyzeTestTiming(report *strings.Builder, testName string
 		}
 	}
 
-	report.WriteString(fmt.Sprintf("%s: %v (%d operations)\n",
-		testName, totalDuration, len(operations)))
+	fmt.Fprintf(report, "%s: %v (%d operations)\n",
+		testName, totalDuration, len(operations))
 
 	if tl.level >= DebugLevelTrace {
 		for _, op := range operations {
-			report.WriteString(fmt.Sprintf("  - %s\n", op))
+			fmt.Fprintf(report, "  - %s\n", op)
 		}
 	}
 }
@@ -272,18 +272,18 @@ func (tl *TestLogger) generateDetailedTimeline(report *strings.Builder) {
 
 // formatTimelineEvent formats a single event for the timeline
 func (tl *TestLogger) formatTimelineEvent(report *strings.Builder, event TestEvent) {
-	report.WriteString(fmt.Sprintf("[%s] %s:%s",
+	fmt.Fprintf(report, "[%s] %s:%s",
 		event.Timestamp.Format("15:04:05.000"),
 		event.Level,
-		event.Event))
+		event.Event)
 
 	if event.TestName != "" {
-		report.WriteString(fmt.Sprintf(" (%s)", event.TestName))
+		fmt.Fprintf(report, " (%s)", event.TestName)
 	}
 
 	if len(event.Metadata) > 0 {
 		if jsonBytes, err := json.Marshal(event.Metadata); err == nil {
-			report.WriteString(fmt.Sprintf(" %s", string(jsonBytes)))
+			fmt.Fprintf(report, " %s", string(jsonBytes))
 		}
 	}
 	report.WriteString("\n")
@@ -337,7 +337,7 @@ func (eitr *EnhancedIntegrationTestRunner) RunTestWithDebug(ctx context.Context,
 
 	// Enhanced test execution with timing
 	start := time.Now()
-	err := eitr.IntegrationTestRunner.RunTest(ctx, testName, func(testCtx context.Context) error {
+	err := eitr.RunTest(ctx, testName, func(testCtx context.Context) error {
 		deadline, hasDeadline := testCtx.Deadline()
 		eitr.logger.Log(DebugLevelTrace, "TEST_EXECUTE", testName, map[string]interface{}{
 			"context_deadline": deadline,

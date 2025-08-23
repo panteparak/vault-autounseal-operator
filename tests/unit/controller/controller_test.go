@@ -26,12 +26,12 @@ import (
 // ControllerTestSuite provides unit testing for the VaultUnsealConfig controller
 type ControllerTestSuite struct {
 	suite.Suite
-	k8sClient   client.Client
-	scheme      *runtime.Scheme
-	reconciler  *controllerpkg.VaultUnsealConfigReconciler
-	ctx         context.Context
-	logger      logr.Logger
-	mockRepo    *mocks.MockVaultClientRepository
+	k8sClient  client.Client
+	scheme     *runtime.Scheme
+	reconciler *controllerpkg.VaultUnsealConfigReconciler
+	ctx        context.Context
+	logger     logr.Logger
+	mockRepo   *mocks.MockVaultClientRepository
 }
 
 func (suite *ControllerTestSuite) SetupSuite() {

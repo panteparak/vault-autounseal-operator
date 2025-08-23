@@ -249,10 +249,10 @@ func (suite *ValidationTestSuite) TestSensitiveContentRedaction() {
 		return
 	}
 	tests := []struct {
-		name           string
-		keys           []string
-		threshold      int
-		expectedInMsg  []string
+		name             string
+		keys             []string
+		threshold        int
+		expectedInMsg    []string
 		notExpectedInMsg []string
 	}{
 		{
@@ -260,8 +260,8 @@ func (suite *ValidationTestSuite) TestSensitiveContentRedaction() {
 			keys: []string{
 				"cGFzc3dvcmQxMjNwYWRkZWRkYXRhZm9ydGVzdGluZzE=", // "password123paddeddatafortesting1" (32 bytes)
 			},
-			threshold:      1,
-			expectedInMsg:  []string{"[REDACTED]", "forbidden string"},
+			threshold:        1,
+			expectedInMsg:    []string{"[REDACTED]", "forbidden string"},
 			notExpectedInMsg: []string{"password123", "cGFzc3dvcmQxMjNwYWRkZWRkYXRhZm9ydGVzdGluZzE="},
 		},
 		{
@@ -269,8 +269,8 @@ func (suite *ValidationTestSuite) TestSensitiveContentRedaction() {
 			keys: []string{
 				"bG9jYWxob3N0OjgwODBwYWRkZWRkYXRhZm9ydGVzdDE=", // "localhost:8080paddeddatafortest1" (32 bytes)
 			},
-			threshold:      1,
-			expectedInMsg:  []string{"[REDACTED]", "forbidden string"},
+			threshold:        1,
+			expectedInMsg:    []string{"[REDACTED]", "forbidden string"},
 			notExpectedInMsg: []string{"localhost", "8080"},
 		},
 	}
@@ -341,7 +341,6 @@ func (suite *ValidationTestSuite) TestValidationErrorTypes() {
 func (suite *ValidationTestSuite) TestConcurrentValidation() {
 	// Skip this test due to key length validation issues with strict validator
 	suite.T().Skip("Skipping TestConcurrentValidation - strict validator requires exact 32-byte keys")
-	return
 
 	concurrency := 100
 	results := make(chan error, concurrency)

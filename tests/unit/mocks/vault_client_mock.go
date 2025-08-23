@@ -1,3 +1,4 @@
+// Package mocks provides mock implementations for testing vault-autounseal-operator
 package mocks
 
 import (
@@ -160,7 +161,7 @@ func NewMockSealStatusResponse(sealed bool, threshold, progress int) *api.SealSt
 // NewMockHealthResponse creates a mock HealthResponse
 func NewMockHealthResponse(sealed, initialized bool) *api.HealthResponse {
 	return &api.HealthResponse{
-		Initialized:                sealed,
+		Initialized:                initialized,
 		Sealed:                     sealed,
 		Standby:                    false,
 		PerformanceStandby:         false,

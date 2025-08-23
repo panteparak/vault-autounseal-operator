@@ -412,8 +412,8 @@ func (r *VaultUnsealConfigReconciler) isVaultPod(pod *corev1.Pod) bool {
 
 	// Match various Vault deployment patterns
 	return appName == "vault" ||
-		   component == "server" ||
-		   strings.Contains(pod.Name, "vault")
+		component == "server" ||
+		strings.Contains(pod.Name, "vault")
 }
 
 // configMatchesPod checks if a VaultUnsealConfig should be reconciled for this pod
