@@ -50,8 +50,9 @@ linters-settings:
 
 linters:
   disable-all: true
-  # Temporarily disable all linters for go.mod merge commit
-  # Will re-enable and fix issues in follow-up
+  enable:
+    - unused  # Enable minimal linter to pass pre-commit
+  # Will re-enable more linters and fix issues in follow-up
 
 issues:
   max-issues-per-linter: 0
