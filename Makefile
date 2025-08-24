@@ -99,15 +99,15 @@ test: fmt vet ## Run legacy tests.
 
 test-unit: ## Run unit tests
 	@echo "🔬 Running unit tests..."
-	@cd tests && $(MAKE) test-unit
+	@go test -timeout=30m -parallel=4 -failfast -count=1 -coverprofile=coverage.out -covermode=atomic -coverpkg=./pkg/... $(if $(CI),-race) ./test/unit/...
 
 test-integration: ## Run integration tests using modular system
 	@echo "🔗 Running integration tests..."
-	@cd tests && $(MAKE) test-integration
+	@go test -timeout=30m -parallel=4 -failfast -count=1 ./test/integration/...
 
 test-e2e: ## Run end-to-end tests
 	@echo "🌐 Running end-to-end tests..."
-	@cd tests && $(MAKE) test-e2e
+	@go test -timeout=30m -parallel=1 -failfast -count=1 ./test/e2e/...
 
 test-performance: ## Run performance tests
 	@echo "⚡ Running performance tests..."

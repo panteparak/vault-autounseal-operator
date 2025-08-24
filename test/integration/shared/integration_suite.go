@@ -10,7 +10,7 @@ import (
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
 	"github.com/panteparak/vault-autounseal-operator/pkg/controller"
 	"github.com/panteparak/vault-autounseal-operator/pkg/testing/mocks"
-	"github.com/panteparak/vault-autounseal-operator/tests/config"
+	"github.com/panteparak/vault-autounseal-operator/test/config"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"

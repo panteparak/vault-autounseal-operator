@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/panteparak/vault-autounseal-operator/tests/unit/mocks"
+	"github.com/panteparak/vault-autounseal-operator/test/unit/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

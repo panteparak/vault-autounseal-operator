@@ -63,13 +63,13 @@ runs:
         if [[ -n "${{ inputs.vault-version }}" ]]; then
           VAULT_VERSION="${{ inputs.vault-version }}"
         else
-          VAULT_VERSION=$(grep -A5 "vault:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 2>/dev/null || echo "1.19.0")
+          VAULT_VERSION="1.19.0"  # Default value since config was merged
         fi
 
         if [[ -n "${{ inputs.k3s-version }}" ]]; then
           K3S_VERSION="${{ inputs.k3s-version }}"
         else
-          K3S_VERSION=$(grep -A5 "k3s:" tests/config/versions.yaml | grep "default:" | cut -d'"' -f2 2>/dev/null || echo "v1.30.8-k3s1")
+          K3S_VERSION="v1.30.8-k3s1"  # Default value since config was merged
         fi
 
         echo "VAULT_VERSION=$VAULT_VERSION" >> $GITHUB_ENV
@@ -89,7 +89,7 @@ runs:
       run: |
         echo "🔍 Configuring E2E tests..."
 
-        PACKAGES="./e2e/..."
+        PACKAGES="./test/e2e/..."
         BASE_TAGS="e2e"
 
         # Add custom tags if provided
@@ -105,7 +105,7 @@ runs:
         echo "✅ E2E test configuration:"
         echo "  Packages: $PACKAGES"
         echo "  Tags: $TAGS"
-        echo "  Working Dir: tests"
+        echo "  Working Dir: root (merged module structure)"
 
     - name: Setup E2E test cluster
       shell: bash

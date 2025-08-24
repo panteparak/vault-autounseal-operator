@@ -85,6 +85,8 @@ charts/
 generated/
 release/
 config/
+!test/config/
+!test/unit/config/
 
 # Local testing
 vendor/

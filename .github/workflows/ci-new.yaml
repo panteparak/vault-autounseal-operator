@@ -236,7 +236,7 @@ jobs:
           echo "🧪 Testing basic Vault connectivity..."
 
           # Run basic connectivity tests
-          go test -v -timeout=2m ./tests/unit/vault \
+          go test -v -timeout=2m ./test/unit/vault \
             -run=TestBasicConnectivity \
             -tags=smoke
         env:

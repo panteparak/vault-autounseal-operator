@@ -10,7 +10,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/vault"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/panteparak/vault-autounseal-operator/tests/config"
+	"github.com/panteparak/vault-autounseal-operator/test/config"
 )
 
 // VaultMode represents different Vault operational modes

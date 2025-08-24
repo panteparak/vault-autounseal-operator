@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	vaultv1 "github.com/panteparak/vault-autounseal-operator/pkg/api/v1"
-	"github.com/panteparak/vault-autounseal-operator/tests/config"
+	"github.com/panteparak/vault-autounseal-operator/test/config"
 )
 
 // K3sInstance represents a configured K3s cluster

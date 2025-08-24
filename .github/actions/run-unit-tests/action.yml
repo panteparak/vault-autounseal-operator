@@ -60,7 +60,7 @@ runs:
       run: |
         echo "🔍 Configuring unit tests..."
 
-        PACKAGES="./pkg/... ./tests/unit/..."
+        PACKAGES="./test/unit/..."
         BASE_TAGS="unit"
 
         # Add custom tags if provided
@@ -138,39 +138,30 @@ runs:
       if: inputs.coverage == 'true' && always()
       shell: bash
       run: |
-        # Use make command to generate coverage report for consistency
-        if make test-coverage 2>/dev/null; then
+        # Coverage data should already be in coverage.out from make test-unit
+        if [[ -f "coverage.out" ]]; then
           echo "📈 Processing coverage data..."
+          cp coverage.out coverage/coverage.out
 
-          # Check for coverage files in tests directory
-          if [[ -f "tests/coverage.out" ]]; then
-            cp tests/coverage.out coverage/coverage.out
-          fi
+          # Extract coverage percentage with error handling for module resolution issues
+          if COVERAGE=$(go tool cover -func=coverage/coverage.out 2>/dev/null | grep "total:" | awk '{print $3}' | sed 's/%//'); then
+            echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
+            echo "✅ Coverage: $COVERAGE%"
 
-          if [[ -f "coverage/coverage.out" ]]; then
-            # Extract coverage percentage with error handling for module resolution issues
-            if COVERAGE=$(go tool cover -func=coverage/coverage.out 2>/dev/null | grep "total:" | awk '{print $3}' | sed 's/%//'); then
-              echo "percentage=$COVERAGE" >> $GITHUB_OUTPUT
-              echo "✅ Coverage: $COVERAGE%"
-
-              # Add coverage to summary
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "### 📊 Coverage: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "⚠️ Coverage processing failed, likely due to module resolution issues"
-              echo "ℹ️ This is expected for isolated unit tests that use mocks"
-              echo "percentage=0" >> $GITHUB_OUTPUT
-
-              # Add note to summary
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "### 📊 Coverage: Not measurable (isolated unit tests)" >> $GITHUB_STEP_SUMMARY
-            fi
+            # Add coverage to summary
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 Coverage: $COVERAGE%" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ No coverage data found after make test-coverage"
+            echo "⚠️ Coverage processing failed, likely due to module resolution issues"
+            echo "ℹ️ This is expected for isolated unit tests that use mocks"
             echo "percentage=0" >> $GITHUB_OUTPUT
+
+            # Add note to summary
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 Coverage: Not measurable (isolated unit tests)" >> $GITHUB_STEP_SUMMARY
           fi
         else
-          echo "⚠️ make test-coverage failed or no coverage data"
+          echo "⚠️ No coverage data found"
           echo "percentage=0" >> $GITHUB_OUTPUT
         fi
 
